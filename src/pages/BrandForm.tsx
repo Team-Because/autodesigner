@@ -116,6 +116,7 @@ export default function BrandForm() {
       secondary_color: secondaryColor,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
+      brand_brief: brandBrief,
       user_id: user.id,
     };
 
