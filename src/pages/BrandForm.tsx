@@ -28,6 +28,7 @@ export default function BrandForm() {
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
+  const [brandBrief, setBrandBrief] = useState("");
 
   useEffect(() => {
     if (isEditing) {
@@ -47,6 +48,7 @@ export default function BrandForm() {
             setSecondaryColor(data.secondary_color);
             setVoiceRules(data.brand_voice_rules || "");
             setNegativePrompts(data.negative_prompts || "");
+            setBrandBrief((data as any).brand_brief || "");
           }
         });
     }
@@ -114,6 +116,7 @@ export default function BrandForm() {
       secondary_color: secondaryColor,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
+      brand_brief: brandBrief,
       user_id: user.id,
     };
 
@@ -269,6 +272,30 @@ export default function BrandForm() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-display">
+              Brand Brief / Guidelines
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label htmlFor="brief">
+              Paste your full brand brief, guidelines, or system prompt here
+            </Label>
+            <Textarea
+              id="brief"
+              value={brandBrief}
+              onChange={(e) => setBrandBrief(e.target.value)}
+              placeholder="Paste your complete brand guidelines, tone of voice, visual style, target audience, campaign details, typography rules, key messages, and any other brand information here..."
+              rows={10}
+              className="font-mono text-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              This replaces or supplements a brand kit PDF. Include everything the AI needs to know about your brand.
+            </p>
           </CardContent>
         </Card>
 

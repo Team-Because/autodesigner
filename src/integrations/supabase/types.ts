@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       brands: {
         Row: {
+          brand_brief: string | null
           brand_kit_url: string | null
           brand_voice_rules: string | null
           created_at: string
@@ -29,6 +30,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          brand_brief?: string | null
           brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
@@ -42,6 +44,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          brand_brief?: string | null
           brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
