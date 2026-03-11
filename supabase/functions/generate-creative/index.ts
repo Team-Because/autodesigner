@@ -321,10 +321,25 @@ Generate the brand-aligned creative image now.`;
   }
 
   const aiData = await aiResponse.json();
+  console.log("AI response structure:", JSON.stringify({
+    hasChoices: !!aiData.choices,
+    choicesLength: aiData.choices?.length,
+    hasMessage: !!aiData.choices?.[0]?.message,
+    hasImages: !!aiData.choices?.[0]?.message?.images,
+    imagesLength: aiData.choices?.[0]?.message?.images?.length,
+    contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 200),
+  }));
+
   const imageBase64 = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   const captionText = aiData.choices?.[0]?.message?.content || "";
 
-  if (!imageBase64) throw new Error("NO_IMAGE_GENERATED");
+  if (!imageBase64) {
+    console.error("No image in response. Full response keys:", Object.keys(aiData));
+    if (aiData.choices?.[0]?.message) {
+      console.error("Message keys:", Object.keys(aiData.choices[0].message));
+    }
+    throw new Error("NO_IMAGE_GENERATED");
+  }
 
   return { imageBase64, captionText };
 }
