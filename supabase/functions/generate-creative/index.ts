@@ -12,7 +12,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brandId, referenceImageUrl, generationId } = await req.json();
+    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
+
+    const formatSpecs: Record<string, { width: number; height: number; label: string }> = {
+      landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
+      square: { width: 1080, height: 1080, label: "square (1080×1080)" },
+      story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
+    };
+    const spec = formatSpecs[outputFormat] || formatSpecs.landscape;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");

@@ -287,6 +287,39 @@ export default function Studio() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-display">
+                3. Output Format
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                {FORMAT_OPTIONS.map((fmt) => (
+                  <button
+                    key={fmt.value}
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => setOutputFormat(fmt.value)}
+                    className={`relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all text-center ${
+                      outputFormat === fmt.value
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border hover:border-primary/30 hover:bg-accent/30"
+                    } ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <fmt.icon className={`h-6 w-6 ${outputFormat === fmt.value ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`text-sm font-medium ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
+                      {fmt.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
+                      {fmt.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <Button
             className="w-full h-12 text-base gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
             onClick={handleGenerate}
