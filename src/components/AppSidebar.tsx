@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, LogOut } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Brand Hub", url: "/brands", icon: Palette },
   { title: "The Studio", url: "/studio", icon: Sparkles },
+  { title: "History", url: "/history", icon: Clock },
 ];
 
 export function AppSidebar() {
