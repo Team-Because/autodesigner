@@ -12,7 +12,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brandId, referenceImageUrl, generationId } = await req.json();
+    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
+
+    const formatSpecs: Record<string, { width: number; height: number; label: string }> = {
+      landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
+      square: { width: 1080, height: 1080, label: "square (1080×1080)" },
+      story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
+    };
+    const spec = formatSpecs[outputFormat] || formatSpecs.landscape;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -52,13 +59,16 @@ serve(async (req) => {
 BRAND IDENTITY:
 ${brandContext}
 
+OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels in ${spec.label} orientation.
+
 INSTRUCTIONS:
 1. Analyze the reference image's layout, composition, style, and visual framework.
-2. Generate a NEW advertisement image that follows the same structural framework but is fully adapted to the brand's colors (${brand.primary_color} primary, ${brand.secondary_color} secondary), tone, and identity.
+2. Generate a NEW advertisement image in ${spec.label} format (${spec.width}×${spec.height}) that follows the same structural framework but is fully adapted to the brand's colors (${brand.primary_color} primary, ${brand.secondary_color} secondary), tone, and identity.
 3. Include the brand name "${brand.name}" prominently in the image.
 4. Add appropriate headline text and a call-to-action on the image.
 5. The final image must look like a professional, polished advertisement ready for social media or print.
 6. Apply any brand guidelines strictly. Respect all exclusions from the "Never" list.
+7. Adapt the layout appropriately for the ${spec.label} format — reflow text and elements to fit the dimensions naturally.
 
 Generate the brand-aligned creative image now.`;
 

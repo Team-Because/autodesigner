@@ -18,10 +18,21 @@ import {
   Download,
   RotateCcw,
   Loader2,
+  RectangleHorizontal,
+  Square,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 
 type StudioState = "idle" | "generating" | "complete";
+
+type OutputFormat = "landscape" | "square" | "story";
+
+const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
+  { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
+  { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
+  { value: "story", label: "Story", description: "1080×1920 · Instagram & Facebook Stories, Reels", icon: Smartphone, aspect: "aspect-[9/16]" },
+];
 
 interface GenerationResult {
   imageUrl: string;
@@ -48,6 +59,7 @@ export default function Studio() {
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
   const [studioState, setStudioState] = useState<StudioState>("idle");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GenerationResult | null>(null);
@@ -117,6 +129,7 @@ export default function Studio() {
             brandId: selectedBrandId,
             referenceImageUrl: refUrlData.publicUrl,
             generationId: gen.id,
+            outputFormat,
           },
         }
       );
@@ -271,6 +284,39 @@ export default function Studio() {
                   />
                 </label>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-display">
+                3. Output Format
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                {FORMAT_OPTIONS.map((fmt) => (
+                  <button
+                    key={fmt.value}
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => setOutputFormat(fmt.value)}
+                    className={`relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all text-center ${
+                      outputFormat === fmt.value
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border hover:border-primary/30 hover:bg-accent/30"
+                    } ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <fmt.icon className={`h-6 w-6 ${outputFormat === fmt.value ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`text-sm font-medium ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
+                      {fmt.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
+                      {fmt.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
