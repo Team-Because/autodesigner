@@ -385,7 +385,7 @@ export default function Studio() {
                       <div className="text-center px-4">
                         <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary mb-4" />
                         <p className="text-sm font-medium text-foreground animate-pulse-glow">
-                          Generating your brand creative...
+                          {progressPhase || "Generating your brand creative..."}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
                           This may take 30–60 seconds
