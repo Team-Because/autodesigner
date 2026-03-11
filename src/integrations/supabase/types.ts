@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       brands: {
         Row: {
+          brand_kit_url: string | null
           brand_voice_rules: string | null
           created_at: string
           id: string
@@ -28,6 +29,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
           id?: string
@@ -40,6 +42,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
           id?: string
@@ -56,29 +59,41 @@ export type Database = {
       generations: {
         Row: {
           brand_id: string
+          campaign_message: string | null
+          copywriting: Json | null
           created_at: string
           id: string
+          layout_guide: string | null
           output_image_url: string | null
           reference_image_url: string | null
           status: string
+          target_audience: string | null
           user_id: string
         }
         Insert: {
           brand_id: string
+          campaign_message?: string | null
+          copywriting?: Json | null
           created_at?: string
           id?: string
+          layout_guide?: string | null
           output_image_url?: string | null
           reference_image_url?: string | null
           status?: string
+          target_audience?: string | null
           user_id: string
         }
         Update: {
           brand_id?: string
+          campaign_message?: string | null
+          copywriting?: Json | null
           created_at?: string
           id?: string
+          layout_guide?: string | null
           output_image_url?: string | null
           reference_image_url?: string | null
           status?: string
+          target_audience?: string | null
           user_id?: string
         }
         Relationships: [

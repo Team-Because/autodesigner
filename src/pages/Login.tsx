@@ -23,7 +23,7 @@ export default function Login() {
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="font-display font-bold text-xl text-foreground tracking-tight">
-              BrandAdapt AI
+              BrandCraft Studio
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
