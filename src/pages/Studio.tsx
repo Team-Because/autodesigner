@@ -18,6 +18,9 @@ import {
   Download,
   RotateCcw,
   Loader2,
+  RectangleHorizontal,
+  Square,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 
