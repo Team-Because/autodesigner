@@ -2,13 +2,8 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { generateBrandCreative, STEP_LABELS } from "@/lib/creative-engine";
-import { GenerationStep, CreativeOutput } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,12 +18,15 @@ import {
   Download,
   RotateCcw,
   Loader2,
-  Type,
-  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
 type StudioState = "idle" | "generating" | "complete";
+
+interface GenerationResult {
+  imageUrl: string;
+  caption: string;
+}
 
 export default function Studio() {
   const { user } = useAuth();
@@ -50,14 +48,9 @@ export default function Studio() {
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
-  const [campaignMessage, setCampaignMessage] = useState("");
-  const [targetAudience, setTargetAudience] = useState("");
   const [studioState, setStudioState] = useState<StudioState>("idle");
-  const [currentStep, setCurrentStep] = useState<GenerationStep>("analyzing");
   const [progress, setProgress] = useState(0);
-  const [creativeOutput, setCreativeOutput] = useState<CreativeOutput | null>(
-    null
-  );
+  const [result, setResult] = useState<GenerationResult | null>(null);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -83,79 +76,82 @@ export default function Studio() {
     }
 
     setStudioState("generating");
-    setProgress(0);
-
-    // Upload reference image
-    const ext = referenceFile.name.split(".").pop();
-    const refPath = `${user.id}/ref-${crypto.randomUUID()}.${ext}`;
-    await supabase.storage.from("brand-assets").upload(refPath, referenceFile);
-    const { data: refUrlData } = supabase.storage
-      .from("brand-assets")
-      .getPublicUrl(refPath);
-
-    // Create generation record
-    const { data: gen, error: insertError } = await supabase
-      .from("generations")
-      .insert({
-        user_id: user.id,
-        brand_id: selectedBrandId,
-        reference_image_url: refUrlData.publicUrl,
-        campaign_message: campaignMessage,
-        target_audience: targetAudience,
-        status: "processing",
-      })
-      .select()
-      .single();
-
-    if (insertError || !gen) {
-      toast.error("Failed to start generation.");
-      setStudioState("idle");
-      return;
-    }
+    setProgress(10);
 
     try {
-      const output = await generateBrandCreative(
-        referenceFile,
-        selectedBrandId,
-        { message: campaignMessage, targetAudience },
-        (step, prog) => {
-          setCurrentStep(step);
-          setProgress(prog);
+      // Upload reference image
+      const ext = referenceFile.name.split(".").pop();
+      const refPath = `${user.id}/ref-${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("brand-assets")
+        .upload(refPath, referenceFile);
+      if (uploadErr) throw new Error("Failed to upload reference image");
+
+      const { data: refUrlData } = supabase.storage
+        .from("brand-assets")
+        .getPublicUrl(refPath);
+
+      setProgress(20);
+
+      // Create generation record
+      const { data: gen, error: insertError } = await supabase
+        .from("generations")
+        .insert({
+          user_id: user.id,
+          brand_id: selectedBrandId,
+          reference_image_url: refUrlData.publicUrl,
+          status: "processing",
+        })
+        .select()
+        .single();
+
+      if (insertError || !gen) throw new Error("Failed to create generation record");
+
+      setProgress(30);
+
+      // Call the edge function
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        "generate-creative",
+        {
+          body: {
+            brandId: selectedBrandId,
+            referenceImageUrl: refUrlData.publicUrl,
+            generationId: gen.id,
+          },
         }
       );
 
-      setCreativeOutput(output);
+      if (fnError) {
+        throw new Error(fnError.message || "Generation failed");
+      }
+
+      if (fnData?.error) {
+        throw new Error(fnData.error);
+      }
+
+      setProgress(100);
+      setResult({
+        imageUrl: fnData.imageUrl,
+        caption: fnData.caption,
+      });
       setStudioState("complete");
-      await supabase
-        .from("generations")
-        .update({
-          output_image_url: output.imageUrl,
-          layout_guide: output.layoutGuide,
-          copywriting: output.copywriting as any,
-          status: "completed",
-        })
-        .eq("id", gen.id);
       queryClient.invalidateQueries({ queryKey: ["generations"] });
       toast.success("Creative generated successfully!");
-    } catch {
+    } catch (err: any) {
+      console.error("Generation error:", err);
       setStudioState("idle");
-      await supabase
-        .from("generations")
-        .update({ status: "failed" })
-        .eq("id", gen.id);
+      setProgress(0);
       queryClient.invalidateQueries({ queryKey: ["generations"] });
-      toast.error("Generation failed. Please try again.");
+      toast.error(err.message || "Generation failed. Please try again.");
     }
   };
 
   const handleReset = () => {
     setStudioState("idle");
-    setCreativeOutput(null);
+    setResult(null);
     setProgress(0);
     setReferenceFile(null);
     setReferencePreview("");
-    setCampaignMessage("");
-    setTargetAudience("");
   };
 
   const selectedBrand = brands.find((b) => b.id === selectedBrandId);
@@ -168,7 +164,8 @@ export default function Studio() {
           The Studio
         </h1>
         <p className="text-muted-foreground mt-1">
-          One-click brand-aligned creative generation.
+          Select a brand, upload a reference ad, and get a brand-aligned
+          creative instantly.
         </p>
       </div>
 
@@ -178,7 +175,7 @@ export default function Studio() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-display">
-                Select Brand
+                1. Select Brand
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -229,7 +226,7 @@ export default function Studio() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-display">
-                Reference Advertisement
+                2. Upload Reference Ad
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -277,37 +274,6 @@ export default function Studio() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-display">
-                Campaign Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="campaign-message">Campaign Message</Label>
-                <Input
-                  id="campaign-message"
-                  value={campaignMessage}
-                  onChange={(e) => setCampaignMessage(e.target.value)}
-                  placeholder='e.g., "Open House — Admissions 2025"'
-                  disabled={isGenerating}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="target-audience">Target Audience</Label>
-                <Textarea
-                  id="target-audience"
-                  value={targetAudience}
-                  onChange={(e) => setTargetAudience(e.target.value)}
-                  placeholder='e.g., "Parents of 3-5 year olds in suburban areas"'
-                  rows={2}
-                  disabled={isGenerating}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
           <Button
             className="w-full h-12 text-base gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
             onClick={handleGenerate}
@@ -315,8 +281,7 @@ export default function Studio() {
           >
             {isGenerating ? (
               <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />{" "}
-                Generating...
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generating...
               </>
             ) : (
               <>
@@ -349,7 +314,10 @@ export default function Studio() {
                       <div className="text-center px-4">
                         <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary mb-4" />
                         <p className="text-sm font-medium text-foreground animate-pulse-glow">
-                          {STEP_LABELS[currentStep]}
+                          Generating your brand creative...
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          This may take 30–60 seconds
                         </p>
                       </div>
                     </div>
@@ -362,88 +330,46 @@ export default function Studio() {
                   </div>
                 </div>
               )}
-              {studioState === "complete" && creativeOutput && (
+              {studioState === "complete" && result && (
                 <div className="w-full space-y-4">
                   <div className="rounded-lg overflow-hidden border border-border">
                     <img
-                      src={creativeOutput.imageUrl}
+                      src={result.imageUrl}
                       alt="Generated creative"
-                      className="w-full aspect-video object-cover"
+                      className="w-full"
                     />
                   </div>
+                  {result.caption && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                          AI Caption / Copy
+                        </p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                          {result.caption}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
                   <div className="flex gap-3">
                     <Button
-                      onClick={() =>
-                        window.open(creativeOutput.imageUrl, "_blank")
-                      }
+                      onClick={() => window.open(result.imageUrl, "_blank")}
                       className="flex-1"
                     >
-                      <Download className="h-4 w-4 mr-2" /> Download Assets
+                      <Download className="h-4 w-4 mr-2" /> Download
                     </Button>
                     <Button
                       variant="outline"
                       onClick={handleReset}
                       className="flex-1"
                     >
-                      <RotateCcw className="h-4 w-4 mr-2" /> Regenerate
+                      <RotateCcw className="h-4 w-4 mr-2" /> New Creative
                     </Button>
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Copywriting & Layout Guide — shown after generation */}
-          {studioState === "complete" && creativeOutput && (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-display flex items-center gap-2">
-                    <Type className="h-4 w-4" /> Copywriting
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Headline
-                    </p>
-                    <p className="text-lg font-display font-bold text-foreground">
-                      {creativeOutput.copywriting.headline}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Subline
-                    </p>
-                    <p className="text-sm text-foreground">
-                      {creativeOutput.copywriting.subline}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Call to Action
-                    </p>
-                    <span className="inline-block px-4 py-2 rounded-md text-sm font-semibold gradient-primary text-primary-foreground">
-                      {creativeOutput.copywriting.cta}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-display flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> Layout Guide
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {creativeOutput.layoutGuide}
-                  </p>
-                </CardContent>
-              </Card>
-            </>
-          )}
         </div>
       </div>
     </div>
