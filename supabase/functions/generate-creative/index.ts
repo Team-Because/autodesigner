@@ -54,6 +54,8 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n");
 
+    const hasLogo = !!brand.logo_url;
+
     const systemPrompt = `You are an expert brand creative designer. Your job is to analyze a reference advertisement image and recreate it aligned to the given brand identity.
 
 BRAND IDENTITY:
@@ -61,16 +63,39 @@ ${brandContext}
 
 OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels in ${spec.label} orientation.
 
+${hasLogo ? `LOGO: The brand's official logo is provided as the SECOND image below. You MUST use this EXACT logo in the generated creative — do NOT create, invent, or modify the logo in any way. Place it prominently (typically top-left or top-center) at an appropriate size.` : `No logo was provided. Use the brand name "${brand.name}" as text instead.`}
+
 INSTRUCTIONS:
 1. Analyze the reference image's layout, composition, style, and visual framework.
 2. Generate a NEW advertisement image in ${spec.label} format (${spec.width}×${spec.height}) that follows the same structural framework but is fully adapted to the brand's colors (${brand.primary_color} primary, ${brand.secondary_color} secondary), tone, and identity.
-3. Include the brand name "${brand.name}" prominently in the image.
+3. ${hasLogo ? "Place the PROVIDED logo (second image) exactly as-is in the creative — do NOT redraw or reimagine it." : `Include the brand name "${brand.name}" prominently in the image.`}
 4. Add appropriate headline text and a call-to-action on the image.
 5. The final image must look like a professional, polished advertisement ready for social media or print.
 6. Apply any brand guidelines strictly. Respect all exclusions from the "Never" list.
 7. Adapt the layout appropriately for the ${spec.label} format — reflow text and elements to fit the dimensions naturally.
 
 Generate the brand-aligned creative image now.`;
+
+    // Build message content with reference image and optionally the logo
+    const userContent: any[] = [
+      {
+        type: "text",
+        text: hasLogo
+          ? "The FIRST image is the reference advertisement to analyze for layout and structure. The SECOND image is the brand's official logo — use it EXACTLY as-is in the generated creative, do not modify or recreate it. Generate a new brand-aligned creative."
+          : "Analyze this reference advertisement and generate a new brand-aligned creative based on the brand identity provided. The output should be a complete, professional advertisement image with headline text, brand name, and call-to-action embedded in the image.",
+      },
+      {
+        type: "image_url",
+        image_url: { url: referenceImageUrl },
+      },
+    ];
+
+    if (hasLogo) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url: brand.logo_url },
+      });
+    }
 
     // Call AI Gateway with image generation model
     const aiResponse = await fetch(
@@ -87,16 +112,7 @@ Generate the brand-aligned creative image now.`;
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Analyze this reference advertisement and generate a new brand-aligned creative based on the brand identity provided. The output should be a complete, professional advertisement image with headline text, brand name, and call-to-action embedded in the image.",
-                },
-                {
-                  type: "image_url",
-                  image_url: { url: referenceImageUrl },
-                },
-              ],
+              content: userContent,
             },
           ],
           modalities: ["image", "text"],
