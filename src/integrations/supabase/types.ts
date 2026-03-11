@@ -14,10 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      brand_assets: {
+        Row: {
+          brand_id: string
+          created_at: string
+          id: string
+          image_url: string
+          label: string | null
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          label?: string | null
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          label?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           brand_brief: string | null
-          brand_kit_url: string | null
           brand_voice_rules: string | null
           created_at: string
           id: string
@@ -31,7 +65,6 @@ export type Database = {
         }
         Insert: {
           brand_brief?: string | null
-          brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
           id?: string
@@ -45,7 +78,6 @@ export type Database = {
         }
         Update: {
           brand_brief?: string | null
-          brand_kit_url?: string | null
           brand_voice_rules?: string | null
           created_at?: string
           id?: string
