@@ -48,6 +48,7 @@ export default function BrandForm() {
             setSecondaryColor(data.secondary_color);
             setVoiceRules(data.brand_voice_rules || "");
             setNegativePrompts(data.negative_prompts || "");
+            setBrandBrief((data as any).brand_brief || "");
           }
         });
     }
