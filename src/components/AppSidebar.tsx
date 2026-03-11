@@ -35,7 +35,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <span className="font-display font-bold text-base text-sidebar-accent-foreground tracking-tight">
-              BrandAdapt AI
+              BrandCraft Studio
             </span>
           )}
         </div>
