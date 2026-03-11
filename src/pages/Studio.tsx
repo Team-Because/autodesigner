@@ -88,7 +88,8 @@ export default function Studio() {
     }
 
     setStudioState("generating");
-    setProgress(10);
+    setProgress(5);
+    setProgressPhase("Uploading reference image...");
 
     try {
       // Upload reference image
@@ -103,7 +104,8 @@ export default function Studio() {
         .from("brand-assets")
         .getPublicUrl(refPath);
 
-      setProgress(20);
+      setProgress(10);
+      setProgressPhase("Creating generation record...");
 
       // Create generation record
       const { data: gen, error: insertError } = await supabase
@@ -119,9 +121,25 @@ export default function Studio() {
 
       if (insertError || !gen) throw new Error("Failed to create generation record");
 
-      setProgress(30);
+      // Phase 1: Analyzing reference layout
+      setProgress(15);
+      setProgressPhase("Analyzing reference layout...");
 
-      // Call the edge function
+      // Simulate progress during the long AI call
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev < 35) return prev + 1;
+          if (prev < 85) return prev + 0.5;
+          return prev;
+        });
+      }, 1500);
+
+      // Phase transition after ~8 seconds (analysis should be done)
+      const phaseTimeout = setTimeout(() => {
+        setProgressPhase("Generating brand creative...");
+      }, 8000);
+
+      // Call the edge function (handles both steps)
       const { data: fnData, error: fnError } = await supabase.functions.invoke(
         "generate-creative",
         {
@@ -134,6 +152,9 @@ export default function Studio() {
         }
       );
 
+      clearInterval(progressInterval);
+      clearTimeout(phaseTimeout);
+
       if (fnError) {
         throw new Error(fnError.message || "Generation failed");
       }
@@ -143,6 +164,7 @@ export default function Studio() {
       }
 
       setProgress(100);
+      setProgressPhase("Complete!");
       setResult({
         imageUrl: fnData.imageUrl,
         caption: fnData.caption,
@@ -154,6 +176,7 @@ export default function Studio() {
       console.error("Generation error:", err);
       setStudioState("idle");
       setProgress(0);
+      setProgressPhase("");
       queryClient.invalidateQueries({ queryKey: ["generations"] });
       toast.error(err.message || "Generation failed. Please try again.");
     }
