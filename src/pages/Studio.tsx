@@ -59,6 +59,7 @@ export default function Studio() {
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
   const [studioState, setStudioState] = useState<StudioState>("idle");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GenerationResult | null>(null);
