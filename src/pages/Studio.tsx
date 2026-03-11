@@ -26,6 +26,14 @@ import { toast } from "sonner";
 
 type StudioState = "idle" | "generating" | "complete";
 
+type OutputFormat = "landscape" | "square" | "story";
+
+const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
+  { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
+  { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
+  { value: "story", label: "Story", description: "1080×1920 · Instagram & Facebook Stories, Reels", icon: Smartphone, aspect: "aspect-[9/16]" },
+];
+
 interface GenerationResult {
   imageUrl: string;
   caption: string;
