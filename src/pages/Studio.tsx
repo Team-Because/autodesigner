@@ -187,6 +187,7 @@ export default function Studio() {
     setStudioState("idle");
     setResult(null);
     setProgress(0);
+    setProgressPhase("");
     setReferenceFile(null);
     setReferencePreview("");
   };
