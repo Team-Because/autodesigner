@@ -129,6 +129,7 @@ export default function Studio() {
             brandId: selectedBrandId,
             referenceImageUrl: refUrlData.publicUrl,
             generationId: gen.id,
+            outputFormat,
           },
         }
       );
