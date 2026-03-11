@@ -6,8 +6,16 @@ export interface Brand {
   secondary_color: string;
   brand_voice_rules: string;
   negative_prompts: string;
-  brand_kit_url: string;
   brand_brief: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface BrandAsset {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  image_url: string;
+  label: string;
+  created_at: string;
 }
