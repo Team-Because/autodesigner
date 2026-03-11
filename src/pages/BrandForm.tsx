@@ -278,6 +278,30 @@ export default function BrandForm() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-display">
+              Brand Brief / Guidelines
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label htmlFor="brief">
+              Paste your full brand brief, guidelines, or system prompt here
+            </Label>
+            <Textarea
+              id="brief"
+              value={brandBrief}
+              onChange={(e) => setBrandBrief(e.target.value)}
+              placeholder="Paste your complete brand guidelines, tone of voice, visual style, target audience, campaign details, typography rules, key messages, and any other brand information here..."
+              rows={10}
+              className="font-mono text-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              This replaces or supplements a brand kit PDF. Include everything the AI needs to know about your brand.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-display">
               Communication Rules
             </CardTitle>
           </CardHeader>
