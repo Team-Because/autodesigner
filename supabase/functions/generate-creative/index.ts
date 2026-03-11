@@ -59,13 +59,16 @@ serve(async (req) => {
 BRAND IDENTITY:
 ${brandContext}
 
+OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels in ${spec.label} orientation.
+
 INSTRUCTIONS:
 1. Analyze the reference image's layout, composition, style, and visual framework.
-2. Generate a NEW advertisement image that follows the same structural framework but is fully adapted to the brand's colors (${brand.primary_color} primary, ${brand.secondary_color} secondary), tone, and identity.
+2. Generate a NEW advertisement image in ${spec.label} format (${spec.width}×${spec.height}) that follows the same structural framework but is fully adapted to the brand's colors (${brand.primary_color} primary, ${brand.secondary_color} secondary), tone, and identity.
 3. Include the brand name "${brand.name}" prominently in the image.
 4. Add appropriate headline text and a call-to-action on the image.
 5. The final image must look like a professional, polished advertisement ready for social media or print.
 6. Apply any brand guidelines strictly. Respect all exclusions from the "Never" list.
+7. Adapt the layout appropriately for the ${spec.label} format — reflow text and elements to fit the dimensions naturally.
 
 Generate the brand-aligned creative image now.`;
 
