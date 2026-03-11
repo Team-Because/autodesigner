@@ -28,6 +28,7 @@ export default function BrandForm() {
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
+  const [brandBrief, setBrandBrief] = useState("");
 
   useEffect(() => {
     if (isEditing) {
