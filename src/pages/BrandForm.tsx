@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useBrandStore } from "@/lib/brand-store";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Save } from "lucide-react";
+import { ArrowLeft, Upload, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function BrandForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getBrand, addBrand, updateBrand } = useBrandStore();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isEditing = id && id !== "new";
 
+  const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [logoPreview, setLogoPreview] = useState("");
@@ -25,52 +29,71 @@ export default function BrandForm() {
 
   useEffect(() => {
     if (isEditing) {
-      const brand = getBrand(id);
-      if (brand) {
-        setName(brand.name);
-        setLogoUrl(brand.logo_url);
-        setLogoPreview(brand.logo_url);
-        setPrimaryColor(brand.primary_color);
-        setSecondaryColor(brand.secondary_color);
-        setVoiceRules(brand.brand_voice_rules);
-        setNegativePrompts(brand.negative_prompts);
-      }
+      supabase.from("brands").select("*").eq("id", id).single().then(({ data }) => {
+        if (data) {
+          setName(data.name);
+          setLogoUrl(data.logo_url || "");
+          setLogoPreview(data.logo_url || "");
+          setPrimaryColor(data.primary_color);
+          setSecondaryColor(data.secondary_color);
+          setVoiceRules(data.brand_voice_rules || "");
+          setNegativePrompts(data.negative_prompts || "");
+        }
+      });
     }
-  }, [id, isEditing, getBrand]);
+  }, [id, isEditing]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setLogoPreview(url);
-      setLogoUrl(url);
+    if (!file || !user) return;
+
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await supabase.storage.from("brand-assets").upload(path, file);
+    if (error) {
+      toast.error("Failed to upload logo.");
+      return;
     }
+
+    const { data: urlData } = supabase.storage.from("brand-assets").getPublicUrl(path);
+    setLogoUrl(urlData.publicUrl);
+    setLogoPreview(urlData.publicUrl);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!name.trim() || !user) {
       toast.error("Brand name is required.");
       return;
     }
 
-    const data = {
+    setLoading(true);
+    const payload = {
       name,
-      logo_url: logoUrl || "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=100&h=100&fit=crop",
+      logo_url: logoUrl,
       primary_color: primaryColor,
       secondary_color: secondaryColor,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
+      user_id: user.id,
     };
 
+    let error;
     if (isEditing) {
-      updateBrand(id, data);
-      toast.success(`"${name}" updated successfully.`);
+      ({ error } = await supabase.from("brands").update(payload).eq("id", id));
     } else {
-      addBrand(data);
-      toast.success(`"${name}" created successfully.`);
+      ({ error } = await supabase.from("brands").insert(payload));
     }
-    navigate("/brands");
+
+    setLoading(false);
+    if (error) {
+      toast.error("Failed to save brand.");
+    } else {
+      toast.success(`"${name}" ${isEditing ? "updated" : "created"} successfully.`);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      navigate("/brands");
+    }
   };
 
   return (
@@ -79,21 +102,16 @@ export default function BrandForm() {
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
 
-      <h1 className="text-2xl font-display font-bold">
-        {isEditing ? "Edit Brand" : "Create New Brand"}
-      </h1>
+      <h1 className="text-2xl font-display font-bold">{isEditing ? "Edit Brand" : "Create New Brand"}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-display">Brand Identity</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base font-display">Brand Identity</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Brand Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., TinySteps Academy" />
             </div>
-
             <div className="space-y-2">
               <Label>Logo</Label>
               <div className="flex items-center gap-4">
@@ -114,9 +132,7 @@ export default function BrandForm() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-display">Visual Guardrails</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base font-display">Visual Guardrails</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -138,36 +154,23 @@ export default function BrandForm() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-display">Brand Voice & Rules</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base font-display">Brand Voice & Rules</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="voice">Brand Voice & Subject Rules</Label>
-              <Textarea
-                id="voice"
-                value={voiceRules}
-                onChange={(e) => setVoiceRules(e.target.value)}
-                placeholder='e.g., "Subjects must strictly be 3-4 year old toddlers, not older kids." "Warm, nurturing tone. Bright classroom settings only."'
-                rows={4}
-              />
+              <Textarea id="voice" value={voiceRules} onChange={(e) => setVoiceRules(e.target.value)} placeholder='e.g., "Subjects must strictly be 3-4 year old toddlers."' rows={4} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="negative">The "Never" List (Negative Prompts)</Label>
-              <Textarea
-                id="negative"
-                value={negativePrompts}
-                onChange={(e) => setNegativePrompts(e.target.value)}
-                placeholder='e.g., "Never use the color green for real estate ads." "No location pin symbols." "Remove all background clutter." "No hallucinated text or watermarks."'
-                rows={4}
-              />
+              <Textarea id="negative" value={negativePrompts} onChange={(e) => setNegativePrompts(e.target.value)} placeholder='e.g., "Never use the color green for real estate ads."' rows={4} />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8">
-            <Save className="h-4 w-4 mr-2" /> {isEditing ? "Save Changes" : "Create Brand"}
+          <Button type="submit" disabled={loading} className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8">
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {isEditing ? "Save Changes" : "Create Brand"}
           </Button>
         </div>
       </form>

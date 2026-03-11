@@ -1,11 +1,33 @@
-import { useBrandStore } from "@/lib/brand-store";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Palette, Sparkles, CheckCircle, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Dashboard() {
-  const { brands, generations } = useBrandStore();
+  const { user } = useAuth();
+
+  const { data: brands = [] } = useQuery({
+    queryKey: ["brands"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("brands").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: generations = [] } = useQuery({
+    queryKey: ["generations"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("generations").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
   const completedCount = generations.filter((g) => g.status === "completed").length;
   const successRate = generations.length > 0 ? Math.round((completedCount / generations.length) * 100) : 0;
@@ -56,29 +78,18 @@ export default function Dashboard() {
                 <Card key={gen.id} className="overflow-hidden hover:shadow-md transition-shadow group">
                   <div className="aspect-video bg-muted relative overflow-hidden">
                     {gen.output_image_url ? (
-                      <img
-                        src={gen.output_image_url}
-                        alt="Generated creative"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      <img src={gen.output_image_url} alt="Generated creative" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                        No output
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">No output</div>
                     )}
                   </div>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-sm">{brand?.name ?? "Unknown Brand"}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(new Date(gen.created_at), "MMM d, yyyy · h:mm a")}
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(gen.created_at), "MMM d, yyyy · h:mm a")}</p>
                       </div>
-                      <Badge
-                        variant={gen.status === "completed" ? "default" : gen.status === "failed" ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
+                      <Badge variant={gen.status === "completed" ? "default" : gen.status === "failed" ? "destructive" : "secondary"} className="text-xs">
                         {gen.status}
                       </Badge>
                     </div>
