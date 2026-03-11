@@ -62,6 +62,7 @@ export default function Studio() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
   const [studioState, setStudioState] = useState<StudioState>("idle");
   const [progress, setProgress] = useState(0);
+  const [progressPhase, setProgressPhase] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
@@ -88,7 +89,8 @@ export default function Studio() {
     }
 
     setStudioState("generating");
-    setProgress(10);
+    setProgress(5);
+    setProgressPhase("Uploading reference image...");
 
     try {
       // Upload reference image
@@ -103,7 +105,8 @@ export default function Studio() {
         .from("brand-assets")
         .getPublicUrl(refPath);
 
-      setProgress(20);
+      setProgress(10);
+      setProgressPhase("Creating generation record...");
 
       // Create generation record
       const { data: gen, error: insertError } = await supabase
@@ -119,9 +122,25 @@ export default function Studio() {
 
       if (insertError || !gen) throw new Error("Failed to create generation record");
 
-      setProgress(30);
+      // Phase 1: Analyzing reference layout
+      setProgress(15);
+      setProgressPhase("Analyzing reference layout...");
 
-      // Call the edge function
+      // Simulate progress during the long AI call
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev < 35) return prev + 1;
+          if (prev < 85) return prev + 0.5;
+          return prev;
+        });
+      }, 1500);
+
+      // Phase transition after ~8 seconds (analysis should be done)
+      const phaseTimeout = setTimeout(() => {
+        setProgressPhase("Generating brand creative...");
+      }, 8000);
+
+      // Call the edge function (handles both steps)
       const { data: fnData, error: fnError } = await supabase.functions.invoke(
         "generate-creative",
         {
@@ -134,6 +153,9 @@ export default function Studio() {
         }
       );
 
+      clearInterval(progressInterval);
+      clearTimeout(phaseTimeout);
+
       if (fnError) {
         throw new Error(fnError.message || "Generation failed");
       }
@@ -143,6 +165,7 @@ export default function Studio() {
       }
 
       setProgress(100);
+      setProgressPhase("Complete!");
       setResult({
         imageUrl: fnData.imageUrl,
         caption: fnData.caption,
@@ -154,6 +177,7 @@ export default function Studio() {
       console.error("Generation error:", err);
       setStudioState("idle");
       setProgress(0);
+      setProgressPhase("");
       queryClient.invalidateQueries({ queryKey: ["generations"] });
       toast.error(err.message || "Generation failed. Please try again.");
     }
@@ -163,6 +187,7 @@ export default function Studio() {
     setStudioState("idle");
     setResult(null);
     setProgress(0);
+    setProgressPhase("");
     setReferenceFile(null);
     setReferencePreview("");
   };
@@ -360,7 +385,7 @@ export default function Studio() {
                       <div className="text-center px-4">
                         <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary mb-4" />
                         <p className="text-sm font-medium text-foreground animate-pulse-glow">
-                          Generating your brand creative...
+                          {progressPhase || "Generating your brand creative..."}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
                           This may take 30–60 seconds
