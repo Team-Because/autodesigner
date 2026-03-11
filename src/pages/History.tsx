@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
-import { CalendarIcon, ImageOff } from "lucide-react";
+import { CalendarIcon, ImageOff, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Copywriting } from "@/lib/types";
 
 type StatusFilter = "all" | "processing" | "completed" | "failed";
 
@@ -96,13 +95,8 @@ export default function History() {
     });
   }, [generations, brandFilter, statusFilter, dateFrom, dateTo]);
 
-  const copy = (g: any): Copywriting | null => {
-    if (!g.copywriting || typeof g.copywriting !== "object") return null;
-    return g.copywriting as Copywriting;
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-display font-bold text-foreground">
         Generation History
       </h1>
@@ -191,7 +185,6 @@ export default function History() {
               <TableRow>
                 <TableHead className="w-16">Preview</TableHead>
                 <TableHead>Brand</TableHead>
-                <TableHead>Campaign</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
               </TableRow>
@@ -209,11 +202,10 @@ export default function History() {
                     )}
                   </TableCell>
                   <TableCell className="font-medium">{brandMap[g.brand_id] ?? "—"}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-muted-foreground">{g.campaign_message || "—"}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant[g.status] ?? "secondary"}>{g.status}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{format(new Date(g.created_at), "MMM d, yyyy")}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{format(new Date(g.created_at), "MMM d, yyyy · h:mm a")}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -242,29 +234,20 @@ export default function History() {
                   <Badge variant={statusVariant[selectedGeneration.status] ?? "secondary"}>{selectedGeneration.status}</Badge>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Campaign</p>
-                  <p>{selectedGeneration.campaign_message || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Audience</p>
-                  <p>{selectedGeneration.target_audience || "—"}</p>
+                  <p className="text-muted-foreground">Created</p>
+                  <p>{format(new Date(selectedGeneration.created_at), "MMM d, yyyy · h:mm a")}</p>
                 </div>
               </div>
               {selectedGeneration.layout_guide && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Layout Guide</p>
-                  <p className="text-sm bg-muted rounded-md p-3">{selectedGeneration.layout_guide}</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">AI Caption / Copy</p>
+                  <p className="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap">{selectedGeneration.layout_guide}</p>
                 </div>
               )}
-              {copy(selectedGeneration) && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Copywriting</p>
-                  <div className="bg-muted rounded-md p-3 space-y-1 text-sm">
-                    <p><span className="font-medium">Headline:</span> {copy(selectedGeneration)!.headline}</p>
-                    <p><span className="font-medium">Subline:</span> {copy(selectedGeneration)!.subline}</p>
-                    <p><span className="font-medium">CTA:</span> {copy(selectedGeneration)!.cta}</p>
-                  </div>
-                </div>
+              {selectedGeneration.output_image_url && (
+                <Button onClick={() => window.open(selectedGeneration.output_image_url, "_blank")} className="w-full">
+                  <Download className="h-4 w-4 mr-2" /> Download Image
+                </Button>
               )}
             </div>
           )}
