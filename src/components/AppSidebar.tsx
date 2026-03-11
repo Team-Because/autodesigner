@@ -19,6 +19,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Brand Hub", url: "/brands", icon: Palette },
   { title: "The Studio", url: "/studio", icon: Sparkles },
+  { title: "History", url: "/history", icon: Clock },
 ];
 
 export function AppSidebar() {
