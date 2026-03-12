@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
-import { CalendarIcon, ImageOff, Download } from "lucide-react";
+import { CalendarIcon, ImageOff, Download, ExternalLink, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,14 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -34,6 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Card, CardContent } from "@/components/ui/card";
 
 type StatusFilter = "all" | "processing" | "completed" | "failed";
 
@@ -94,6 +87,29 @@ export default function History() {
       return true;
     });
   }, [generations, brandFilter, statusFilter, dateFrom, dateTo]);
+
+  const getCopywriting = (g: any) => {
+    if (!g.copywriting) return null;
+    const cw = typeof g.copywriting === "string" ? JSON.parse(g.copywriting) : g.copywriting;
+    return cw;
+  };
+
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -170,7 +186,7 @@ export default function History() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Grid of cards */}
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Loading…</p>
       ) : filtered.length === 0 ? (
@@ -179,78 +195,161 @@ export default function History() {
           <p className="text-sm">No generations found matching your filters.</p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">Preview</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((g) => (
-                <TableRow key={g.id} className="cursor-pointer" onClick={() => setSelectedGeneration(g)}>
-                  <TableCell>
-                    {g.output_image_url ? (
-                      <img src={g.output_image_url} alt="" className="h-10 w-10 rounded object-cover" />
-                    ) : (
-                      <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-                        <ImageOff className="h-4 w-4 text-muted-foreground" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((g) => {
+            const cw = getCopywriting(g);
+            return (
+              <Card
+                key={g.id}
+                className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group"
+                onClick={() => setSelectedGeneration(g)}
+              >
+                {/* Image preview */}
+                <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                  {g.output_image_url ? (
+                    <>
+                      <img
+                        src={g.output_image_url}
+                        alt="Generated creative"
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+                        }}
+                      />
+                      <div className="hidden flex-col items-center justify-center h-full text-muted-foreground">
+                        <ImageOff className="h-8 w-8 mb-2 opacity-40" />
+                        <p className="text-xs">Image unavailable</p>
                       </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">{brandMap[g.brand_id] ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[g.status] ?? "secondary"}>{g.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{format(new Date(g.created_at), "MMM d, yyyy · h:mm a")}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
+                        <Eye className="h-8 w-8 text-card opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <ImageOff className="h-8 w-8 mb-2 opacity-40" />
+                      <p className="text-xs">
+                        {g.status === "processing" || g.status === "analyzing" || g.status === "generating"
+                          ? "Generating…"
+                          : g.status === "failed"
+                          ? "Generation failed"
+                          : "No image"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {brandMap[g.brand_id] ?? "Unknown brand"}
+                    </span>
+                    <Badge variant={statusVariant[g.status] ?? "secondary"} className="text-xs shrink-0">
+                      {g.status}
+                    </Badge>
+                  </div>
+                  {cw?.caption && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">{cw.caption}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(g.created_at), "MMM d, yyyy · h:mm a")}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
       {/* Detail dialog */}
       <Dialog open={!!selectedGeneration} onOpenChange={(open) => !open && setSelectedGeneration(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Generation Details</DialogTitle>
           </DialogHeader>
-          {selectedGeneration && (
-            <div className="space-y-4">
-              {selectedGeneration.output_image_url && (
-                <img src={selectedGeneration.output_image_url} alt="Generated creative" className="w-full rounded-lg" />
-              )}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Brand</p>
-                  <p className="font-medium">{brandMap[selectedGeneration.brand_id] ?? "—"}</p>
+          {selectedGeneration && (() => {
+            const cw = getCopywriting(selectedGeneration);
+            return (
+              <div className="space-y-5">
+                {/* Full-size image */}
+                {selectedGeneration.output_image_url ? (
+                  <div className="rounded-lg overflow-hidden bg-muted">
+                    <img
+                      src={selectedGeneration.output_image_url}
+                      alt="Generated creative"
+                      className="w-full rounded-lg"
+                      onError={(e) => {
+                        const el = e.target as HTMLImageElement;
+                        el.style.display = "none";
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-muted flex items-center justify-center py-20">
+                    <div className="text-center text-muted-foreground">
+                      <ImageOff className="h-12 w-12 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">No image available</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Meta info */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-0.5">Brand</p>
+                    <p className="font-medium">{brandMap[selectedGeneration.brand_id] ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-0.5">Status</p>
+                    <Badge variant={statusVariant[selectedGeneration.status] ?? "secondary"}>{selectedGeneration.status}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-0.5">Created</p>
+                    <p>{format(new Date(selectedGeneration.created_at), "MMM d, yyyy · h:mm a")}</p>
+                  </div>
+                  {selectedGeneration.campaign_message && (
+                    <div className="col-span-2 sm:col-span-3">
+                      <p className="text-muted-foreground text-xs mb-0.5">Campaign Message</p>
+                      <p>{selectedGeneration.campaign_message}</p>
+                    </div>
+                  )}
+                  {selectedGeneration.target_audience && (
+                    <div className="col-span-2 sm:col-span-3">
+                      <p className="text-muted-foreground text-xs mb-0.5">Target Audience</p>
+                      <p>{selectedGeneration.target_audience}</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Status</p>
-                  <Badge variant={statusVariant[selectedGeneration.status] ?? "secondary"}>{selectedGeneration.status}</Badge>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Created</p>
-                  <p>{format(new Date(selectedGeneration.created_at), "MMM d, yyyy · h:mm a")}</p>
-                </div>
+
+                {/* AI Caption */}
+                {cw?.caption && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">AI Caption / Copy</p>
+                    <p className="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap">{cw.caption}</p>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {selectedGeneration.output_image_url && (
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => handleDownload(selectedGeneration.output_image_url, `creative-${selectedGeneration.id}.png`)}
+                      className="flex-1"
+                    >
+                      <Download className="h-4 w-4 mr-2" /> Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(selectedGeneration.output_image_url, "_blank")}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" /> Open Full Size
+                    </Button>
+                  </div>
+                )}
               </div>
-              {selectedGeneration.layout_guide && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">AI Caption / Copy</p>
-                  <p className="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap">{selectedGeneration.layout_guide}</p>
-                </div>
-              )}
-              {selectedGeneration.output_image_url && (
-                <Button onClick={() => window.open(selectedGeneration.output_image_url, "_blank")} className="w-full">
-                  <Download className="h-4 w-4 mr-2" /> Download Image
-                </Button>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
