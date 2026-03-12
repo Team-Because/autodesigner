@@ -370,8 +370,8 @@ ${brandContext}
 
 OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels.
 
-${hasAssets ? `BRAND ASSETS: ${brandAssets.length} brand images are provided. These include logos, product photos, building shots, mascots, etc.:
-${assetDescriptions}
+${hasAssets ? `BRAND ASSETS: ${selectedAssets.length} brand images are provided. These include logos, product photos, building shots, mascots, etc.:
+${assetDescriptions}${omittedAssetsCount > 0 ? `\nNOTE: ${omittedAssetsCount} additional asset(s) were omitted to keep generation reliable.` : ""}
 
 CRITICAL RULES FOR BRAND ASSETS:
 - Use logos EXACTLY as provided — do NOT redraw, reimagine, or recreate them.
@@ -396,7 +396,7 @@ Generate the brand-aligned creative image now.`;
     {
       type: "text",
       text: hasAssets
-        ? `The FIRST image is the reference advertisement for visual style context. The following ${brandAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
+        ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
         : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
     },
     {
