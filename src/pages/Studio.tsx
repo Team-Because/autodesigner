@@ -161,6 +161,7 @@ export default function Studio() {
       // Call the edge function with one automatic retry when provider is overloaded
       let fnData: any = null;
       let fnError: any = null;
+      let invokeErrorMessage = "";
       const maxInvokeAttempts = 2;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
@@ -200,14 +201,15 @@ export default function Studio() {
           continue;
         }
 
-        throw new Error(errorMessage);
+        invokeErrorMessage = errorMessage;
+        break;
       }
 
       clearInterval(progressInterval);
       clearTimeout(phaseTimeout);
 
-      if (fnError) {
-        throw new Error("Generation failed");
+      if (invokeErrorMessage || fnError) {
+        throw new Error(invokeErrorMessage || "Generation failed");
       }
 
       if (fnData?.error) {
