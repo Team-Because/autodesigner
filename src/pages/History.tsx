@@ -74,10 +74,28 @@ export default function History() {
     [brands]
   );
 
+  const isStale = (g: any) => {
+    if (g.status !== "processing" && g.status !== "analyzing" && g.status !== "generating") return false;
+    const age = Date.now() - new Date(g.created_at).getTime();
+    return age > 10 * 60 * 1000; // older than 10 minutes
+  };
+
+  const getDisplayStatus = (g: any) => {
+    if (isStale(g)) return "failed";
+    return g.status;
+  };
+
+  const getDisplayImage = (g: any) => {
+    if (g.output_image_url && g.output_image_url !== "") return { url: g.output_image_url, isOutput: true };
+    if (g.reference_image_url && g.reference_image_url !== "") return { url: g.reference_image_url, isOutput: false };
+    return null;
+  };
+
   const filtered = useMemo(() => {
     return generations.filter((g) => {
       if (brandFilter !== "all" && g.brand_id !== brandFilter) return false;
-      if (statusFilter !== "all" && g.status !== statusFilter) return false;
+      const displayStatus = getDisplayStatus(g);
+      if (statusFilter !== "all" && displayStatus !== statusFilter) return false;
       if (dateFrom && new Date(g.created_at) < dateFrom) return false;
       if (dateTo) {
         const end = new Date(dateTo);
