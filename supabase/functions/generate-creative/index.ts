@@ -302,24 +302,30 @@ async function generateCreative(
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
     : "";
 
+  const brandVoice = toCompactText(brand.brand_voice_rules, 1200);
+  const negativePrompts = toCompactText(brand.negative_prompts, 1200);
+  const brandBrief = toCompactText(brand.brand_brief, 1600);
+
   const brandContext = [
     `Brand Name: ${brand.name}`,
     `Primary Color: ${brand.primary_color}`,
     `Secondary Color: ${brand.secondary_color}`,
     extraColorsText,
-    brand.brand_voice_rules ? `Tone & Audience: ${brand.brand_voice_rules}` : "",
-    brand.negative_prompts ? `STRICT EXCLUSIONS (never include these): ${brand.negative_prompts}` : "",
-    brand.brand_brief ? `Brand Guidelines & Brief:\n${brand.brand_brief}` : "",
+    brandVoice ? `Tone & Audience: ${brandVoice}` : "",
+    negativePrompts ? `STRICT EXCLUSIONS (never include these): ${negativePrompts}` : "",
+    brandBrief ? `Brand Guidelines & Brief: ${brandBrief}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const hasAssets = brandAssets.length > 0;
-  const assetDescriptions = brandAssets
+  const selectedAssets = brandAssets.slice(0, 3);
+  const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
+  const hasAssets = selectedAssets.length > 0;
+  const assetDescriptions = selectedAssets
     .map((a: any, i: number) => `  - Image ${i + 1}: ${a.label || "Brand asset"}`)
     .join("\n");
 
-  const frameworkJson = JSON.stringify(framework, null, 2);
+  const frameworkJson = createFrameworkDigest(framework);
 
   const systemPrompt = `You are an expert brand creative designer. You have been given a precise DESIGN FRAMEWORK extracted from a reference advertisement, along with a brand identity and brand assets. Your job is to generate a NEW advertisement image that follows the framework exactly but is fully adapted to the brand.
 
