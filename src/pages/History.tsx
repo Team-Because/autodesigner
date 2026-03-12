@@ -216,6 +216,8 @@ export default function History() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((g) => {
             const cw = getCopywriting(g);
+            const displayStatus = getDisplayStatus(g);
+            const displayImage = getDisplayImage(g);
             return (
               <Card
                 key={g.id}
@@ -224,11 +226,11 @@ export default function History() {
               >
                 {/* Image preview */}
                 <div className="relative aspect-[4/3] bg-muted overflow-hidden">
-                  {g.output_image_url ? (
+                  {displayImage ? (
                     <>
                       <img
-                        src={g.output_image_url}
-                        alt="Generated creative"
+                        src={displayImage.url}
+                        alt={displayImage.isOutput ? "Generated creative" : "Reference image"}
                         className="w-full h-full object-cover"
                         loading="lazy"
                         onError={(e) => {
@@ -240,6 +242,13 @@ export default function History() {
                         <ImageOff className="h-8 w-8 mb-2 opacity-40" />
                         <p className="text-xs">Image unavailable</p>
                       </div>
+                      {!displayImage.isOutput && (
+                        <div className="absolute top-2 left-2">
+                          <Badge variant="secondary" className="text-[10px] bg-background/80 backdrop-blur-sm">
+                            Reference
+                          </Badge>
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
                         <Eye className="h-8 w-8 text-card opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                       </div>
@@ -247,13 +256,7 @@ export default function History() {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                       <ImageOff className="h-8 w-8 mb-2 opacity-40" />
-                      <p className="text-xs">
-                        {g.status === "processing" || g.status === "analyzing" || g.status === "generating"
-                          ? "Generating…"
-                          : g.status === "failed"
-                          ? "Generation failed"
-                          : "No image"}
-                      </p>
+                      <p className="text-xs">No image</p>
                     </div>
                   )}
                 </div>
@@ -263,8 +266,8 @@ export default function History() {
                     <span className="text-sm font-medium text-foreground truncate">
                       {brandMap[g.brand_id] ?? "Unknown brand"}
                     </span>
-                    <Badge variant={statusVariant[g.status] ?? "secondary"} className="text-xs shrink-0">
-                      {g.status}
+                    <Badge variant={statusVariant[displayStatus] ?? "secondary"} className="text-xs shrink-0">
+                      {displayStatus === "failed" && isStale(g) ? "timed out" : displayStatus}
                     </Badge>
                   </div>
                   {cw?.caption && (
