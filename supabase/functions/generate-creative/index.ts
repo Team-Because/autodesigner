@@ -554,14 +554,36 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      if (err.message === "UPSTREAM_OVERLOADED") {
+        return new Response(
+          JSON.stringify({ error: "AI provider is temporarily overloaded. Please retry in 20–40 seconds." }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (err.message === "AI_TRUNCATED_RESPONSE") {
+        return new Response(
+          JSON.stringify({ error: "AI returned an incomplete response. Please retry." }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       if (err.message === "NO_IMAGE_GENERATED") {
         return new Response(
           JSON.stringify({ error: "No image was generated. Try again." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      const statusMatch = /AI generation failed \((\d+)\)/.exec(err.message || "");
+      if (statusMatch) {
+        const statusCode = Number(statusMatch[1]);
+        return new Response(
+          JSON.stringify({ error: `AI generation failed (${statusCode})` }),
+          { status: Number.isFinite(statusCode) ? statusCode : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: "AI generation failed" }),
+        JSON.stringify({ error: err?.message || "AI generation failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
