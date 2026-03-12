@@ -301,7 +301,7 @@ INSTRUCTIONS:
 1. Follow the DESIGN FRAMEWORK layout zones precisely — place each element in its specified position and size.
 2. Apply the brand's colors: ${brand.primary_color} as primary, ${brand.secondary_color} as secondary. Replace the reference's color scheme entirely.
 3. ${hasAssets ? "Place each brand asset in its natural zone. Logo goes in the logo zone. Product images go in product/hero zones." : `Include "${brand.name}" prominently as text.`}
-4. Generate appropriate headline text and call-to-action text that match the brand's tone.
+4. COPY ORIGINALITY (CRITICAL): Generate FRESH, ORIGINAL headline and copy for every creative. If the brand brief contains example headlines or copy, treat them ONLY as tone/style references — NEVER copy them verbatim. Study the examples to understand the brand's voice, rhythm, and messaging themes, then craft entirely new lines that feel equally on-brand but are unique. Vary sentence structure, word choice, and angle each time.
 5. Match the visual style described in the framework (background type, overlays, mood) but with the brand's colors.
 6. The final image must look like a polished, professional advertisement.
 7. Adapt the framework layout to fit ${spec.label} format (${spec.width}×${spec.height}) naturally.
