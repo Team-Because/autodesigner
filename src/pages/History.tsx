@@ -87,7 +87,7 @@ export default function History() {
 
   const getDisplayImage = (g: any) => {
     if (g.output_image_url && g.output_image_url !== "") return { url: g.output_image_url, isOutput: true };
-    if (g.reference_image_url && g.reference_image_url !== "") return { url: g.reference_image_url, isOutput: false };
+    // Don't fall back to reference image — only show actual output
     return null;
   };
 
