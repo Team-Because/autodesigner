@@ -65,14 +65,33 @@ export default function Studio() {
   const [progressPhase, setProgressPhase] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
 
+  const setImageFile = useCallback((file: File) => {
+    setReferenceFile(file);
+    setReferencePreview(URL.createObjectURL(file));
+  }, []);
+
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file?.type.startsWith("image/")) {
-      setReferenceFile(file);
-      setReferencePreview(URL.createObjectURL(file));
+      setImageFile(file);
     }
-  }, []);
+  }, [setImageFile]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          setImageFile(file);
+          return;
+        }
+      }
+    }
+  }, [setImageFile]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
