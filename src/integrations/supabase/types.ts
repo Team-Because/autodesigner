@@ -54,6 +54,7 @@ export type Database = {
           brand_brief: string | null
           brand_voice_rules: string | null
           created_at: string
+          extra_colors: Json | null
           id: string
           logo_url: string | null
           name: string
@@ -67,6 +68,7 @@ export type Database = {
           brand_brief?: string | null
           brand_voice_rules?: string | null
           created_at?: string
+          extra_colors?: Json | null
           id?: string
           logo_url?: string | null
           name: string
@@ -80,6 +82,7 @@ export type Database = {
           brand_brief?: string | null
           brand_voice_rules?: string | null
           created_at?: string
+          extra_colors?: Json | null
           id?: string
           logo_url?: string | null
           name?: string
