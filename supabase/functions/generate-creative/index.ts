@@ -302,9 +302,9 @@ async function generateCreative(
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
     : "";
 
-  const brandVoice = toCompactText(brand.brand_voice_rules, 1200);
-  const negativePrompts = toCompactText(brand.negative_prompts, 1200);
-  const brandBrief = toCompactText(brand.brand_brief, 1600);
+  const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
+  const negativePrompts = toCompactText(brand.negative_prompts, 2000);
+  const brandBrief = toCompactText(brand.brand_brief, 3000);
 
   const brandContext = [
     `Brand Name: ${brand.name}`,
@@ -318,76 +318,85 @@ async function generateCreative(
     .filter(Boolean)
     .join("\n");
 
-  const selectedAssets = brandAssets.slice(0, 3);
+  const selectedAssets = brandAssets.slice(0, 5);
   const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
   const hasAssets = selectedAssets.length > 0;
   const assetDescriptions = selectedAssets
     .map((a: any, i: number) => `  - Image ${i + 1}: ${a.label || "Brand asset"}`)
     .join("\n");
 
-  const frameworkJson = createFrameworkDigest(framework);
+  // Use full framework for higher fidelity
+  const frameworkJson = JSON.stringify(framework, null, 2);
 
-  const systemPrompt = `You are an expert brand creative designer. You have been given a precise DESIGN FRAMEWORK extracted from a reference advertisement, along with a brand identity and brand assets. Your job is to generate a NEW advertisement image that follows the framework exactly but is fully adapted to the brand.
+  // Determine aspect ratio label for strong enforcement
+  const aspectRatioLabel = spec.width === spec.height ? "1:1 SQUARE" 
+    : spec.width > spec.height ? `${spec.width}:${spec.height} LANDSCAPE` 
+    : `${spec.width}:${spec.height} PORTRAIT/STORY`;
+
+  const systemPrompt = `You are an expert brand creative designer producing premium, award-winning advertisements.
 
 ══════════════════════════════════════════
-AWARD-WINNING CREATIVE FRAMEWORK — NO DUPLICATION RULES
+ABSOLUTE OUTPUT FORMAT REQUIREMENT
 ══════════════════════════════════════════
-Every element on the creative must appear EXACTLY ONCE. Follow this hierarchy:
+The generated image MUST be exactly ${spec.width}×${spec.height} pixels — a ${aspectRatioLabel} format.
+${spec.width === spec.height ? "The image MUST be perfectly SQUARE. Equal width and height. NOT landscape, NOT portrait. SQUARE." : ""}
+${spec.height > spec.width ? "The image MUST be TALL/VERTICAL (portrait orientation). Height is greater than width." : ""}
+${spec.width > spec.height ? "The image MUST be WIDE (landscape orientation). Width is greater than height." : ""}
+DO NOT generate an image in any other aspect ratio. This is non-negotiable.
 
-1. HERO ZONE (largest visual area):
-   - One dominant visual — either a product/building photo OR an illustration. Never both competing.
-
-2. BRAND MARK (one instance only):
-   - The logo appears ONCE in its designated zone. Do NOT repeat it anywhere else.
-   - If the logo contains the brand name, do NOT also write the brand name as separate text.
-
-3. INFORMATION HIERARCHY (each piece of info appears in ONE place only):
-   - Headline: One punchy line that conveys the core message.
-   - Sub-copy (optional): One supporting line — NOT a restatement of the headline.
-   - Location/Address: Appears ONCE — either in the footer strip OR near a map pin, never both.
-   - Contact info (phone/website): Appears ONCE in the footer or CTA zone.
-   - Price/offer: Appears ONCE, prominently.
-   - Legal/RERA: Appears ONCE in small text, typically bottom edge.
-
-4. CALL-TO-ACTION: One clear CTA. Do not scatter multiple CTAs.
-
-5. DEDUPLICATION CHECKLIST (strictly enforce):
-   - If the brand name is in the logo, do NOT add it as separate text.
-   - If the project name is in the headline, do NOT repeat it in sub-copy.
-   - If the location is mentioned in the headline, do NOT add a separate location line.
-   - If a phone number appears in the CTA, do NOT also put it in the footer.
-   - Never show two maps or two location references.
-   - Never show the same decorative motif more than once unless it's a deliberate pattern.
-
-6. WHITE SPACE: Award-winning creatives breathe. Leave intentional negative space — do not fill every corner with text or graphics.
 ══════════════════════════════════════════
+BRAND ASSET FIDELITY — CRITICAL
+══════════════════════════════════════════
+You are provided with official brand assets (logos, 3D architectural renders, product photos, mascots).
+These assets are SACRED and must be used with PIXEL-PERFECT fidelity:
+- NEVER redraw, reimagine, recreate, stylize, or modify any provided brand asset
+- NEVER change building facades, rooflines, architectural proportions, or structural details from 3D renders
+- NEVER alter logo shapes, colors, typography, or proportions
+- NEVER replace a provided photo/render with an AI-generated version
+- Place each asset in the creative EXACTLY as it appears — same proportions, same details, same colors
+- If a 3D architectural render is provided, it must appear with its EXACT geometry, materials, and perspective
+- The brand assets are the "source of truth" — the AI must COMPOSITE them into the layout, not regenerate them
 
-DESIGN FRAMEWORK (follow this EXACTLY):
+══════════════════════════════════════════
+NO-DUPLICATION CREATIVE FRAMEWORK
+══════════════════════════════════════════
+Every element appears EXACTLY ONCE:
+1. HERO ZONE: One dominant visual
+2. BRAND MARK: Logo appears ONCE. If logo contains brand name, do NOT add brand name as separate text.
+3. INFORMATION HIERARCHY: Headline, sub-copy, location, contact, price — each appears in ONE place only.
+4. CTA: One clear call-to-action
+5. WHITE SPACE: Leave intentional negative space — do not fill every corner
+
+══════════════════════════════════════════
+DESIGN FRAMEWORK (from reference analysis — follow this layout structure)
+══════════════════════════════════════════
 ${frameworkJson}
 
-BRAND IDENTITY:
+══════════════════════════════════════════
+BRAND IDENTITY
+══════════════════════════════════════════
 ${brandContext}
 
-OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels.
+${hasAssets ? `══════════════════════════════════════════
+BRAND ASSETS PROVIDED (${selectedAssets.length} images follow the reference)
+══════════════════════════════════════════
+${assetDescriptions}${omittedAssetsCount > 0 ? `\n(${omittedAssetsCount} additional asset(s) omitted)` : ""}
 
-${hasAssets ? `BRAND ASSETS: ${selectedAssets.length} brand images are provided. These include logos, product photos, building shots, mascots, etc.:
-${assetDescriptions}${omittedAssetsCount > 0 ? `\nNOTE: ${omittedAssetsCount} additional asset(s) were omitted to keep generation reliable.` : ""}
+The FIRST image in the conversation is the REFERENCE advertisement (for layout/style only).
+Images 2 onwards are OFFICIAL BRAND ASSETS — use them EXACTLY as-is. Do NOT redraw them.` : `No brand assets provided. Use "${brand.name}" as prominent text.`}
 
-CRITICAL RULES FOR BRAND ASSETS:
-- Use logos EXACTLY as provided — do NOT redraw, reimagine, or recreate them.
-- Place the logo in the "${(framework as any).layout?.zones?.find((z: any) => z.name === "logo")?.position || "top-left"}" position as specified in the framework.
-- Product photos, building shots, and other assets should be naturally integrated into the composition in their respective zones.` : `No brand assets were provided. Use the brand name "${brand.name}" as prominent text instead of a logo.`}
-
-INSTRUCTIONS:
-1. Follow the DESIGN FRAMEWORK layout zones precisely — place each element in its specified position and size.
-2. Apply the brand's colors: ${brand.primary_color} as primary, ${brand.secondary_color} as secondary. Replace the reference's color scheme entirely.
-3. ${hasAssets ? "Place each brand asset in its natural zone. Logo goes in the logo zone. Product images go in product/hero zones." : `Include "${brand.name}" prominently as text.`}
-4. COPY ORIGINALITY (CRITICAL): Generate FRESH, ORIGINAL headline and copy for every creative. If the brand brief contains example headlines or copy, treat them ONLY as tone/style references — NEVER copy them verbatim. Study the examples to understand the brand's voice, rhythm, and messaging themes, then craft entirely new lines that feel equally on-brand but are unique. Vary sentence structure, word choice, and angle each time.
-5. Match the visual style described in the framework (background type, overlays, mood) but with the brand's colors.
-6. The final image must look like a polished, professional advertisement.
-7. Adapt the framework layout to fit ${spec.label} format (${spec.width}×${spec.height}) naturally.
-8. Apply any brand guidelines strictly. Respect all exclusions.
-9. CRITICAL: Apply the NO DUPLICATION RULES above — every text element, logo, location, and contact info must appear EXACTLY ONCE. Scan the layout before finalizing to remove any duplicates.
+══════════════════════════════════════════
+GENERATION INSTRUCTIONS
+══════════════════════════════════════════
+1. Follow the DESIGN FRAMEWORK layout zones precisely for element placement
+2. Replace ALL colors from the reference with brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
+3. ${hasAssets ? "COMPOSITE brand assets into the layout at their correct zones — logo in logo zone, architectural renders/product shots in hero zone. DO NOT redraw them." : `Include "${brand.name}" prominently as text.`}
+4. Generate FRESH, ORIGINAL headline and copy — never copy from brand brief examples verbatim
+5. Match the visual style (background type, overlays, mood) but with brand colors
+6. Adapt the framework layout naturally to the ${aspectRatioLabel} format (${spec.width}×${spec.height})
+7. Enforce all brand exclusions/negative prompts strictly
+8. Scan the final layout to remove any duplicate text, logos, or information
+9. FINAL CHECK: Confirm the output is ${spec.width}×${spec.height} (${aspectRatioLabel}) before delivering
 
 Generate the brand-aligned creative image now.`;
 
