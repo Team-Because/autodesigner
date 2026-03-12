@@ -223,10 +223,15 @@ async function generateCreative(
   spec: { width: number; height: number; label: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
+  const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+    ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
+    : "";
+
   const brandContext = [
     `Brand Name: ${brand.name}`,
     `Primary Color: ${brand.primary_color}`,
     `Secondary Color: ${brand.secondary_color}`,
+    extraColorsText,
     brand.brand_voice_rules ? `Tone & Audience: ${brand.brand_voice_rules}` : "",
     brand.negative_prompts ? `STRICT EXCLUSIONS (never include these): ${brand.negative_prompts}` : "",
     brand.brand_brief ? `Brand Guidelines & Brief:\n${brand.brand_brief}` : "",
