@@ -1,21 +1,52 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Save, Loader2, X, ImagePlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const ASSET_CATEGORIES = [
+  "Logo",
+  "Hero Image",
+  "Architecture",
+  "Lifestyle",
+  "Masterplan",
+  "Product",
+  "Mascot",
+  "Pattern/Texture",
+  "Icon",
+  "Other",
+];
 
 interface AssetItem {
   id?: string;
   image_url: string;
   label: string;
   isNew?: boolean;
+}
+
+interface ExtraColor {
+  name: string;
+  hex: string;
 }
 
 export default function BrandForm() {
@@ -29,15 +60,16 @@ export default function BrandForm() {
   const [name, setName] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#2563EB");
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
+  const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
   const [brandBrief, setBrandBrief] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     if (isEditing) {
-      // Fetch brand and assets in parallel
       Promise.all([
         supabase.from("brands").select("*").eq("id", id).single(),
         supabase.from("brand_assets").select("*").eq("brand_id", id).order("created_at", { ascending: true }),
@@ -50,6 +82,11 @@ export default function BrandForm() {
           setVoiceRules(data.brand_voice_rules || "");
           setNegativePrompts(data.negative_prompts || "");
           setBrandBrief((data as any).brand_brief || "");
+          // Load extra colors
+          const ec = (data as any).extra_colors;
+          if (ec && Array.isArray(ec)) {
+            setExtraColors(ec);
+          }
         }
         if (assetsRes.data) {
           setAssets(assetsRes.data.map((a: any) => ({ id: a.id, image_url: a.image_url, label: a.label || "" })));
@@ -76,7 +113,6 @@ export default function BrandForm() {
       const { data: urlData } = supabase.storage.from("brand-assets").getPublicUrl(path);
 
       if (isEditing) {
-        // Insert directly into DB for existing brands
         const { data: inserted, error: insertErr } = await supabase
           .from("brand_assets")
           .insert({ brand_id: id, user_id: user.id, image_url: urlData.publicUrl, label: "" })
@@ -90,7 +126,6 @@ export default function BrandForm() {
       }
     }
     setUploading(false);
-    // Reset input
     e.target.value = "";
   };
 
@@ -106,6 +141,35 @@ export default function BrandForm() {
     setAssets((prev) => prev.map((a, i) => (i === index ? { ...a, label } : a)));
   };
 
+  // Auto-save label on blur for existing assets
+  const handleLabelBlur = useCallback(async (index: number) => {
+    const asset = assets[index];
+    if (asset.id && isEditing) {
+      const { error } = await supabase
+        .from("brand_assets")
+        .update({ label: asset.label })
+        .eq("id", asset.id);
+      if (error) {
+        toast.error("Failed to save tag.");
+      } else {
+        toast.success("Tag saved.");
+      }
+    }
+  }, [assets, isEditing]);
+
+  // Extra colors management
+  const addExtraColor = () => {
+    setExtraColors((prev) => [...prev, { name: "", hex: "#888888" }]);
+  };
+
+  const updateExtraColor = (index: number, field: keyof ExtraColor, value: string) => {
+    setExtraColors((prev) => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
+  };
+
+  const removeExtraColor = (index: number) => {
+    setExtraColors((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
@@ -114,11 +178,12 @@ export default function BrandForm() {
     }
 
     setLoading(true);
-    const payload = {
+    const payload: any = {
       name,
       logo_url: assets.length > 0 ? assets[0].image_url : "",
       primary_color: primaryColor,
       secondary_color: secondaryColor,
+      extra_colors: extraColors,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
       brand_brief: brandBrief,
@@ -141,7 +206,6 @@ export default function BrandForm() {
       error = insertErr;
       brandId = data?.id;
 
-      // Insert new assets linked to the new brand
       if (!error && brandId) {
         const newAssets = assets.map((a) => ({
           brand_id: brandId!,
@@ -175,6 +239,75 @@ export default function BrandForm() {
         {isEditing ? "Edit Brand" : "Create New Brand"}
       </h1>
 
+      {/* Best Practices Guide */}
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
+        <Card className="border-secondary bg-accent/30">
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Lightbulb className="h-5 w-5 text-secondary" />
+                  <CardTitle className="text-base font-display">Brand Setup Best Practices</CardTitle>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${guideOpen ? "rotate-180" : ""}`} />
+              </div>
+              <CardDescription>Tips for the best AI-generated creatives</CardDescription>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4 text-sm text-foreground">
+              <div className="space-y-3">
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Upload & tag all visual assets</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, building renders, product shots, mascots, and patterns. Tag each one (e.g., "Logo", "Architecture") so the AI knows how to use them correctly — logos stay exact, hero images set the mood.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Define your full color palette</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Set Primary & Secondary colors, then add extra colors (Accent, Background, Text, etc.) with descriptive names. Include usage rules like "Red only for developer branding, never as the main visual color."</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Write a structured Brand Brief</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Use clear sections with markdown headers:<br />
+                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DNA</code> — mood, lighting, photography style<br />
+                      <code className="bg-muted px-1 rounded text-xs">## MANDATORY ELEMENTS</code> — project name, tagline, contact, legal text<br />
+                      <code className="bg-muted px-1 rounded text-xs">## COLOUR PALETTE</code> — full palette with usage guidance<br />
+                      <code className="bg-muted px-1 rounded text-xs">## MESSAGING PILLARS</code> — key themes and vocabulary<br />
+                      <code className="bg-muted px-1 rounded text-xs">## VOCABULARY</code> — words to use vs. words to avoid
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Separate "Visual Nevers" from "Content Nevers"</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">In the Never List, use two sections: <code className="bg-muted px-1 rounded text-xs">## VISUAL NEVERS</code> (e.g., "Never alter villa rooflines") and <code className="bg-muted px-1 rounded text-xs">## CONTENT NEVERS</code> (e.g., "Never use the word 'cheap'"). This prevents the AI from mixing up visual and text constraints.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Be specific about your audience</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">In "Tone & Audience", include age range, psychographics, and the desired emotional response. E.g., "Affluent homebuyers (35-55) seeking low-density luxury living — tone should feel grounded, premium, and nature-led."</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
@@ -192,12 +325,9 @@ export default function BrandForm() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-display">Brand Assets</CardTitle>
+            <CardDescription>Upload logos, product photos, building shots, mascots — tag each so the AI knows its role. The first image becomes the brand thumbnail.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Upload logos, product photos, building shots, mascots, uniforms — any visual assets the AI should use when generating creatives. The first image will be used as the brand thumbnail.
-            </p>
-
             {assets.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {assets.map((asset, index) => (
@@ -206,17 +336,41 @@ export default function BrandForm() {
                       <img src={asset.image_url} alt={asset.label || `Asset ${index + 1}`} className="h-full w-full object-cover" />
                     </div>
                     <div className="p-2">
-                      <Input
-                        value={asset.label}
-                        onChange={(e) => handleLabelChange(index, e.target.value)}
-                        placeholder={index === 0 ? "e.g., Logo" : "e.g., Building, Mascot"}
-                        className="text-xs h-7"
-                      />
+                      <Select
+                        value={asset.label || ""}
+                        onValueChange={(val) => {
+                          handleLabelChange(index, val);
+                          // Auto-save for existing assets
+                          if (asset.id && isEditing) {
+                            supabase
+                              .from("brand_assets")
+                              .update({ label: val })
+                              .eq("id", asset.id)
+                              .then(({ error }) => {
+                                if (error) toast.error("Failed to save tag.");
+                              });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="text-xs h-7">
+                          <SelectValue placeholder="Select category…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASSET_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     {index === 0 && (
                       <span className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">
                         Thumbnail
                       </span>
+                    )}
+                    {asset.label && (
+                      <Badge variant="secondary" className="absolute top-1.5 right-8 text-[10px] bg-background/80 backdrop-blur-sm group-hover:hidden">
+                        {asset.label}
+                      </Badge>
                     )}
                     <button
                       type="button"
@@ -252,9 +406,11 @@ export default function BrandForm() {
           </CardContent>
         </Card>
 
+        {/* Color Palette */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-display">Brand Color Palette</CardTitle>
+            <CardDescription>Define your complete palette. Name each color for context (e.g., "Accent Gold", "Text Dark Brown").</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -273,6 +429,45 @@ export default function BrandForm() {
                 </div>
               </div>
             </div>
+
+            {/* Extra colors */}
+            {extraColors.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <Label className="text-xs text-muted-foreground">Additional Colors</Label>
+                {extraColors.map((color, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={color.hex}
+                      onChange={(e) => updateExtraColor(index, "hex", e.target.value)}
+                      className="h-9 w-10 rounded-md border border-input cursor-pointer shrink-0"
+                    />
+                    <Input
+                      value={color.hex}
+                      onChange={(e) => updateExtraColor(index, "hex", e.target.value)}
+                      className="font-mono text-sm w-28 shrink-0"
+                    />
+                    <Input
+                      value={color.name}
+                      onChange={(e) => updateExtraColor(index, "name", e.target.value)}
+                      placeholder="e.g., Accent Gold"
+                      className="text-sm flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraColor(index)}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Button type="button" variant="outline" size="sm" onClick={addExtraColor} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" /> Add Color
+            </Button>
           </CardContent>
         </Card>
 
@@ -291,7 +486,7 @@ export default function BrandForm() {
               className="font-mono text-xs"
             />
             <p className="text-xs text-muted-foreground">
-              Include everything the AI needs to know about your brand.
+              Include everything the AI needs to know about your brand. Use markdown headers (## SECTION) for structure.
             </p>
           </CardContent>
         </Card>
