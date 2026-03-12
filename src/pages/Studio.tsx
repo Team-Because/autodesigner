@@ -189,6 +189,19 @@ export default function Studio() {
         caption: fnData.caption,
       });
       setStudioState("complete");
+
+      // Safety net: update generation record from client side in case edge function DB update failed
+      if (fnData.imageUrl && gen.id) {
+        await supabase
+          .from("generations")
+          .update({
+            output_image_url: fnData.imageUrl,
+            copywriting: fnData.caption ? { caption: fnData.caption } : undefined,
+            status: "completed",
+          })
+          .eq("id", gen.id);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["generations"] });
       toast.success("Creative generated successfully!");
     } catch (err: any) {

@@ -497,7 +497,7 @@ serve(async (req) => {
 
     const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("generations")
       .update({
         output_image_url: publicUrlData.publicUrl,
@@ -507,16 +507,39 @@ serve(async (req) => {
       })
       .eq("id", generationId);
 
+    if (updateError) {
+      console.error("CRITICAL: Final DB update failed!", updateError);
+      // Still return the image to the client even if DB update fails
+    }
+
     return new Response(
       JSON.stringify({
         imageUrl: publicUrlData.publicUrl,
         caption: captionText,
         framework,
+        generationId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error("generate-creative error:", e);
+    console.error("generate-creative OUTER error:", e);
+
+    // Try to mark the generation as failed if we have a generationId
+    try {
+      const body = await req.clone().json().catch(() => ({}));
+      const gId = body?.generationId;
+      if (gId) {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        await supabase.from("generations").update({ status: "failed" }).eq("id", gId);
+        console.log("Marked generation", gId, "as failed");
+      }
+    } catch (cleanupErr) {
+      console.error("Failed to mark generation as failed:", cleanupErr);
+    }
+
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
