@@ -15,6 +15,49 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function toCompactText(value: unknown, maxChars: number): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+function createFrameworkDigest(framework: Record<string, unknown>): string {
+  const layout = (framework as any)?.layout ?? {};
+  const style = (framework as any)?.style ?? {};
+  const zones = Array.isArray(layout?.zones)
+    ? layout.zones.slice(0, 8).map((z: any) => ({
+        name: z?.name,
+        position: z?.position,
+        size: z?.size,
+      }))
+    : [];
+  const textElements = Array.isArray((framework as any)?.text_elements)
+    ? (framework as any).text_elements.slice(0, 6).map((t: any) => ({
+        type: t?.type,
+        position: t?.position,
+        font_style: t?.font_style,
+      }))
+    : [];
+
+  return JSON.stringify(
+    {
+      layout: {
+        orientation: layout?.orientation,
+        zones,
+      },
+      style: {
+        background_type: style?.background_type,
+        photography_style: style?.photography_style,
+        overlay: style?.overlay,
+        mood: style?.mood,
+      },
+      text_elements: textElements,
+      composition_notes: toCompactText((framework as any)?.composition_notes, 400),
+    },
+    null,
+    2
+  );
+}
+
 function extractCaptionText(aiData: any): string {
   const content = aiData?.choices?.[0]?.message?.content;
   if (typeof content === "string") return content;

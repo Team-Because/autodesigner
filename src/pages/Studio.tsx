@@ -162,7 +162,7 @@ export default function Studio() {
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
-      const maxInvokeAttempts = 3;
+      const maxInvokeAttempts = 5;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
         const response = await supabase.functions.invoke("generate-creative", {
