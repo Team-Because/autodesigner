@@ -162,7 +162,7 @@ export default function Studio() {
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
-      const maxInvokeAttempts = 3;
+      const maxInvokeAttempts = 5;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
         const response = await supabase.functions.invoke("generate-creative", {
@@ -196,8 +196,9 @@ export default function Studio() {
           /temporarily overloaded|upstream_overloaded/i.test(errorMessage);
 
         if (isOverloaded && invokeAttempt < maxInvokeAttempts) {
-          setProgressPhase("AI provider is busy — retrying automatically...");
-          await new Promise((resolve) => setTimeout(resolve, 22000));
+          const waitMs = Math.min(25000 + invokeAttempt * 15000, 60000);
+          setProgressPhase(`AI provider is busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
           continue;
         }
 

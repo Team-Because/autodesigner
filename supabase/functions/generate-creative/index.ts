@@ -15,6 +15,49 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function toCompactText(value: unknown, maxChars: number): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+function createFrameworkDigest(framework: Record<string, unknown>): string {
+  const layout = (framework as any)?.layout ?? {};
+  const style = (framework as any)?.style ?? {};
+  const zones = Array.isArray(layout?.zones)
+    ? layout.zones.slice(0, 8).map((z: any) => ({
+        name: z?.name,
+        position: z?.position,
+        size: z?.size,
+      }))
+    : [];
+  const textElements = Array.isArray((framework as any)?.text_elements)
+    ? (framework as any).text_elements.slice(0, 6).map((t: any) => ({
+        type: t?.type,
+        position: t?.position,
+        font_style: t?.font_style,
+      }))
+    : [];
+
+  return JSON.stringify(
+    {
+      layout: {
+        orientation: layout?.orientation,
+        zones,
+      },
+      style: {
+        background_type: style?.background_type,
+        photography_style: style?.photography_style,
+        overlay: style?.overlay,
+        mood: style?.mood,
+      },
+      text_elements: textElements,
+      composition_notes: toCompactText((framework as any)?.composition_notes, 400),
+    },
+    null,
+    2
+  );
+}
+
 function extractCaptionText(aiData: any): string {
   const content = aiData?.choices?.[0]?.message?.content;
   if (typeof content === "string") return content;
@@ -259,24 +302,30 @@ async function generateCreative(
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
     : "";
 
+  const brandVoice = toCompactText(brand.brand_voice_rules, 1200);
+  const negativePrompts = toCompactText(brand.negative_prompts, 1200);
+  const brandBrief = toCompactText(brand.brand_brief, 1600);
+
   const brandContext = [
     `Brand Name: ${brand.name}`,
     `Primary Color: ${brand.primary_color}`,
     `Secondary Color: ${brand.secondary_color}`,
     extraColorsText,
-    brand.brand_voice_rules ? `Tone & Audience: ${brand.brand_voice_rules}` : "",
-    brand.negative_prompts ? `STRICT EXCLUSIONS (never include these): ${brand.negative_prompts}` : "",
-    brand.brand_brief ? `Brand Guidelines & Brief:\n${brand.brand_brief}` : "",
+    brandVoice ? `Tone & Audience: ${brandVoice}` : "",
+    negativePrompts ? `STRICT EXCLUSIONS (never include these): ${negativePrompts}` : "",
+    brandBrief ? `Brand Guidelines & Brief: ${brandBrief}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const hasAssets = brandAssets.length > 0;
-  const assetDescriptions = brandAssets
+  const selectedAssets = brandAssets.slice(0, 3);
+  const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
+  const hasAssets = selectedAssets.length > 0;
+  const assetDescriptions = selectedAssets
     .map((a: any, i: number) => `  - Image ${i + 1}: ${a.label || "Brand asset"}`)
     .join("\n");
 
-  const frameworkJson = JSON.stringify(framework, null, 2);
+  const frameworkJson = createFrameworkDigest(framework);
 
   const systemPrompt = `You are an expert brand creative designer. You have been given a precise DESIGN FRAMEWORK extracted from a reference advertisement, along with a brand identity and brand assets. Your job is to generate a NEW advertisement image that follows the framework exactly but is fully adapted to the brand.
 
@@ -321,8 +370,8 @@ ${brandContext}
 
 OUTPUT FORMAT: ${spec.label} — The generated image MUST be exactly ${spec.width}×${spec.height} pixels.
 
-${hasAssets ? `BRAND ASSETS: ${brandAssets.length} brand images are provided. These include logos, product photos, building shots, mascots, etc.:
-${assetDescriptions}
+${hasAssets ? `BRAND ASSETS: ${selectedAssets.length} brand images are provided. These include logos, product photos, building shots, mascots, etc.:
+${assetDescriptions}${omittedAssetsCount > 0 ? `\nNOTE: ${omittedAssetsCount} additional asset(s) were omitted to keep generation reliable.` : ""}
 
 CRITICAL RULES FOR BRAND ASSETS:
 - Use logos EXACTLY as provided — do NOT redraw, reimagine, or recreate them.
@@ -347,7 +396,7 @@ Generate the brand-aligned creative image now.`;
     {
       type: "text",
       text: hasAssets
-        ? `The FIRST image is the reference advertisement for visual style context. The following ${brandAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
+        ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
         : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
     },
     {
@@ -356,18 +405,18 @@ Generate the brand-aligned creative image now.`;
     },
   ];
 
-  for (const asset of brandAssets) {
+  for (const asset of selectedAssets) {
     userContent.push({
       type: "image_url",
       image_url: { url: (asset as any).image_url },
     });
   }
 
-  // Retry with availability-first fallback to reduce overload failures.
+  // Keep each function invocation short; rely on client-side spaced retries for sustained overload.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 4, timeoutMs: 120000 },
-    { model: "google/gemini-2.5-flash-image", retries: 3, timeoutMs: 120000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 2, timeoutMs: 150000 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 2, timeoutMs: 75000 },
+    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 75000 },
+    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 90000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
@@ -417,9 +466,9 @@ Generate the brand-aligned creative image now.`;
         }
 
         if (transientStatuses.has(aiResponse.status) && attempt < retries) {
-          const baseDelay = isOverloaded ? 8000 * attempt : 4000 * attempt;
-          const jitter = Math.floor(Math.random() * 3000);
-          const delay = Math.min(baseDelay + jitter, 25000);
+          const baseDelay = isOverloaded ? 6000 * attempt : 3000 * attempt;
+          const jitter = Math.floor(Math.random() * 2000);
+          const delay = Math.min(baseDelay + jitter, 15000);
           console.warn(
             `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
           );
