@@ -363,18 +363,20 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Retry with progressive fallback to reduce hard failures under provider overload.
+  // Retry with availability-first fallback to reduce overload failures.
   const modelPlan = [
-    { model: "google/gemini-3-pro-image-preview", retries: 3 },
-    { model: "google/gemini-3.1-flash-image-preview", retries: 2 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 3, timeoutMs: 90000 },
+    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 90000 },
+    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 120000 },
   ];
+  const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
   let sawOverload = false;
   let sawTruncated = false;
   let sawAnyFailure = false;
   let lastStatus: number | null = null;
 
-  for (const { model, retries } of modelPlan) {
+  for (const { model, retries, timeoutMs } of modelPlan) {
     console.log(`Using model: ${model}`);
 
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -396,7 +398,7 @@ Generate the brand-aligned creative image now.`;
             ],
             modalities: ["image", "text"],
           }),
-          signal: AbortSignal.timeout(120000),
+          signal: AbortSignal.timeout(timeoutMs),
         }
       );
 
@@ -409,19 +411,19 @@ Generate the brand-aligned creative image now.`;
         if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
         if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
 
-        if (aiResponse.status === 503 || aiResponse.status === 529) {
+        const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
+        if (isOverloaded) {
           sawOverload = true;
-          const delay = Math.min(4000 * attempt, 10000);
-          console.warn(`[${model}] overloaded (${aiResponse.status}), retrying in ${delay}ms...`);
-          if (attempt < retries) {
-            await sleep(delay);
-            continue;
-          }
-          break;
         }
 
-        if (attempt < retries) {
-          await sleep(2000 * attempt);
+        if (transientStatuses.has(aiResponse.status) && attempt < retries) {
+          const baseDelay = isOverloaded ? 3500 * attempt : 2200 * attempt;
+          const jitter = Math.floor(Math.random() * 1200);
+          const delay = Math.min(baseDelay + jitter, 12000);
+          console.warn(
+            `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
+          );
+          await sleep(delay);
           continue;
         }
 

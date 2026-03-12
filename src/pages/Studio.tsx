@@ -158,23 +158,26 @@ export default function Studio() {
         setProgressPhase("Generating brand creative...");
       }, 8000);
 
-      // Call the edge function (handles both steps)
-      const { data: fnData, error: fnError } = await supabase.functions.invoke(
-        "generate-creative",
-        {
+      // Call the edge function with one automatic retry when provider is overloaded
+      let fnData: any = null;
+      let fnError: any = null;
+      const maxInvokeAttempts = 2;
+
+      for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
+        const response = await supabase.functions.invoke("generate-creative", {
           body: {
             brandId: selectedBrandId,
             referenceImageUrl: refUrlData.publicUrl,
             generationId: gen.id,
             outputFormat,
           },
-        }
-      );
+        });
 
-      clearInterval(progressInterval);
-      clearTimeout(phaseTimeout);
+        fnData = response.data;
+        fnError = response.error;
 
-      if (fnError) {
+        if (!fnError) break;
+
         let errorMessage = fnError.message || "Generation failed";
         const context = (fnError as any).context;
 
@@ -187,7 +190,24 @@ export default function Studio() {
           }
         }
 
+        const isOverloaded =
+          context?.status === 503 ||
+          /temporarily overloaded|upstream_overloaded/i.test(errorMessage);
+
+        if (isOverloaded && invokeAttempt < maxInvokeAttempts) {
+          setProgressPhase("AI provider is busy — retrying automatically...");
+          await new Promise((resolve) => setTimeout(resolve, 22000));
+          continue;
+        }
+
         throw new Error(errorMessage);
+      }
+
+      clearInterval(progressInterval);
+      clearTimeout(phaseTimeout);
+
+      if (fnError) {
+        throw new Error("Generation failed");
       }
 
       if (fnData?.error) {
