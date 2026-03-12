@@ -96,8 +96,7 @@ export default function Studio() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setReferenceFile(file);
-      setReferencePreview(URL.createObjectURL(file));
+      setImageFile(file);
     }
   };
 
