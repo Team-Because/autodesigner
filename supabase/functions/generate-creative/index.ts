@@ -356,15 +356,34 @@ Generate the brand-aligned creative image now.`;
     );
 
     if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error("AI generation error:", aiResponse.status, errText);
+      const errText = await aiResponse.text().catch(() => "");
+      console.error(`Attempt ${attempt}: AI error ${aiResponse.status}:`, errText);
 
       if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
       if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-      throw new Error(`AI generation failed (${aiResponse.status})`);
+      // 503 = model overloaded — retry instead of failing immediately
+      if (aiResponse.status === 503 && attempt < MAX_RETRIES) {
+        console.warn(`Model overloaded (503), waiting before retry...`);
+        await new Promise(r => setTimeout(r, 3000 * attempt));
+        continue;
+      }
+      if (attempt >= MAX_RETRIES) throw new Error(`AI generation failed (${aiResponse.status})`);
+      continue;
     }
 
-    const aiData = await aiResponse.json();
+    // Guard against truncated/empty response bodies
+    let aiData;
+    try {
+      aiData = await aiResponse.json();
+    } catch (parseErr) {
+      console.warn(`Attempt ${attempt}: Truncated response body, ${attempt < MAX_RETRIES ? "retrying..." : "giving up."}`);
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw new Error("AI returned truncated response");
+    }
+
     console.log(`Attempt ${attempt} response:`, JSON.stringify({
       hasImages: !!aiData.choices?.[0]?.message?.images,
       imagesLength: aiData.choices?.[0]?.message?.images?.length,
@@ -378,6 +397,7 @@ Generate the brand-aligned creative image now.`;
     }
 
     console.warn(`Attempt ${attempt}: No image returned, ${attempt < MAX_RETRIES ? "retrying..." : "giving up."}`);
+    if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 2000));
   }
 
   throw new Error("NO_IMAGE_GENERATED");
