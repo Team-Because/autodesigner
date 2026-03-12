@@ -497,6 +497,7 @@ serve(async (req) => {
       .update({
         output_image_url: publicUrlData.publicUrl,
         layout_guide: JSON.stringify(framework),
+        copywriting: { caption: captionText },
         status: "completed",
       })
       .eq("id", generationId);
