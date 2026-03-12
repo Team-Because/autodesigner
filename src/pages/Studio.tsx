@@ -65,20 +65,38 @@ export default function Studio() {
   const [progressPhase, setProgressPhase] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
 
+  const setImageFile = useCallback((file: File) => {
+    setReferenceFile(file);
+    setReferencePreview(URL.createObjectURL(file));
+  }, []);
+
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file?.type.startsWith("image/")) {
-      setReferenceFile(file);
-      setReferencePreview(URL.createObjectURL(file));
+      setImageFile(file);
     }
-  }, []);
+  }, [setImageFile]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          setImageFile(file);
+          return;
+        }
+      }
+    }
+  }, [setImageFile]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setReferenceFile(file);
-      setReferencePreview(URL.createObjectURL(file));
+      setImageFile(file);
     }
   };
 
@@ -196,7 +214,7 @@ export default function Studio() {
   const isGenerating = studioState === "generating";
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto" onPaste={handlePaste} tabIndex={-1}>
       <div className="mb-8">
         <h1 className="text-2xl font-display font-bold text-foreground">
           The Studio
@@ -296,7 +314,7 @@ export default function Studio() {
                 >
                   <Upload className="h-10 w-10 text-muted-foreground mb-3" />
                   <p className="text-sm font-medium text-foreground">
-                    Drop your reference advertisement here
+                    Drop or paste your reference advertisement here
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     or click to browse — PNG, JPG, WebP
