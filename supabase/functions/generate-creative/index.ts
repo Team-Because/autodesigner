@@ -331,56 +331,56 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  const aiResponse = await fetch(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-pro-image-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-        modalities: ["image", "text"],
-      }),
+  // Retry up to 3 times since the model sometimes returns text-only
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`Image generation attempt ${attempt}/${MAX_RETRIES}...`);
+    
+    const aiResponse = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-pro-image-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          modalities: ["image", "text"],
+        }),
+      }
+    );
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error("AI generation error:", aiResponse.status, errText);
+
+      if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
+      if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
+      throw new Error(`AI generation failed (${aiResponse.status})`);
     }
-  );
 
-  if (!aiResponse.ok) {
-    const errText = await aiResponse.text();
-    console.error("AI generation error:", aiResponse.status, errText);
+    const aiData = await aiResponse.json();
+    console.log(`Attempt ${attempt} response:`, JSON.stringify({
+      hasImages: !!aiData.choices?.[0]?.message?.images,
+      imagesLength: aiData.choices?.[0]?.message?.images?.length,
+    }));
 
-    if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
-    if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-    throw new Error(`AI generation failed (${aiResponse.status})`);
+    const imageBase64 = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const captionText = aiData.choices?.[0]?.message?.content || "";
+
+    if (imageBase64) {
+      return { imageBase64, captionText };
+    }
+
+    console.warn(`Attempt ${attempt}: No image returned, ${attempt < MAX_RETRIES ? "retrying..." : "giving up."}`);
   }
 
-  const aiData = await aiResponse.json();
-  console.log("AI response structure:", JSON.stringify({
-    hasChoices: !!aiData.choices,
-    choicesLength: aiData.choices?.length,
-    hasMessage: !!aiData.choices?.[0]?.message,
-    hasImages: !!aiData.choices?.[0]?.message?.images,
-    imagesLength: aiData.choices?.[0]?.message?.images?.length,
-    contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 200),
-  }));
-
-  const imageBase64 = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  const captionText = aiData.choices?.[0]?.message?.content || "";
-
-  if (!imageBase64) {
-    console.error("No image in response. Full response keys:", Object.keys(aiData));
-    if (aiData.choices?.[0]?.message) {
-      console.error("Message keys:", Object.keys(aiData.choices[0].message));
-    }
-    throw new Error("NO_IMAGE_GENERATED");
-  }
-
-  return { imageBase64, captionText };
+  throw new Error("NO_IMAGE_GENERATED");
 }
 
 serve(async (req) => {
