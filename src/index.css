@@ -113,9 +113,9 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(245 58% 51%), hsl(280 60% 55%));
+    background: linear-gradient(135deg, hsl(220 72% 50%), hsl(220 72% 42%));
   }
   .gradient-primary-hover {
-    background: linear-gradient(135deg, hsl(245 58% 45%), hsl(280 60% 48%));
+    background: linear-gradient(135deg, hsl(220 72% 44%), hsl(220 72% 36%));
   }
 }
