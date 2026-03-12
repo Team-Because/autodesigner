@@ -74,10 +74,28 @@ export default function History() {
     [brands]
   );
 
+  const isStale = (g: any) => {
+    if (g.status !== "processing" && g.status !== "analyzing" && g.status !== "generating") return false;
+    const age = Date.now() - new Date(g.created_at).getTime();
+    return age > 10 * 60 * 1000; // older than 10 minutes
+  };
+
+  const getDisplayStatus = (g: any) => {
+    if (isStale(g)) return "failed";
+    return g.status;
+  };
+
+  const getDisplayImage = (g: any) => {
+    if (g.output_image_url && g.output_image_url !== "") return { url: g.output_image_url, isOutput: true };
+    if (g.reference_image_url && g.reference_image_url !== "") return { url: g.reference_image_url, isOutput: false };
+    return null;
+  };
+
   const filtered = useMemo(() => {
     return generations.filter((g) => {
       if (brandFilter !== "all" && g.brand_id !== brandFilter) return false;
-      if (statusFilter !== "all" && g.status !== statusFilter) return false;
+      const displayStatus = getDisplayStatus(g);
+      if (statusFilter !== "all" && displayStatus !== statusFilter) return false;
       if (dateFrom && new Date(g.created_at) < dateFrom) return false;
       if (dateTo) {
         const end = new Date(dateTo);
@@ -198,6 +216,8 @@ export default function History() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((g) => {
             const cw = getCopywriting(g);
+            const displayStatus = getDisplayStatus(g);
+            const displayImage = getDisplayImage(g);
             return (
               <Card
                 key={g.id}
@@ -206,11 +226,11 @@ export default function History() {
               >
                 {/* Image preview */}
                 <div className="relative aspect-[4/3] bg-muted overflow-hidden">
-                  {g.output_image_url ? (
+                  {displayImage ? (
                     <>
                       <img
-                        src={g.output_image_url}
-                        alt="Generated creative"
+                        src={displayImage.url}
+                        alt={displayImage.isOutput ? "Generated creative" : "Reference image"}
                         className="w-full h-full object-cover"
                         loading="lazy"
                         onError={(e) => {
@@ -222,6 +242,13 @@ export default function History() {
                         <ImageOff className="h-8 w-8 mb-2 opacity-40" />
                         <p className="text-xs">Image unavailable</p>
                       </div>
+                      {!displayImage.isOutput && (
+                        <div className="absolute top-2 left-2">
+                          <Badge variant="secondary" className="text-[10px] bg-background/80 backdrop-blur-sm">
+                            Reference
+                          </Badge>
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
                         <Eye className="h-8 w-8 text-card opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                       </div>
@@ -229,13 +256,7 @@ export default function History() {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                       <ImageOff className="h-8 w-8 mb-2 opacity-40" />
-                      <p className="text-xs">
-                        {g.status === "processing" || g.status === "analyzing" || g.status === "generating"
-                          ? "Generating…"
-                          : g.status === "failed"
-                          ? "Generation failed"
-                          : "No image"}
-                      </p>
+                      <p className="text-xs">No image</p>
                     </div>
                   )}
                 </div>
@@ -245,8 +266,8 @@ export default function History() {
                     <span className="text-sm font-medium text-foreground truncate">
                       {brandMap[g.brand_id] ?? "Unknown brand"}
                     </span>
-                    <Badge variant={statusVariant[g.status] ?? "secondary"} className="text-xs shrink-0">
-                      {g.status}
+                    <Badge variant={statusVariant[displayStatus] ?? "secondary"} className="text-xs shrink-0">
+                      {displayStatus === "failed" && isStale(g) ? "timed out" : displayStatus}
                     </Badge>
                   </div>
                   {cw?.caption && (
@@ -270,20 +291,28 @@ export default function History() {
           </DialogHeader>
           {selectedGeneration && (() => {
             const cw = getCopywriting(selectedGeneration);
+            const dImg = getDisplayImage(selectedGeneration);
+            const dStatus = getDisplayStatus(selectedGeneration);
             return (
               <div className="space-y-5">
                 {/* Full-size image */}
-                {selectedGeneration.output_image_url ? (
-                  <div className="rounded-lg overflow-hidden bg-muted">
+                {dImg ? (
+                  <div className="rounded-lg overflow-hidden bg-muted relative">
                     <img
-                      src={selectedGeneration.output_image_url}
-                      alt="Generated creative"
+                      src={dImg.url}
+                      alt={dImg.isOutput ? "Generated creative" : "Reference image"}
                       className="w-full rounded-lg"
                       onError={(e) => {
-                        const el = e.target as HTMLImageElement;
-                        el.style.display = "none";
+                        (e.target as HTMLImageElement).style.display = "none";
                       }}
                     />
+                    {!dImg.isOutput && (
+                      <div className="absolute top-3 left-3">
+                        <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
+                          Reference Image (generation {dStatus === "failed" || isStale(selectedGeneration) ? "failed" : "in progress"})
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="rounded-lg bg-muted flex items-center justify-center py-20">
@@ -302,7 +331,9 @@ export default function History() {
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs mb-0.5">Status</p>
-                    <Badge variant={statusVariant[selectedGeneration.status] ?? "secondary"}>{selectedGeneration.status}</Badge>
+                    <Badge variant={statusVariant[dStatus] ?? "secondary"}>
+                      {dStatus === "failed" && isStale(selectedGeneration) ? "Timed out" : dStatus}
+                    </Badge>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs mb-0.5">Created</p>
@@ -331,17 +362,17 @@ export default function History() {
                 )}
 
                 {/* Action buttons */}
-                {selectedGeneration.output_image_url && (
+                {dImg && (
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => handleDownload(selectedGeneration.output_image_url, `creative-${selectedGeneration.id}.png`)}
+                      onClick={() => handleDownload(dImg.url, `${dImg.isOutput ? "creative" : "reference"}-${selectedGeneration.id}.png`)}
                       className="flex-1"
                     >
-                      <Download className="h-4 w-4 mr-2" /> Download
+                      <Download className="h-4 w-4 mr-2" /> Download {dImg.isOutput ? "Creative" : "Reference"}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => window.open(selectedGeneration.output_image_url, "_blank")}
+                      onClick={() => window.open(dImg.url, "_blank")}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" /> Open Full Size
                     </Button>
