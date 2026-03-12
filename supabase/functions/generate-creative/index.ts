@@ -243,6 +243,39 @@ async function generateCreative(
 
   const systemPrompt = `You are an expert brand creative designer. You have been given a precise DESIGN FRAMEWORK extracted from a reference advertisement, along with a brand identity and brand assets. Your job is to generate a NEW advertisement image that follows the framework exactly but is fully adapted to the brand.
 
+══════════════════════════════════════════
+AWARD-WINNING CREATIVE FRAMEWORK — NO DUPLICATION RULES
+══════════════════════════════════════════
+Every element on the creative must appear EXACTLY ONCE. Follow this hierarchy:
+
+1. HERO ZONE (largest visual area):
+   - One dominant visual — either a product/building photo OR an illustration. Never both competing.
+
+2. BRAND MARK (one instance only):
+   - The logo appears ONCE in its designated zone. Do NOT repeat it anywhere else.
+   - If the logo contains the brand name, do NOT also write the brand name as separate text.
+
+3. INFORMATION HIERARCHY (each piece of info appears in ONE place only):
+   - Headline: One punchy line that conveys the core message.
+   - Sub-copy (optional): One supporting line — NOT a restatement of the headline.
+   - Location/Address: Appears ONCE — either in the footer strip OR near a map pin, never both.
+   - Contact info (phone/website): Appears ONCE in the footer or CTA zone.
+   - Price/offer: Appears ONCE, prominently.
+   - Legal/RERA: Appears ONCE in small text, typically bottom edge.
+
+4. CALL-TO-ACTION: One clear CTA. Do not scatter multiple CTAs.
+
+5. DEDUPLICATION CHECKLIST (strictly enforce):
+   - If the brand name is in the logo, do NOT add it as separate text.
+   - If the project name is in the headline, do NOT repeat it in sub-copy.
+   - If the location is mentioned in the headline, do NOT add a separate location line.
+   - If a phone number appears in the CTA, do NOT also put it in the footer.
+   - Never show two maps or two location references.
+   - Never show the same decorative motif more than once unless it's a deliberate pattern.
+
+6. WHITE SPACE: Award-winning creatives breathe. Leave intentional negative space — do not fill every corner with text or graphics.
+══════════════════════════════════════════
+
 DESIGN FRAMEWORK (follow this EXACTLY):
 ${frameworkJson}
 
@@ -268,6 +301,7 @@ INSTRUCTIONS:
 6. The final image must look like a polished, professional advertisement.
 7. Adapt the framework layout to fit ${spec.label} format (${spec.width}×${spec.height}) naturally.
 8. Apply any brand guidelines strictly. Respect all exclusions.
+9. CRITICAL: Apply the NO DUPLICATION RULES above — every text element, logo, location, and contact info must appear EXACTLY ONCE. Scan the layout before finalizing to remove any duplicates.
 
 Generate the brand-aligned creative image now.`;
 
