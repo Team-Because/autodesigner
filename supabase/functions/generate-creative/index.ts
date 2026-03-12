@@ -13,6 +13,38 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
   story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function extractCaptionText(aiData: any): string {
+  const content = aiData?.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part: any) => part?.type === "text" && typeof part?.text === "string")
+      .map((part: any) => part.text)
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
+function extractImagePayload(aiData: any): string | null {
+  const candidates = [
+    aiData?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
+    aiData?.choices?.[0]?.message?.images?.[0]?.url,
+    aiData?.choices?.[0]?.message?.image_url?.url,
+    aiData?.choices?.[0]?.message?.image_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 /** Step 1 — Analyze the reference image and extract a structured design framework */
 async function analyzeFramework(
   referenceImageUrl: string,
@@ -331,75 +363,112 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Retry up to 3 times since the model sometimes returns text-only
-  const MAX_RETRIES = 3;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`Image generation attempt ${attempt}/${MAX_RETRIES}...`);
-    
-    const aiResponse = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-          modalities: ["image", "text"],
-        }),
-      }
-    );
+  // Retry with progressive fallback to reduce hard failures under provider overload.
+  const modelPlan = [
+    { model: "google/gemini-3-pro-image-preview", retries: 3 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 2 },
+  ];
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text().catch(() => "");
-      console.error(`Attempt ${attempt}: AI error ${aiResponse.status}:`, errText);
+  let sawOverload = false;
+  let sawTruncated = false;
+  let sawAnyFailure = false;
+  let lastStatus: number | null = null;
 
-      if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
-      if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-      // 503 = model overloaded — retry instead of failing immediately
-      if (aiResponse.status === 503 && attempt < MAX_RETRIES) {
-        console.warn(`Model overloaded (503), waiting before retry...`);
-        await new Promise(r => setTimeout(r, 3000 * attempt));
-        continue;
+  for (const { model, retries } of modelPlan) {
+    console.log(`Using model: ${model}`);
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      console.log(`[${model}] image generation attempt ${attempt}/${retries}...`);
+
+      const aiResponse = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userContent },
+            ],
+            modalities: ["image", "text"],
+          }),
+          signal: AbortSignal.timeout(120000),
+        }
+      );
+
+      if (!aiResponse.ok) {
+        sawAnyFailure = true;
+        lastStatus = aiResponse.status;
+        const errText = await aiResponse.text().catch(() => "");
+        console.error(`[${model}] attempt ${attempt}: AI error ${aiResponse.status}:`, errText);
+
+        if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
+        if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
+
+        if (aiResponse.status === 503 || aiResponse.status === 529) {
+          sawOverload = true;
+          const delay = Math.min(4000 * attempt, 10000);
+          console.warn(`[${model}] overloaded (${aiResponse.status}), retrying in ${delay}ms...`);
+          if (attempt < retries) {
+            await sleep(delay);
+            continue;
+          }
+          break;
+        }
+
+        if (attempt < retries) {
+          await sleep(2000 * attempt);
+          continue;
+        }
+
+        break;
       }
-      if (attempt >= MAX_RETRIES) throw new Error(`AI generation failed (${aiResponse.status})`);
-      continue;
+
+      let aiData: any;
+      try {
+        aiData = await aiResponse.json();
+      } catch {
+        sawAnyFailure = true;
+        sawTruncated = true;
+        console.warn(`[${model}] attempt ${attempt}: Truncated response body`);
+        if (attempt < retries) {
+          await sleep(2500);
+          continue;
+        }
+        break;
+      }
+
+      const imageBase64 = extractImagePayload(aiData);
+      const captionText = extractCaptionText(aiData);
+
+      console.log(`[${model}] attempt ${attempt} response:`, JSON.stringify({
+        hasImage: !!imageBase64,
+      }));
+
+      if (imageBase64) {
+        return { imageBase64, captionText };
+      }
+
+      sawAnyFailure = true;
+      console.warn(`[${model}] attempt ${attempt}: No image payload returned`);
+      if (attempt < retries) {
+        await sleep(2000);
+      }
     }
 
-    // Guard against truncated/empty response bodies
-    let aiData;
-    try {
-      aiData = await aiResponse.json();
-    } catch (parseErr) {
-      console.warn(`Attempt ${attempt}: Truncated response body, ${attempt < MAX_RETRIES ? "retrying..." : "giving up."}`);
-      if (attempt < MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      throw new Error("AI returned truncated response");
+    if (model !== modelPlan[modelPlan.length - 1].model) {
+      console.warn(`Switching to fallback model after failures on ${model}`);
     }
-
-    console.log(`Attempt ${attempt} response:`, JSON.stringify({
-      hasImages: !!aiData.choices?.[0]?.message?.images,
-      imagesLength: aiData.choices?.[0]?.message?.images?.length,
-    }));
-
-    const imageBase64 = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    const captionText = aiData.choices?.[0]?.message?.content || "";
-
-    if (imageBase64) {
-      return { imageBase64, captionText };
-    }
-
-    console.warn(`Attempt ${attempt}: No image returned, ${attempt < MAX_RETRIES ? "retrying..." : "giving up."}`);
-    if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 2000));
   }
 
+  if (sawOverload) throw new Error("UPSTREAM_OVERLOADED");
+  if (sawTruncated) throw new Error("AI_TRUNCATED_RESPONSE");
+  if (lastStatus !== null) throw new Error(`AI generation failed (${lastStatus})`);
+  if (sawAnyFailure) throw new Error("AI generation failed");
   throw new Error("NO_IMAGE_GENERATED");
 }
 
@@ -485,14 +554,36 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      if (err.message === "UPSTREAM_OVERLOADED") {
+        return new Response(
+          JSON.stringify({ error: "AI provider is temporarily overloaded. Please retry in 20–40 seconds." }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (err.message === "AI_TRUNCATED_RESPONSE") {
+        return new Response(
+          JSON.stringify({ error: "AI returned an incomplete response. Please retry." }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       if (err.message === "NO_IMAGE_GENERATED") {
         return new Response(
           JSON.stringify({ error: "No image was generated. Try again." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      const statusMatch = /AI generation failed \((\d+)\)/.exec(err.message || "");
+      if (statusMatch) {
+        const statusCode = Number(statusMatch[1]);
+        return new Response(
+          JSON.stringify({ error: `AI generation failed (${statusCode})` }),
+          { status: Number.isFinite(statusCode) ? statusCode : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: "AI generation failed" }),
+        JSON.stringify({ error: err?.message || "AI generation failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

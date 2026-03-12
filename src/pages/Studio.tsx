@@ -175,7 +175,19 @@ export default function Studio() {
       clearTimeout(phaseTimeout);
 
       if (fnError) {
-        throw new Error(fnError.message || "Generation failed");
+        let errorMessage = fnError.message || "Generation failed";
+        const context = (fnError as any).context;
+
+        if (context?.json) {
+          try {
+            const payload = await context.json();
+            if (payload?.error) errorMessage = payload.error;
+          } catch {
+            // ignore JSON parse failure
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
       if (fnData?.error) {
