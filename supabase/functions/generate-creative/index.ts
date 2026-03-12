@@ -365,9 +365,9 @@ Generate the brand-aligned creative image now.`;
 
   // Retry with availability-first fallback to reduce overload failures.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 3, timeoutMs: 90000 },
-    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 90000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 120000 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 4, timeoutMs: 120000 },
+    { model: "google/gemini-2.5-flash-image", retries: 3, timeoutMs: 120000 },
+    { model: "google/gemini-3-pro-image-preview", retries: 2, timeoutMs: 150000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
@@ -417,9 +417,9 @@ Generate the brand-aligned creative image now.`;
         }
 
         if (transientStatuses.has(aiResponse.status) && attempt < retries) {
-          const baseDelay = isOverloaded ? 3500 * attempt : 2200 * attempt;
-          const jitter = Math.floor(Math.random() * 1200);
-          const delay = Math.min(baseDelay + jitter, 12000);
+          const baseDelay = isOverloaded ? 8000 * attempt : 4000 * attempt;
+          const jitter = Math.floor(Math.random() * 3000);
+          const delay = Math.min(baseDelay + jitter, 25000);
           console.warn(
             `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
           );
