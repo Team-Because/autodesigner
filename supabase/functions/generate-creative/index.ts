@@ -13,6 +13,38 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
   story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function extractCaptionText(aiData: any): string {
+  const content = aiData?.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part: any) => part?.type === "text" && typeof part?.text === "string")
+      .map((part: any) => part.text)
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
+function extractImagePayload(aiData: any): string | null {
+  const candidates = [
+    aiData?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
+    aiData?.choices?.[0]?.message?.images?.[0]?.url,
+    aiData?.choices?.[0]?.message?.image_url?.url,
+    aiData?.choices?.[0]?.message?.image_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 /** Step 1 — Analyze the reference image and extract a structured design framework */
 async function analyzeFramework(
   referenceImageUrl: string,
