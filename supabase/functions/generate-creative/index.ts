@@ -405,18 +405,18 @@ Generate the brand-aligned creative image now.`;
     },
   ];
 
-  for (const asset of brandAssets) {
+  for (const asset of selectedAssets) {
     userContent.push({
       type: "image_url",
       image_url: { url: (asset as any).image_url },
     });
   }
 
-  // Retry with availability-first fallback to reduce overload failures.
+  // Keep each function invocation short; rely on client-side spaced retries for sustained overload.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 4, timeoutMs: 120000 },
-    { model: "google/gemini-2.5-flash-image", retries: 3, timeoutMs: 120000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 2, timeoutMs: 150000 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 2, timeoutMs: 75000 },
+    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 75000 },
+    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 90000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
