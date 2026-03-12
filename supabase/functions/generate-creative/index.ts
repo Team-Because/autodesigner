@@ -365,9 +365,9 @@ Generate the brand-aligned creative image now.`;
 
   // Retry with availability-first fallback to reduce overload failures.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 3, timeoutMs: 90000 },
-    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 90000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 120000 },
+    { model: "google/gemini-3.1-flash-image-preview", retries: 4, timeoutMs: 120000 },
+    { model: "google/gemini-2.5-flash-image", retries: 3, timeoutMs: 120000 },
+    { model: "google/gemini-3-pro-image-preview", retries: 2, timeoutMs: 150000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
