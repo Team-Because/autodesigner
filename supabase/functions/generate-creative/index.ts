@@ -466,9 +466,9 @@ Generate the brand-aligned creative image now.`;
         }
 
         if (transientStatuses.has(aiResponse.status) && attempt < retries) {
-          const baseDelay = isOverloaded ? 8000 * attempt : 4000 * attempt;
-          const jitter = Math.floor(Math.random() * 3000);
-          const delay = Math.min(baseDelay + jitter, 25000);
+          const baseDelay = isOverloaded ? 6000 * attempt : 3000 * attempt;
+          const jitter = Math.floor(Math.random() * 2000);
+          const delay = Math.min(baseDelay + jitter, 15000);
           console.warn(
             `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
           );
