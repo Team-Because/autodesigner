@@ -314,7 +314,7 @@ export default function Studio() {
                 >
                   <Upload className="h-10 w-10 text-muted-foreground mb-3" />
                   <p className="text-sm font-medium text-foreground">
-                    Drop your reference advertisement here
+                    Drop or paste your reference advertisement here
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     or click to browse — PNG, JPG, WebP
