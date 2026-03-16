@@ -619,31 +619,53 @@ serve(async (req) => {
     const brand = brandRes.data;
     const brandAssets = assetsRes.data || [];
 
-    // Update status to analyzing
-    await supabase.from("generations").update({ status: "analyzing" }).eq("id", generationId);
+    const generationRes = generationId
+      ? await supabase
+          .from("generations")
+          .select("status, layout_guide, copywriting, output_image_url")
+          .eq("id", generationId)
+          .maybeSingle()
+      : { data: null, error: null };
 
-    // ── STEP 1: Analyze reference image → design framework ──
-    console.log("Step 1: Analyzing reference image framework...");
-    let framework: Record<string, unknown>;
-    try {
-      framework = await analyzeFramework(referenceImageUrl, LOVABLE_API_KEY);
-      console.log("Framework extracted successfully");
-    } catch (err) {
-      console.error("Framework analysis failed:", err);
-      await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
-      return new Response(
-        JSON.stringify({ error: "Failed to analyze reference image layout" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (generationRes.error) {
+      console.error("Failed to read existing generation state:", generationRes.error);
     }
 
-    // Store framework and update status
-    await supabase
-      .from("generations")
-      .update({ layout_guide: JSON.stringify(framework), status: "generating" })
-      .eq("id", generationId);
+    const existingGeneration = generationRes.data;
+    const existingFramework = parseStoredFramework(existingGeneration?.layout_guide);
+    const existingCaption = extractStoredCaption(existingGeneration?.copywriting);
+    const existingImageUrl = typeof existingGeneration?.output_image_url === "string"
+      ? existingGeneration.output_image_url
+      : "";
 
-    // ── STEP 2: Generate brand creative using framework ──
+    // Reuse already-computed framework so retries don't trigger an extra analysis call.
+    let framework: Record<string, unknown>;
+    if (existingFramework) {
+      framework = existingFramework;
+      console.log("Reusing stored framework from previous attempt");
+      await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+    } else {
+      await supabase.from("generations").update({ status: "analyzing" }).eq("id", generationId);
+
+      console.log("Step 1: Analyzing reference image framework...");
+      try {
+        framework = await analyzeFramework(referenceImageUrl, LOVABLE_API_KEY);
+        console.log("Framework extracted successfully");
+      } catch (err) {
+        console.error("Framework analysis failed:", err);
+        await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+        return new Response(
+          JSON.stringify({ error: "Failed to analyze reference image layout" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      await supabase
+        .from("generations")
+        .update({ layout_guide: JSON.stringify(framework), status: "generating" })
+        .eq("id", generationId);
+    }
+
     console.log("Step 2: Generating brand creative...");
     let imageBase64: string;
     let captionText: string;
@@ -657,12 +679,6 @@ serve(async (req) => {
       console.error("Generation failed:", err);
       await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
 
-      if (err.message === "RATE_LIMITED") {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       if (err.message === "CREDITS_EXHAUSTED") {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please top up your workspace." }),
@@ -671,8 +687,15 @@ serve(async (req) => {
       }
       if (err.message === "UPSTREAM_OVERLOADED") {
         return new Response(
-          JSON.stringify({ error: "AI provider is temporarily overloaded. Please retry in 20–40 seconds." }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            error: "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step and put less load on generation.",
+            retryable: true,
+            retryAfterSeconds: 45,
+            analysisReused: !!existingFramework,
+            cachedPreview: existingImageUrl || undefined,
+            cachedCaption: existingCaption || undefined,
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "45" } }
         );
       }
       if (err.message === "AI_TRUNCATED_RESPONSE") {
