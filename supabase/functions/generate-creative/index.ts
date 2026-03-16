@@ -485,11 +485,11 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Keep each function invocation short; rely on client-side spaced retries for sustained overload.
+  // Prefer one high-quality attempt per model to avoid cascading 429s under load.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 2, timeoutMs: 75000 },
-    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 75000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 90000 },
+    { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000 },
+    { model: "google/gemini-2.5-flash-image", timeoutMs: 80000 },
+    { model: "google/gemini-3-pro-image-preview", timeoutMs: 95000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
@@ -498,94 +498,85 @@ Generate the brand-aligned creative image now.`;
   let sawAnyFailure = false;
   let lastStatus: number | null = null;
 
-  for (const { model, retries, timeoutMs } of modelPlan) {
+  for (const { model, timeoutMs } of modelPlan) {
     console.log(`Using model: ${model}`);
+    console.log(`[${model}] image generation attempt 1/1...`);
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      console.log(`[${model}] image generation attempt ${attempt}/${retries}...`);
-
-      const aiResponse = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userContent },
-            ],
-            modalities: ["image", "text"],
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        }
-      );
-
-      if (!aiResponse.ok) {
-        sawAnyFailure = true;
-        lastStatus = aiResponse.status;
-        const errText = await aiResponse.text().catch(() => "");
-        console.error(`[${model}] attempt ${attempt}: AI error ${aiResponse.status}:`, errText);
-
-        if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
-        if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-
-        const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
-        if (isOverloaded) {
-          sawOverload = true;
-        }
-
-        if (transientStatuses.has(aiResponse.status) && attempt < retries) {
-          const baseDelay = isOverloaded ? 6000 * attempt : 3000 * attempt;
-          const jitter = Math.floor(Math.random() * 2000);
-          const delay = Math.min(baseDelay + jitter, 15000);
-          console.warn(
-            `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
-          );
-          await sleep(delay);
-          continue;
-        }
-
-        break;
+    const aiResponse = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          modalities: ["image", "text"],
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
       }
+    );
 
-      let aiData: any;
-      try {
-        aiData = await aiResponse.json();
-      } catch {
-        sawAnyFailure = true;
-        sawTruncated = true;
-        console.warn(`[${model}] attempt ${attempt}: Truncated response body`);
-        if (attempt < retries) {
-          await sleep(2500);
-          continue;
-        }
-        break;
-      }
-
-      const imageBase64 = extractImagePayload(aiData);
-      const captionText = extractCaptionText(aiData);
-
-      console.log(`[${model}] attempt ${attempt} response:`, JSON.stringify({
-        hasImage: !!imageBase64,
-      }));
-
-      if (imageBase64) {
-        return { imageBase64, captionText };
-      }
-
+    if (!aiResponse.ok) {
       sawAnyFailure = true;
-      console.warn(`[${model}] attempt ${attempt}: No image payload returned`);
-      if (attempt < retries) {
-        await sleep(2000);
+      lastStatus = aiResponse.status;
+      const errText = await aiResponse.text().catch(() => "");
+      console.error(`[${model}] AI error ${aiResponse.status}:`, errText);
+
+      if (aiResponse.status === 429) {
+        sawOverload = true;
+        continue;
       }
+      if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
+
+      const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
+      if (isOverloaded) {
+        sawOverload = true;
+      }
+
+      if (transientStatuses.has(aiResponse.status)) {
+        const delay = isOverloaded ? 2500 : 1200;
+        console.warn(`[${model}] transient error (${aiResponse.status}), pausing ${delay}ms before fallback...`);
+        await sleep(delay);
+        continue;
+      }
+
+      break;
     }
 
+    let aiData: any;
+    try {
+      aiData = await aiResponse.json();
+    } catch {
+      sawAnyFailure = true;
+      sawTruncated = true;
+      console.warn(`[${model}] attempt 1: Truncated response body`);
+      await sleep(1000);
+      continue;
+    }
+
+    const imageBase64 = extractImagePayload(aiData);
+    const captionText = extractCaptionText(aiData);
+
+    console.log(`[${model}] attempt 1 response:`, JSON.stringify({
+      hasImage: !!imageBase64,
+    }));
+
+    if (imageBase64) {
+      return { imageBase64, captionText };
+    }
+
+    sawAnyFailure = true;
+    console.warn(`[${model}] attempt 1: No image payload returned`);
+    await sleep(800);
+
     if (model !== modelPlan[modelPlan.length - 1].model) {
-      console.warn(`Switching to fallback model after failures on ${model}`);
+      console.warn(`Switching to fallback model after empty response on ${model}`);
     }
   }
 
