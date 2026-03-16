@@ -15,47 +15,36 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function parseStoredFramework(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function extractStoredCaption(copywriting: unknown): string {
+  if (typeof copywriting === "string") return copywriting.trim();
+  if (!copywriting || typeof copywriting !== "object") return "";
+
+  const caption = (copywriting as Record<string, unknown>).caption;
+  return typeof caption === "string" ? caption.trim() : "";
+}
+
 function toCompactText(value: unknown, maxChars: number): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
-}
-
-function createFrameworkDigest(framework: Record<string, unknown>): string {
-  const layout = (framework as any)?.layout ?? {};
-  const style = (framework as any)?.style ?? {};
-  const zones = Array.isArray(layout?.zones)
-    ? layout.zones.slice(0, 8).map((z: any) => ({
-        name: z?.name,
-        position: z?.position,
-        size: z?.size,
-      }))
-    : [];
-  const textElements = Array.isArray((framework as any)?.text_elements)
-    ? (framework as any).text_elements.slice(0, 6).map((t: any) => ({
-        type: t?.type,
-        position: t?.position,
-        font_style: t?.font_style,
-      }))
-    : [];
-
-  return JSON.stringify(
-    {
-      layout: {
-        orientation: layout?.orientation,
-        zones,
-      },
-      style: {
-        background_type: style?.background_type,
-        photography_style: style?.photography_style,
-        overlay: style?.overlay,
-        mood: style?.mood,
-      },
-      text_elements: textElements,
-      composition_notes: toCompactText((framework as any)?.composition_notes, 400),
-    },
-    null,
-    2
-  );
 }
 
 function extractCaptionText(aiData: any): string {
@@ -496,11 +485,11 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Keep each function invocation short; rely on client-side spaced retries for sustained overload.
+  // Prefer one high-quality attempt per model to avoid cascading 429s under load.
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", retries: 2, timeoutMs: 75000 },
-    { model: "google/gemini-2.5-flash-image", retries: 2, timeoutMs: 75000 },
-    { model: "google/gemini-3-pro-image-preview", retries: 1, timeoutMs: 90000 },
+    { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000 },
+    { model: "google/gemini-2.5-flash-image", timeoutMs: 80000 },
+    { model: "google/gemini-3-pro-image-preview", timeoutMs: 95000 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
@@ -509,94 +498,85 @@ Generate the brand-aligned creative image now.`;
   let sawAnyFailure = false;
   let lastStatus: number | null = null;
 
-  for (const { model, retries, timeoutMs } of modelPlan) {
+  for (const { model, timeoutMs } of modelPlan) {
     console.log(`Using model: ${model}`);
+    console.log(`[${model}] image generation attempt 1/1...`);
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      console.log(`[${model}] image generation attempt ${attempt}/${retries}...`);
-
-      const aiResponse = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userContent },
-            ],
-            modalities: ["image", "text"],
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        }
-      );
-
-      if (!aiResponse.ok) {
-        sawAnyFailure = true;
-        lastStatus = aiResponse.status;
-        const errText = await aiResponse.text().catch(() => "");
-        console.error(`[${model}] attempt ${attempt}: AI error ${aiResponse.status}:`, errText);
-
-        if (aiResponse.status === 429) throw new Error("RATE_LIMITED");
-        if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-
-        const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
-        if (isOverloaded) {
-          sawOverload = true;
-        }
-
-        if (transientStatuses.has(aiResponse.status) && attempt < retries) {
-          const baseDelay = isOverloaded ? 6000 * attempt : 3000 * attempt;
-          const jitter = Math.floor(Math.random() * 2000);
-          const delay = Math.min(baseDelay + jitter, 15000);
-          console.warn(
-            `[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`
-          );
-          await sleep(delay);
-          continue;
-        }
-
-        break;
+    const aiResponse = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          modalities: ["image", "text"],
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
       }
+    );
 
-      let aiData: any;
-      try {
-        aiData = await aiResponse.json();
-      } catch {
-        sawAnyFailure = true;
-        sawTruncated = true;
-        console.warn(`[${model}] attempt ${attempt}: Truncated response body`);
-        if (attempt < retries) {
-          await sleep(2500);
-          continue;
-        }
-        break;
-      }
-
-      const imageBase64 = extractImagePayload(aiData);
-      const captionText = extractCaptionText(aiData);
-
-      console.log(`[${model}] attempt ${attempt} response:`, JSON.stringify({
-        hasImage: !!imageBase64,
-      }));
-
-      if (imageBase64) {
-        return { imageBase64, captionText };
-      }
-
+    if (!aiResponse.ok) {
       sawAnyFailure = true;
-      console.warn(`[${model}] attempt ${attempt}: No image payload returned`);
-      if (attempt < retries) {
-        await sleep(2000);
+      lastStatus = aiResponse.status;
+      const errText = await aiResponse.text().catch(() => "");
+      console.error(`[${model}] AI error ${aiResponse.status}:`, errText);
+
+      if (aiResponse.status === 429) {
+        sawOverload = true;
+        continue;
       }
+      if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
+
+      const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
+      if (isOverloaded) {
+        sawOverload = true;
+      }
+
+      if (transientStatuses.has(aiResponse.status)) {
+        const delay = isOverloaded ? 2500 : 1200;
+        console.warn(`[${model}] transient error (${aiResponse.status}), pausing ${delay}ms before fallback...`);
+        await sleep(delay);
+        continue;
+      }
+
+      break;
     }
 
+    let aiData: any;
+    try {
+      aiData = await aiResponse.json();
+    } catch {
+      sawAnyFailure = true;
+      sawTruncated = true;
+      console.warn(`[${model}] attempt 1: Truncated response body`);
+      await sleep(1000);
+      continue;
+    }
+
+    const imageBase64 = extractImagePayload(aiData);
+    const captionText = extractCaptionText(aiData);
+
+    console.log(`[${model}] attempt 1 response:`, JSON.stringify({
+      hasImage: !!imageBase64,
+    }));
+
+    if (imageBase64) {
+      return { imageBase64, captionText };
+    }
+
+    sawAnyFailure = true;
+    console.warn(`[${model}] attempt 1: No image payload returned`);
+    await sleep(800);
+
     if (model !== modelPlan[modelPlan.length - 1].model) {
-      console.warn(`Switching to fallback model after failures on ${model}`);
+      console.warn(`Switching to fallback model after empty response on ${model}`);
     }
   }
 
@@ -639,31 +619,53 @@ serve(async (req) => {
     const brand = brandRes.data;
     const brandAssets = assetsRes.data || [];
 
-    // Update status to analyzing
-    await supabase.from("generations").update({ status: "analyzing" }).eq("id", generationId);
+    const generationRes = generationId
+      ? await supabase
+          .from("generations")
+          .select("status, layout_guide, copywriting, output_image_url")
+          .eq("id", generationId)
+          .maybeSingle()
+      : { data: null, error: null };
 
-    // ── STEP 1: Analyze reference image → design framework ──
-    console.log("Step 1: Analyzing reference image framework...");
-    let framework: Record<string, unknown>;
-    try {
-      framework = await analyzeFramework(referenceImageUrl, LOVABLE_API_KEY);
-      console.log("Framework extracted successfully");
-    } catch (err) {
-      console.error("Framework analysis failed:", err);
-      await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
-      return new Response(
-        JSON.stringify({ error: "Failed to analyze reference image layout" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (generationRes.error) {
+      console.error("Failed to read existing generation state:", generationRes.error);
     }
 
-    // Store framework and update status
-    await supabase
-      .from("generations")
-      .update({ layout_guide: JSON.stringify(framework), status: "generating" })
-      .eq("id", generationId);
+    const existingGeneration = generationRes.data;
+    const existingFramework = parseStoredFramework(existingGeneration?.layout_guide);
+    const existingCaption = extractStoredCaption(existingGeneration?.copywriting);
+    const existingImageUrl = typeof existingGeneration?.output_image_url === "string"
+      ? existingGeneration.output_image_url
+      : "";
 
-    // ── STEP 2: Generate brand creative using framework ──
+    // Reuse already-computed framework so retries don't trigger an extra analysis call.
+    let framework: Record<string, unknown>;
+    if (existingFramework) {
+      framework = existingFramework;
+      console.log("Reusing stored framework from previous attempt");
+      await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+    } else {
+      await supabase.from("generations").update({ status: "analyzing" }).eq("id", generationId);
+
+      console.log("Step 1: Analyzing reference image framework...");
+      try {
+        framework = await analyzeFramework(referenceImageUrl, LOVABLE_API_KEY);
+        console.log("Framework extracted successfully");
+      } catch (err) {
+        console.error("Framework analysis failed:", err);
+        await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+        return new Response(
+          JSON.stringify({ error: "Failed to analyze reference image layout" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      await supabase
+        .from("generations")
+        .update({ layout_guide: JSON.stringify(framework), status: "generating" })
+        .eq("id", generationId);
+    }
+
     console.log("Step 2: Generating brand creative...");
     let imageBase64: string;
     let captionText: string;
@@ -677,12 +679,6 @@ serve(async (req) => {
       console.error("Generation failed:", err);
       await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
 
-      if (err.message === "RATE_LIMITED") {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       if (err.message === "CREDITS_EXHAUSTED") {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please top up your workspace." }),
@@ -691,8 +687,15 @@ serve(async (req) => {
       }
       if (err.message === "UPSTREAM_OVERLOADED") {
         return new Response(
-          JSON.stringify({ error: "AI provider is temporarily overloaded. Please retry in 20–40 seconds." }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            error: "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step and put less load on generation.",
+            retryable: true,
+            retryAfterSeconds: 45,
+            analysisReused: !!existingFramework,
+            cachedPreview: existingImageUrl || undefined,
+            cachedCaption: existingCaption || undefined,
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "45" } }
         );
       }
       if (err.message === "AI_TRUNCATED_RESPONSE") {

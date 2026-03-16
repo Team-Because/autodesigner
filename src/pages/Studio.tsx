@@ -158,11 +158,11 @@ export default function Studio() {
         setProgressPhase("Generating brand creative...");
       }, 8000);
 
-      // Call the edge function with one automatic retry when provider is overloaded
+      // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
-      const maxInvokeAttempts = 5;
+      const maxInvokeAttempts = 3;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
         const response = await supabase.functions.invoke("generate-creative", {
@@ -181,23 +181,26 @@ export default function Studio() {
 
         let errorMessage = fnError.message || "Generation failed";
         const context = (fnError as any).context;
+        let retryable = false;
+        let retryAfterSeconds = 0;
 
         if (context?.json) {
           try {
             const payload = await context.json();
             if (payload?.error) errorMessage = payload.error;
+            retryable = !!payload?.retryable;
+            retryAfterSeconds = Number(payload?.retryAfterSeconds || 0);
           } catch {
             // ignore JSON parse failure
           }
         }
 
-        const isOverloaded =
-          context?.status === 503 ||
-          /temporarily overloaded|upstream_overloaded/i.test(errorMessage);
+        const isRetryableOverload =
+          (context?.status === 503 || context?.status === 429) && retryable;
 
-        if (isOverloaded && invokeAttempt < maxInvokeAttempts) {
-          const waitMs = Math.min(25000 + invokeAttempt * 15000, 60000);
-          setProgressPhase(`AI provider is busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
+        if (isRetryableOverload && invokeAttempt < maxInvokeAttempts) {
+          const waitMs = Math.max(retryAfterSeconds * 1000, 45000);
+          setProgressPhase(`AI providers are busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
           continue;
         }
