@@ -517,6 +517,8 @@ Generate the brand-aligned creative image now.`;
             { role: "user", content: userContent },
           ],
           modalities: ["image", "text"],
+          size: `${spec.width}x${spec.height}`,
+          image_size: { width: spec.width, height: spec.height },
         }),
         signal: AbortSignal.timeout(timeoutMs),
       }
