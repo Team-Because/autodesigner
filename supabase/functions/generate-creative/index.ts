@@ -159,24 +159,134 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 2: Generate the creative ───
+// ─── Step 2: Adapt to brand (think before drawing) ───
+
+interface CreativeDirective {
+  headline: string;
+  subCopy: string;
+  ctaText: string;
+  logoPlacement: string;
+  colorMap: { background: string; accent: string; text: string; cta: string };
+  heroDescription: string;
+  layoutAdaptation: string;
+  warnings: string[];
+}
+
+async function adaptToBrand(
+  framework: Record<string, unknown>,
+  brand: any,
+  spec: { width: number; height: number; label: string; ratio: string },
+  apiKey: string
+): Promise<CreativeDirective> {
+  const renderedBrief = getRenderedBrandBrief(brand.brand_brief);
+  const extraColorsText =
+    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+      ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
+      : "";
+  const voiceRules = (brand.brand_voice_rules || "").trim();
+  const negativePrompts = (brand.negative_prompts || "").trim();
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "system",
+          content: `You are a creative strategist. Given a design framework (extracted from a reference ad) and a brand's full context, produce a precise Creative Directive that an image-generation model will follow verbatim.
+
+Your job:
+1. Map the reference layout zones to this brand's elements (logo, product, copy).
+2. Write the EXACT text strings (headline, sub-copy, CTA) — brand-aligned, original, short.
+3. Assign brand colors to specific zones (background, accent, text, CTA button).
+4. Describe the hero visual in terms of this brand's products/identity.
+5. Explain how to adapt the reference layout to ${spec.ratio} (${spec.label}).
+6. Flag any conflicts (e.g., reference is landscape but output is portrait).
+
+Be specific and decisive. No vague suggestions — write the actual copy and pick the actual colors.`,
+        },
+        {
+          role: "user",
+          content: `DESIGN FRAMEWORK (from reference):
+${JSON.stringify(framework, null, 2)}
+
+BRAND CONTEXT:
+Name: ${brand.name}
+Primary Color: ${brand.primary_color}
+Secondary Color: ${brand.secondary_color}
+${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
+${voiceRules ? `Voice & Tone: ${voiceRules}` : ""}
+${negativePrompts ? `Never use: ${negativePrompts}` : ""}
+${renderedBrief ? `Brand Guidelines:\n${renderedBrief}` : ""}
+
+OUTPUT FORMAT: ${spec.ratio} (${spec.width}×${spec.height})
+
+Produce the Creative Directive now.`,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "creative_directive",
+            description: "A precise creative directive for the image generation model.",
+            parameters: {
+              type: "object",
+              properties: {
+                headline: { type: "string", description: "Exact headline text, ≤8 words" },
+                subCopy: { type: "string", description: "Exact supporting text, ≤15 words" },
+                ctaText: { type: "string", description: "Exact CTA text (e.g., 'Order Now', 'Shop Today')" },
+                logoPlacement: { type: "string", description: "Where and how big the logo should be (e.g., 'top-left, small')" },
+                colorMap: {
+                  type: "object",
+                  properties: {
+                    background: { type: "string", description: "Hex color for main background" },
+                    accent: { type: "string", description: "Hex color for accents/highlights" },
+                    text: { type: "string", description: "Hex color for main text" },
+                    cta: { type: "string", description: "Hex color for CTA button/banner" },
+                  },
+                  required: ["background", "accent", "text", "cta"],
+                  additionalProperties: false,
+                },
+                heroDescription: { type: "string", description: "What the main visual should show — specific to this brand" },
+                layoutAdaptation: { type: "string", description: "How to adapt the reference layout to the target aspect ratio" },
+                warnings: { type: "array", items: { type: "string" }, description: "Any conflicts or concerns" },
+              },
+              required: ["headline", "subCopy", "ctaText", "logoPlacement", "colorMap", "heroDescription", "layoutAdaptation", "warnings"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "creative_directive" } },
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Adapt error:", response.status, errText);
+    throw new Error(`Brand adaptation failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall?.function?.arguments) throw new Error("No directive produced");
+  return JSON.parse(toolCall.function.arguments);
+}
+
+// ─── Step 3: Generate the creative ───
 
 async function generateCreative(
   framework: Record<string, unknown>,
+  directive: CreativeDirective,
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
-  const renderedBrief = getRenderedBrandBrief(brand.brand_brief);
-  const extraColorsText =
-    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
-      ? brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")
-      : "";
-  const voiceRules = (brand.brand_voice_rules || "").trim();
-  const negativePrompts = (brand.negative_prompts || "").trim();
-
   // Deduplicate assets and pick up to 5
   const dedupedAssets = brandAssets.filter((a: any, i: number, all: any[]) =>
     i === all.findIndex((c: any) => c.image_url === a.image_url)
@@ -186,56 +296,46 @@ async function generateCreative(
   const selectedAssets = [...logoAssets.slice(0, 1), ...otherAssets.slice(0, 4)].slice(0, 5);
   const hasAssets = selectedAssets.length > 0;
 
-  const assetDescriptions = selectedAssets
-    .map((a: any) => `  • "${a.label || "Brand asset"}" — use as provided, do not redraw.`)
-    .join("\n");
-
   const systemPrompt = `You are an elite creative director producing a publication-ready advertisement.
 
 ═══ OUTPUT FORMAT (CRITICAL) ═══
 Generate EXACTLY a ${spec.ratio} image (${spec.width}×${spec.height}).
 ${spec.height > spec.width ? "The image MUST be VERTICAL (portrait)." : spec.width > spec.height ? "The image MUST be HORIZONTAL (landscape)." : "The image MUST be perfectly SQUARE."}
-The output aspect ratio MUST be ${spec.ratio} regardless of the reference image's aspect ratio.
 
-═══ REFERENCE IMAGE RULES ═══
-The reference image is STRUCTURAL INSPIRATION ONLY:
-- Copy the LAYOUT, COMPOSITION, and VISUAL HIERARCHY from it.
-- NEVER copy its text, language, logos, brand identity, or exact imagery.
-- Adapt the composition to fit ${spec.ratio} — recompose zones as needed.
+═══ REFERENCE IMAGE ═══
+The first image is STRUCTURAL INSPIRATION ONLY — copy its LAYOUT and COMPOSITION, never its text/logo/identity.
+${directive.layoutAdaptation}
 
-═══ BRAND CONTEXT ═══
-Brand: ${brand.name}
-Primary Color: ${brand.primary_color}
-Secondary Color: ${brand.secondary_color}
-${extraColorsText ? `Additional Colors:\n${extraColorsText}` : ""}
-${voiceRules ? `Voice & Tone: ${voiceRules}` : ""}
-${negativePrompts ? `⛔ NEVER USE: ${negativePrompts}` : ""}
+═══ CREATIVE DIRECTIVE (follow exactly) ═══
+HEADLINE: "${directive.headline}"
+SUB-COPY: "${directive.subCopy}"
+CTA: "${directive.ctaText}"
+LOGO: ${directive.logoPlacement}
 
-${renderedBrief ? `═══ BRAND GUIDELINES ═══\n${renderedBrief}` : ""}
+COLORS:
+- Background: ${directive.colorMap.background}
+- Accent: ${directive.colorMap.accent}
+- Text: ${directive.colorMap.text}
+- CTA: ${directive.colorMap.cta}
 
-═══ DESIGN FRAMEWORK (from reference analysis) ═══
-${JSON.stringify(framework, null, 2)}
+HERO VISUAL: ${directive.heroDescription}
 
-${hasAssets ? `═══ BRAND ASSETS (${selectedAssets.length} images after reference) ═══\n${assetDescriptions}\nThe FIRST image in the conversation is the reference (layout only). Images 2+ are official brand assets — use them exactly as provided.` : `No brand assets provided. Use "${brand.name}" as prominent text with brand colors.`}
+${hasAssets ? `BRAND ASSETS: The first image is the reference (layout only). Images 2+ are official brand assets — use them exactly as provided, do not redraw.` : `No brand assets provided. Use "${brand.name}" as prominent text.`}
 
-═══ CREATIVE RULES ═══
-1. Hero visual: 50-70% of canvas, fully visible, not obscured by text.
-2. Clear hierarchy: hero → headline → supporting copy → CTA.
-3. ALL text must be legible, in the correct language, with proper contrast.
-4. Use brand colors prominently — secondary color must be visibly present.
-5. Logo (if provided as asset) must be clearly visible with good contrast.
-6. No duplicated elements. No clutter. Intentional negative space.
-7. Write original, brand-aligned copy — never copy text from the reference or from the brand guidelines verbatim.
-8. If brand guidelines specify mandatory elements (tagline, CTA, contact), include them.
+═══ RULES ═══
+1. Render the headline, sub-copy, and CTA EXACTLY as written above — no rewording.
+2. Hero visual: 50-70% of canvas, fully visible, not obscured by text.
+3. Clear hierarchy: hero → headline → sub-copy → CTA.
+4. ALL text must be legible with proper contrast.
+5. No duplicated elements. No clutter.
+${directive.warnings.length > 0 ? `\n⚠️ WARNINGS: ${directive.warnings.join("; ")}` : ""}
 
 Generate the advertisement now.`;
 
   const userContent: any[] = [
     {
       type: "text",
-      text: hasAssets
-        ? `Use the FIRST image as structural/layout inspiration only. Do NOT copy its text, logo, or identity. Adapt to ${spec.ratio}. The following ${selectedAssets.length} image(s) are official brand assets.`
-        : `Use this reference as structural/layout inspiration only. Adapt to ${spec.ratio}. Follow brand rules exactly.`,
+      text: `Create this ${spec.ratio} ad following the creative directive exactly. First image = layout reference only.`,
     },
     { type: "image_url", image_url: { url: referenceImageUrl } },
   ];
@@ -497,14 +597,31 @@ serve(async (req) => {
       await supabase.from("generations").update({ layout_guide: JSON.stringify(framework) }).eq("id", generationId);
     }
 
-    // Step 2: Generate
-    console.log("Step 2: Generating creative...");
+    // Step 2: Adapt to brand
+    console.log("Step 2: Adapting to brand...");
+    await supabase.from("generations").update({ status: "adapting" }).eq("id", generationId);
+
+    let directive: CreativeDirective;
+    try {
+      directive = await adaptToBrand(framework, brand, spec, LOVABLE_API_KEY);
+      console.log("Directive:", JSON.stringify(directive));
+    } catch (err) {
+      console.error("Adaptation failed:", err);
+      await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+      return new Response(
+        JSON.stringify({ error: "Failed to adapt reference to your brand" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Step 3: Generate
+    console.log("Step 3: Generating creative...");
     await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
     let imageBase64: string;
     let captionText: string;
     try {
-      const result = await generateCreative(framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
+      const result = await generateCreative(framework, directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
     } catch (err: any) {
@@ -529,8 +646,8 @@ serve(async (req) => {
       });
     }
 
-    // Step 3: Advisory QC (non-blocking)
-    console.log("Step 3: Running advisory QC...");
+    // Step 4: Advisory QC (non-blocking)
+    console.log("Step 4: Running advisory QC...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
     const qcResult = await advisoryQC(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
