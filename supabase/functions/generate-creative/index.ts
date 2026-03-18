@@ -949,16 +949,34 @@ serve(async (req) => {
 
       await supabase
         .from("generations")
-        .update({ layout_guide: JSON.stringify(framework), status: "generating" })
+        .update({ layout_guide: JSON.stringify(framework), status: "refining" })
         .eq("id", generationId);
     }
 
+    // Step 1.5: Creative Brief Review — refine the prompt before generation
+    console.log("Step 1.5: Refining creative brief...");
+    await supabase.from("generations").update({ status: "refining" }).eq("id", generationId);
+
+    let refinedBriefResult: RefinedBrief | null = null;
+    try {
+      refinedBriefResult = await refineBrief(framework, brand, brandAssets, spec, LOVABLE_API_KEY);
+      console.log("Brief refined successfully:", JSON.stringify({
+        headline: refinedBriefResult.headline,
+        warnings: refinedBriefResult.warnings.length,
+      }));
+    } catch (err) {
+      console.warn("Brief refinement failed, proceeding without refined brief:", err);
+      // Non-fatal — fall back to unrefined generation
+    }
+
     console.log("Step 2: Generating brand creative...");
+    await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+
     let imageBase64: string;
     let captionText: string;
     try {
       const result = await generateCreative(
-        framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY
+        framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY, refinedBriefResult
       );
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
