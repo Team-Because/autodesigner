@@ -458,7 +458,8 @@ Images 2+ are OFFICIAL BRAND ASSETS — use them according to their role describ
 GENERATION CHECKLIST
 ══════════════════════════════════════════
 Before generating, mentally verify:
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${spec.ratio} aspect ratio)
+✅ The canvas aspect ratio is exactly ${spec.ratio} — verify that width/height = ${spec.width}/${spec.height}
 ✅ Hero visual occupies 50-70% and its important features are fully visible
 ✅ Logo is clearly visible with proper contrast against its background
 ✅ Headline is ≤8 words, large, bold, original (not from brief examples)
