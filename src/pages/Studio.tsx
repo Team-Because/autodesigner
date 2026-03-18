@@ -185,6 +185,7 @@ export default function Studio() {
         const response = await supabase.functions.invoke("generate-creative", {
           body: {
             brandId: selectedBrandId,
+            campaignId: selectedCampaignId || undefined,
             referenceImageUrl: refUrlData.publicUrl,
             generationId: gen.id,
             outputFormat,
