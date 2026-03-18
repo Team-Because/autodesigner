@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Shield, Zap } from "lucide-react";
+import { LayoutDashboard, Palette, Clock, LogOut, Shield, Zap, Layers } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import {
