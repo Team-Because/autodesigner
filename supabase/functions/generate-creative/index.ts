@@ -576,7 +576,8 @@ async function generateCreative(
   referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string,
-  refinedBrief?: RefinedBrief | null
+  refinedBrief?: RefinedBrief | null,
+  qcFeedback: string[] = []
 ): Promise<{ imageBase64: string; captionText: string }> {
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
@@ -584,40 +585,52 @@ async function generateCreative(
 
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
   const voiceRules = toCompactText(brand.brand_voice_rules, 1600);
-
-  let renderedBrandBrief = "";
-  if (typeof brand.brand_brief === "string") {
-    try {
-      const parsed = JSON.parse(brand.brand_brief);
-      if (parsed?._structured && typeof parsed?._rendered === "string") {
-        renderedBrandBrief = parsed._rendered.trim();
-      } else {
-        renderedBrandBrief = brand.brand_brief.trim();
-      }
-    } catch {
-      renderedBrandBrief = brand.brand_brief.trim();
-    }
-  }
-
-  const selectedAssets = brandAssets.slice(0, 5);
-  const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
-  const hasAssets = selectedAssets.length > 0;
-
+  const renderedBrandBrief = getRenderedBrandBrief(brand.brand_brief);
+  const brandSections = parseStructuredBrandSections(brand.brand_brief);
   const frameworkJson = JSON.stringify(framework, null, 2);
   const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
+  const focusProductName = refinedBrief?.productName?.trim() || inferFocusProductFromFramework(
+    framework,
+    extractProductCandidatesFromBrief(brandSections, renderedBrandBrief)
+  );
+  const foodFirstBrand = /food is always hero|focus on food first|food-focused|drool-worthy|texture|fillings visible/i
+    .test(`${brandSections.visualDirection}\n${renderedBrandBrief}`);
 
-  const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
-  const architectureAssets = selectedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
-  const heroAssets = selectedAssets.filter((a: any) => /hero|lifestyle|product|mascot|master/i.test(a.label || ""));
-  const otherAssets = selectedAssets.filter((a: any) =>
-    !logoAssets.includes(a) && !architectureAssets.includes(a) && !heroAssets.includes(a)
+  const dedupedAssets = brandAssets.filter((asset: any, index: number, all: any[]) => {
+    const assetLabel = String(asset?.label || "").trim().toLowerCase();
+    return index === all.findIndex((candidate: any) => {
+      const candidateLabel = String(candidate?.label || "").trim().toLowerCase();
+      return candidate?.image_url === asset?.image_url || (assetLabel && candidateLabel === assetLabel);
+    });
+  });
+
+  const logoAssets = dedupedAssets.filter((a: any) => /logo/i.test(a.label || ""));
+  const patternAssets = dedupedAssets.filter((a: any) => /pattern|texture|background/i.test(a.label || ""));
+  const architectureAssets = dedupedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
+  const productAssets = dedupedAssets.filter((a: any) => /hero|lifestyle|product|food|pack|packshot|dish|meal|mascot|master/i.test(a.label || ""));
+  const supportingAssets = dedupedAssets.filter((a: any) =>
+    !logoAssets.includes(a) &&
+    !patternAssets.includes(a) &&
+    !architectureAssets.includes(a) &&
+    !productAssets.includes(a)
   );
 
+  const selectedAssets = [
+    ...logoAssets.slice(0, 1),
+    ...productAssets.slice(0, 2),
+    ...architectureAssets.slice(0, 1),
+    ...patternAssets.slice(0, 1),
+    ...supportingAssets.slice(0, 1),
+  ].slice(0, 5);
+  const omittedAssetsCount = Math.max(dedupedAssets.length - selectedAssets.length, 0);
+  const hasAssets = selectedAssets.length > 0;
+
   const assetRoleDescriptions = [
-    ...logoAssets.map((a: any) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone. Adjust contrast for readability.`),
-    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Use as hero visual. Preserve architecture, enhance lighting/angle/atmosphere.`),
-    ...heroAssets.map((a: any) => `  🖼️ HERO/LIFESTYLE: "${a.label || "Visual"}" — Use as primary or secondary visual.`),
-    ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
+    ...logoAssets.slice(0, 1).map((a: any) => `  🔷 OFFICIAL LOGO: "${a.label || "Logo"}" — Use exactly once in a clear brand zone. Never redraw it. Add a backing panel if contrast is weak.`),
+    ...productAssets.slice(0, 2).map((a: any) => `  🍽️ PRODUCT/HERO ASSET: "${a.label || "Visual"}" — Use as hero or supporting visual without altering identity.`),
+    ...architectureAssets.slice(0, 1).map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Preserve architecture exactly; only enhance lighting, angle, and atmosphere.`),
+    ...patternAssets.slice(0, 1).map((a: any) => `  🎛️ PATTERN/TEXTURE: "${a.label || "Pattern"}" — Optional only. Use subtly (5-12% opacity) behind the hero. Never let it dominate or clutter the frame.`),
+    ...supportingAssets.slice(0, 1).map((a: any) => `  📎 SUPPORTING ASSET: "${a.label || "Brand asset"}" — Use only if it strengthens hierarchy and clarity.`),
   ].join("\n");
 
   const refinedBlock = refinedBrief ? `
@@ -625,6 +638,9 @@ async function generateCreative(
 🎯 CREATIVE DIRECTION (from Creative Director review)
 ══════════════════════════════════════════
 The following has been pre-approved by the Creative Director. Follow these EXACTLY:
+
+FOCUS PRODUCT (must be shown clearly and named in copy):
+"${refinedBrief.productName}"
 
 HEADLINE (render this text VERBATIM, large and bold):
 "${refinedBrief.headline}"
@@ -646,7 +662,17 @@ ${refinedBrief.layoutNotes}
 
 ${refinedBrief.warnings.length > 0 ? `⚠️ WARNINGS TO ADDRESS:\n${refinedBrief.warnings.map((w, i) => `${i + 1}. ${w}`).join("\n")}` : ""}
 
-IMPORTANT: The headline, sub-copy, and CTA text above are FINAL — render them EXACTLY as written. Do NOT improvise or change the wording.
+IMPORTANT: The product name, headline, sub-copy, and CTA above are FINAL. Render them EXACTLY as written. Do NOT improvise or change the wording.
+` : "";
+
+  const retryFeedbackBlock = qcFeedback.length > 0 ? `
+══════════════════════════════════════════
+⚠️ MANDATORY FIXES FROM QC
+══════════════════════════════════════════
+The previous attempt failed quality check. Fix ALL of these issues in this new generation:
+${qcFeedback.map((issue, index) => `${index + 1}. ${issue}`).join("\n")}
+
+Do not repeat any of these mistakes.
 ` : "";
 
   const systemPrompt = `You are an elite creative director at a top-tier advertising agency. You produce award-winning, publication-ready advertisements.
@@ -664,9 +690,10 @@ DO NOT generate an image in any other aspect ratio.
 ══════════════════════════════════════════
 🧭 REFERENCE ADAPTATION RULES
 ══════════════════════════════════════════
-- The reference image is layout inspiration only — NEVER copy its source text, logo treatment, language, or exact crop.
+- The reference image is layout inspiration only — NEVER copy its source text, logo treatment, language, exact crop, or human subject literally.
 - ALWAYS adapt the composition to ${spec.ratio}; the requested format overrides the reference orientation.
 - Preserve only the high-level composition logic and hierarchy, not the reference's text, aspect ratio, or brand identity.
+${foodFirstBrand ? "- This brand is FOOD-FIRST. Override lifestyle-heavy references when necessary so the food itself is the hero, not a generic person-eating moment." : ""}
 
 ══════════════════════════════════════════
 🔤 TEXT RENDERING GUARDRAILS
@@ -676,6 +703,7 @@ DO NOT generate an image in any other aspect ratio.
 - No extra labels, duplicate slogans, watermark-like text, or decorative fake glyphs.
 - No mirrored, garbled, cut-off, wrong-language, or non-Latin text unless the approved brand copy explicitly requires it.
 - If text cannot be rendered cleanly, simplify layout around the approved text — do NOT invent substitute text.
+${focusProductName ? `- The product name "${focusProductName}" must appear verbatim in the approved copy.` : ""}
 
 ══════════════════════════════════════════
 🎨 LOGO CONTRAST & READABILITY
@@ -684,19 +712,13 @@ DO NOT generate an image in any other aspect ratio.
 - On LIGHT backgrounds: Use logo as-is or dark form.
 - On BUSY backgrounds: Place logo in a clear zone with a backing panel.
 - Logo must NEVER blend into the background or be covered by the hero visual.
-${refinedBlock}
-══════════════════════════════════════════
-🏗️ 3D RENDERS — CREATIVE FREEDOM
-══════════════════════════════════════════
-- MUST preserve EXACT architecture (shape, facade, proportions).
-- MAY enhance: lighting, angle, atmosphere, cropping.
-- Goal: aspirational and premium.
-
+${refinedBlock}${retryFeedbackBlock}
 ══════════════════════════════════════════
 🔒 LOGO & PRODUCT ASSET FIDELITY
 ══════════════════════════════════════════
 - NEVER redraw or reimagine logos, products, or mascots.
 - Place official assets EXACTLY as provided — only adjust size, placement, and contrast.
+- If no official product photo exists, generate a premium food-first hero image of the selected product that matches the brief.
 
 ══════════════════════════════════════════
 📐 QUALITY STANDARDS
@@ -707,6 +729,8 @@ ${refinedBlock}
 - No duplicated elements (logo, name, location, price, CTA).
 - Intentional negative space.
 - Secondary color must be visibly present, not incidental.
+- The background pattern must remain subtle and supportive, never noisy or dominant.
+${foodFirstBrand ? "- Show the food close-up, appetizing, hot, and texture-rich. Avoid a generic stock-style human scene as the main focal point." : ""}
 
 ══════════════════════════════════════════
 📋 BRAND CONTEXT
@@ -717,6 +741,8 @@ Secondary Color: ${brand.secondary_color}
 ${extraColorsText}
 ${voiceRules ? `Voice & Tone Rules: ${voiceRules}` : ""}
 ${negativePrompts ? `⛔ EXCLUSIONS: ${negativePrompts}` : ""}
+${focusProductName ? `Hero Product: ${focusProductName}` : ""}
+${brandSections.mustInclude ? `Mandatory Elements:\n${brandSections.mustInclude}` : ""}
 
 ══════════════════════════════════════════
 BRAND BRIEF / GUIDELINES
@@ -743,6 +769,7 @@ CHECKLIST
 ✅ Logo clearly visible with proper contrast
 ✅ Only approved brand copy is visible
 ✅ No extra or wrong-language text
+${focusProductName ? `✅ Product name "${focusProductName}" appears verbatim in the copy and matches the hero visual` : "✅ Product choice is explicit and matches the hero visual"}
 ${refinedBrief ? `✅ Headline: "${refinedBrief.headline}" — rendered VERBATIM
 ✅ Sub-copy: "${refinedBrief.subCopy}" — rendered VERBATIM
 ✅ CTA: "${refinedBrief.ctaText}" — rendered VERBATIM` : `✅ Headline ≤8 words, bold, original
@@ -759,8 +786,8 @@ Generate the brand-aligned creative image now.`;
     {
       type: "text",
       text: hasAssets
-        ? `Use the FIRST image only as structural inspiration for composition and zone hierarchy. Do NOT copy any text, language, logo treatment, or original aspect ratio from it. Adapt the layout to ${spec.label} (${spec.ratio}). The following ${selectedAssets.length} image(s) are official brand assets — use them exactly as provided.`
-        : `Use the reference image only as structural inspiration. Do NOT copy its text, language, logo treatment, or original aspect ratio. Adapt everything to ${spec.label} (${spec.ratio}) and follow the brand rules exactly.`,
+        ? `Use the FIRST image only as structural inspiration for composition and zone hierarchy. Do NOT copy any text, language, logo treatment, human subject, or original aspect ratio from it. Adapt the layout to ${spec.label} (${spec.ratio}). The following ${selectedAssets.length} image(s) are official brand assets — use them exactly as instructed.`
+        : `Use the reference image only as structural inspiration. Do NOT copy its text, language, logo treatment, human subject, or original aspect ratio. Adapt everything to ${spec.label} (${spec.ratio}) and follow the brand rules exactly.`,
     },
     {
       type: "image_url",
