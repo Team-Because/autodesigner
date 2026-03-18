@@ -81,7 +81,12 @@ export default function BrandHub() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
+                      {campaignCounts[brand.id] > 0 && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">{campaignCounts[brand.id]} campaign{campaignCounts[brand.id] > 1 ? "s" : ""}</Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.primary_color }} />
                       <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.secondary_color }} />
