@@ -127,6 +127,11 @@ export default function Studio() {
       return;
     }
 
+    if (credits && credits.credits_remaining <= 0) {
+      toast.error("No credits remaining. Contact your admin to add more.");
+      return;
+    }
+
     setStudioState("generating");
     setProgress(5);
     setProgressPhase("Uploading reference image...");
