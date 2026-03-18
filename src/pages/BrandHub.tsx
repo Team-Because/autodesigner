@@ -22,6 +22,20 @@ export default function BrandHub() {
     enabled: !!user,
   });
 
+  const { data: campaignCounts = {} } = useQuery({
+    queryKey: ["campaign-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns").select("brand_id, id").eq("status", "active");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((c: any) => {
+        counts[c.brand_id] = (counts[c.brand_id] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!user,
+  });
+
   const handleDelete = async (id: string, name: string) => {
     const { error } = await supabase.from("brands").delete().eq("id", id);
     if (error) {
