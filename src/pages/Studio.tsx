@@ -42,6 +42,7 @@ const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string;
 interface GenerationResult {
   imageUrl: string;
   caption: string;
+  qc?: { passed: boolean; score: number; issues: string[] };
 }
 
 export default function Studio() {
