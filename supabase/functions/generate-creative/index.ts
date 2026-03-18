@@ -329,10 +329,7 @@ async function generateCreative(
   // Use full framework for higher fidelity
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  // Determine aspect ratio label for strong enforcement
-  const aspectRatioLabel = spec.width === spec.height ? "1:1 SQUARE" 
-    : spec.width > spec.height ? `${spec.width}:${spec.height} LANDSCAPE` 
-    : `${spec.width}:${spec.height} PORTRAIT/STORY`;
+  const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
 
   // Categorize assets by label for intelligent placement
   const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
