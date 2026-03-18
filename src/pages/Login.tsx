@@ -29,29 +29,37 @@ export default function Login() {
       setLoading(false);
       return;
     }
-
-    // Navigation handled by auth state change
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
-        <CardContent className="pt-8 pb-8 px-8 space-y-6">
-          <div className="flex items-center justify-center gap-2.5 mb-2">
-            <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-display font-bold text-xl text-foreground tracking-tight">
-              BrandCraft Studio
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground text-center">
-            Sign in to your account.
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 -left-32 w-96 h-96 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute bottom-1/4 -right-32 w-96 h-96 rounded-full bg-secondary/5 blur-3xl" />
+      </div>
 
-          <form onSubmit={handleSignIn} className="space-y-4">
+      <Card className="w-full max-w-sm glass-card animate-scale-in relative">
+        <CardContent className="pt-10 pb-10 px-8 space-y-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-14 w-14 rounded-2xl gradient-vibrant flex items-center justify-center glow-md">
+              <Sparkles className="h-7 w-7 text-primary-foreground" />
+            </div>
+            <div className="text-center">
+              <h1 className="font-display font-bold text-2xl text-foreground tracking-tight">
+                Just Make It
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1 font-medium tracking-widest uppercase">
+                AI Creative Studio
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSignIn} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+                Username
+              </Label>
               <Input
                 id="username"
                 type="text"
@@ -60,10 +68,13 @@ export default function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
                 autoComplete="username"
+                className="h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card transition-colors"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -72,9 +83,10 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
                 autoComplete="current-password"
+                className="h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card transition-colors"
               />
             </div>
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button type="submit" className="w-full h-12 rounded-xl text-sm font-semibold gradient-primary hover:gradient-primary-hover text-primary-foreground glow-sm" disabled={loading}>
               {loading ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...</>
               ) : (
@@ -83,7 +95,7 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-[11px] text-muted-foreground/70 text-center font-medium">
             Accounts are created by your admin.
           </p>
         </CardContent>
