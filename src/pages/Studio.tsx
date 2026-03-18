@@ -239,7 +239,8 @@ export default function Studio() {
       }
 
       clearInterval(progressInterval);
-      clearTimeout(phaseTimeout);
+      clearTimeout(phaseTimeout1);
+      clearTimeout(phaseTimeout2);
 
       if (invokeErrorMessage || fnError) {
         throw new Error(invokeErrorMessage || "Generation failed");
