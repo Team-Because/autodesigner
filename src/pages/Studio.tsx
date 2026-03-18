@@ -265,7 +265,10 @@ export default function Studio() {
           .from("generations")
           .update({
             output_image_url: fnData.imageUrl,
-            copywriting: fnData.caption ? { caption: fnData.caption } : undefined,
+            copywriting: {
+              caption: fnData.caption,
+              ...(fnData.qc ? { qc: fnData.qc } : {}),
+            },
             status: "completed",
           })
           .eq("id", gen.id);
