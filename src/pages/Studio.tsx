@@ -176,13 +176,17 @@ export default function Studio() {
       }, 1500);
 
       const phaseTimeout1 = setTimeout(() => {
-        setProgressPhase("Generating brand creative...");
-      }, 6000);
+        setProgressPhase("Adapting to your brand...");
+      }, 5000);
 
       const phaseTimeout2 = setTimeout(() => {
+        setProgressPhase("Generating brand creative...");
+      }, 10000);
+
+      const phaseTimeout3 = setTimeout(() => {
         setProgressPhase("Finishing up...");
         setProgress((prev) => Math.max(prev, 88));
-      }, 35000);
+      }, 40000);
 
       let fnData: any = null;
       let fnError: any = null;
