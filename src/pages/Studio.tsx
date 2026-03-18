@@ -212,13 +212,20 @@ export default function Studio() {
         const context = (fnError as any).context;
         let retryable = false;
         let retryAfterSeconds = 0;
+        let qcIssues: string[] = [];
 
-        if (context?.json) {
+        if (context) {
           try {
-            const payload = await context.json();
-            if (payload?.error) errorMessage = payload.error;
-            retryable = !!payload?.retryable;
-            retryAfterSeconds = Number(payload?.retryAfterSeconds || 0);
+            const rawText = typeof context.text === "function" ? await context.text() : "";
+            if (rawText) {
+              const payload = JSON.parse(rawText);
+              if (payload?.error) errorMessage = payload.error;
+              retryable = !!payload?.retryable;
+              retryAfterSeconds = Number(payload?.retryAfterSeconds || 0);
+              qcIssues = Array.isArray(payload?.qc?.issues)
+                ? payload.qc.issues.filter((issue: unknown): issue is string => typeof issue === "string")
+                : [];
+            }
           } catch {
             // ignore
           }
@@ -227,9 +234,10 @@ export default function Studio() {
         const isRetryableOverload =
           (context?.status === 503 || context?.status === 429) && retryable;
 
-        // QC rejection (422) — don't retry, show clear message
         if (context?.status === 422) {
-          invokeErrorMessage = errorMessage;
+          invokeErrorMessage = qcIssues.length > 0
+            ? `${errorMessage}\n\nMain issues:\n• ${qcIssues.slice(0, 3).join("\n• ")}`
+            : errorMessage;
           break;
         }
 

@@ -453,6 +453,21 @@ async function generateCreative(
     : "";
 
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
+  const voiceRules = toCompactText(brand.brand_voice_rules, 1600);
+
+  let renderedBrandBrief = "";
+  if (typeof brand.brand_brief === "string") {
+    try {
+      const parsed = JSON.parse(brand.brand_brief);
+      if (parsed?._structured && typeof parsed?._rendered === "string") {
+        renderedBrandBrief = parsed._rendered.trim();
+      } else {
+        renderedBrandBrief = brand.brand_brief.trim();
+      }
+    } catch {
+      renderedBrandBrief = brand.brand_brief.trim();
+    }
+  }
 
   const selectedAssets = brandAssets.slice(0, 5);
   const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
@@ -461,11 +476,10 @@ async function generateCreative(
   const frameworkJson = JSON.stringify(framework, null, 2);
   const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
 
-  // Categorize assets by label for intelligent placement
   const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
   const architectureAssets = selectedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
   const heroAssets = selectedAssets.filter((a: any) => /hero|lifestyle|product|mascot|master/i.test(a.label || ""));
-  const otherAssets = selectedAssets.filter((a: any) => 
+  const otherAssets = selectedAssets.filter((a: any) =>
     !logoAssets.includes(a) && !architectureAssets.includes(a) && !heroAssets.includes(a)
   );
 
@@ -476,7 +490,6 @@ async function generateCreative(
     ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
   ].join("\n");
 
-  // Build the system prompt — if we have a refined brief, use it for focused, specific instructions
   const refinedBlock = refinedBrief ? `
 ══════════════════════════════════════════
 🎯 CREATIVE DIRECTION (from Creative Director review)
@@ -515,37 +528,55 @@ The generated image MUST be exactly ${spec.width}×${spec.height} pixels — a $
 ${spec.width === spec.height ? "The image MUST be perfectly SQUARE." : ""}
 ${spec.height > spec.width ? "The image MUST be TALL/VERTICAL (portrait orientation)." : ""}
 ${spec.width > spec.height ? "The image MUST be WIDE (landscape orientation)." : ""}
+The final canvas MUST follow ${spec.ratio}. If the reference layout conflicts with this ratio, recomposition is REQUIRED.
 DO NOT generate an image in any other aspect ratio.
+
+══════════════════════════════════════════
+🧭 REFERENCE ADAPTATION RULES
+══════════════════════════════════════════
+- The reference image is layout inspiration only — NEVER copy its source text, logo treatment, language, or exact crop.
+- ALWAYS adapt the composition to ${spec.ratio}; the requested format overrides the reference orientation.
+- Preserve only the high-level composition logic and hierarchy, not the reference's text, aspect ratio, or brand identity.
+
+══════════════════════════════════════════
+🔤 TEXT RENDERING GUARDRAILS
+══════════════════════════════════════════
+- Render ONLY approved copy and official brand assets.
+- NEVER reproduce or paraphrase any text visible in the reference image.
+- No extra labels, duplicate slogans, watermark-like text, or decorative fake glyphs.
+- No mirrored, garbled, cut-off, wrong-language, or non-Latin text unless the approved brand copy explicitly requires it.
+- If text cannot be rendered cleanly, simplify layout around the approved text — do NOT invent substitute text.
 
 ══════════════════════════════════════════
 🎨 LOGO CONTRAST & READABILITY
 ══════════════════════════════════════════
-- On DARK backgrounds: Use WHITE/LIGHT logo or add light backing panel
-- On LIGHT backgrounds: Use logo as-is or dark form
-- On BUSY backgrounds: Place logo in clear zone with backing panel
-- Logo must NEVER blend into background
+- On DARK backgrounds: Use WHITE/LIGHT logo or add light backing panel.
+- On LIGHT backgrounds: Use logo as-is or dark form.
+- On BUSY backgrounds: Place logo in a clear zone with a backing panel.
+- Logo must NEVER blend into the background or be covered by the hero visual.
 ${refinedBlock}
 ══════════════════════════════════════════
 🏗️ 3D RENDERS — CREATIVE FREEDOM
 ══════════════════════════════════════════
-- MUST preserve EXACT architecture (shape, facade, proportions)
-- MAY enhance: lighting, angle, atmosphere, cropping
-- Goal: aspirational and premium
+- MUST preserve EXACT architecture (shape, facade, proportions).
+- MAY enhance: lighting, angle, atmosphere, cropping.
+- Goal: aspirational and premium.
 
 ══════════════════════════════════════════
 🔒 LOGO & PRODUCT ASSET FIDELITY
 ══════════════════════════════════════════
-- NEVER redraw/reimagine logos, products, mascots
-- Place EXACTLY as provided — only adjust size and contrast
+- NEVER redraw or reimagine logos, products, or mascots.
+- Place official assets EXACTLY as provided — only adjust size, placement, and contrast.
 
 ══════════════════════════════════════════
 📐 QUALITY STANDARDS
 ══════════════════════════════════════════
-- Clear visual hierarchy: hero → headline → supporting → CTA
-- Hero visual: 50-70% of canvas, never obscured by text
-- ALL text must be LEGIBLE with proper contrast
-- No element duplication (logo, name, location, price)
-- Intentional negative space
+- Clear visual hierarchy: hero → headline → supporting copy → CTA.
+- Hero visual: 50-70% of canvas, never obscured by text.
+- ALL text must be legible with proper contrast.
+- No duplicated elements (logo, name, location, price, CTA).
+- Intentional negative space.
+- Secondary color must be visibly present, not incidental.
 
 ══════════════════════════════════════════
 📋 BRAND CONTEXT
@@ -554,7 +585,13 @@ Brand Name: ${brand.name}
 Primary Color: ${brand.primary_color}
 Secondary Color: ${brand.secondary_color}
 ${extraColorsText}
+${voiceRules ? `Voice & Tone Rules: ${voiceRules}` : ""}
 ${negativePrompts ? `⛔ EXCLUSIONS: ${negativePrompts}` : ""}
+
+══════════════════════════════════════════
+BRAND BRIEF / GUIDELINES
+══════════════════════════════════════════
+${renderedBrandBrief || "No additional brand brief provided."}
 
 ══════════════════════════════════════════
 DESIGN FRAMEWORK
@@ -571,26 +608,29 @@ The FIRST image is the REFERENCE (layout inspiration only). Images 2+ are OFFICI
 CHECKLIST
 ══════════════════════════════════════════
 ✅ Output is EXACTLY ${spec.width}×${spec.height} (${spec.ratio})
+✅ Reference orientation has been adapted if needed
 ✅ Hero visual 50-70%, fully visible
 ✅ Logo clearly visible with proper contrast
+✅ Only approved brand copy is visible
+✅ No extra or wrong-language text
 ${refinedBrief ? `✅ Headline: "${refinedBrief.headline}" — rendered VERBATIM
 ✅ Sub-copy: "${refinedBrief.subCopy}" — rendered VERBATIM
 ✅ CTA: "${refinedBrief.ctaText}" — rendered VERBATIM` : `✅ Headline ≤8 words, bold, original
 ✅ Sub-copy ≤20 words
 ✅ CTA clean and actionable`}
 ✅ Brand colors applied: ${brand.primary_color} primary, ${brand.secondary_color} secondary
+✅ Secondary color is visibly used in a meaningful way
 ✅ No duplicated elements
 ✅ Professional, premium quality
 
 Generate the brand-aligned creative image now.`;
 
-  // Build message content
   const userContent: any[] = [
     {
       type: "text",
       text: hasAssets
-        ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
-        : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
+        ? `Use the FIRST image only as structural inspiration for composition and zone hierarchy. Do NOT copy any text, language, logo treatment, or original aspect ratio from it. Adapt the layout to ${spec.label} (${spec.ratio}). The following ${selectedAssets.length} image(s) are official brand assets — use them exactly as provided.`
+        : `Use the reference image only as structural inspiration. Do NOT copy its text, language, logo treatment, or original aspect ratio. Adapt everything to ${spec.label} (${spec.ratio}) and follow the brand rules exactly.`,
     },
     {
       type: "image_url",
@@ -605,7 +645,6 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Prefer one high-quality attempt per model to avoid cascading 429s under load.
   const modelPlan = [
     { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000 },
     { model: "google/gemini-2.5-flash-image", timeoutMs: 80000 },
@@ -637,6 +676,7 @@ Generate the brand-aligned creative image now.`;
             { role: "user", content: userContent },
           ],
           modalities: ["image", "text"],
+          image_config: { aspect_ratio: spec.ratio },
           size: `${spec.width}x${spec.height}`,
           image_size: { width: spec.width, height: spec.height },
         }),
