@@ -304,10 +304,7 @@ export default function Studio() {
             <CardContent>
               <Select
                 value={selectedBrandId}
-                onValueChange={(val) => {
-                  setSelectedBrandId(val);
-                  setSelectedCampaignId("");
-                }}
+                onValueChange={setSelectedBrandId}
                 disabled={isGenerating}
               >
                 <SelectTrigger>
