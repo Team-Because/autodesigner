@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
-import { CalendarIcon, ImageOff, Download, ExternalLink, Eye } from "lucide-react";
+import { CalendarIcon, ImageOff, Download, ExternalLink, Eye, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,11 @@ export default function History() {
     return cw;
   };
 
+  const getQcResult = (g: any) => {
+    const cw = getCopywriting(g);
+    return cw?.qc || null;
+  };
+
   const handleDownload = async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
@@ -218,6 +223,7 @@ export default function History() {
             const cw = getCopywriting(g);
             const displayStatus = getDisplayStatus(g);
             const displayImage = getDisplayImage(g);
+            const qc = getQcResult(g);
             return (
               <Card
                 key={g.id}
@@ -273,6 +279,19 @@ export default function History() {
                   {cw?.caption && (
                     <p className="text-xs text-muted-foreground line-clamp-2">{cw.caption}</p>
                   )}
+                  {qc && (
+                    <div className="flex items-center gap-1">
+                      {qc.passed ? (
+                        <Badge variant="default" className="text-[10px] gap-0.5">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> QC {qc.score}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-[10px] gap-0.5">
+                          <AlertTriangle className="h-2.5 w-2.5" /> QC {qc.score}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(g.created_at), "MMM d, yyyy · h:mm a")}
                   </p>
@@ -293,6 +312,7 @@ export default function History() {
             const cw = getCopywriting(selectedGeneration);
             const dImg = getDisplayImage(selectedGeneration);
             const dStatus = getDisplayStatus(selectedGeneration);
+            const dQc = getQcResult(selectedGeneration);
             return (
               <div className="space-y-5">
                 {/* Full-size image */}
@@ -358,6 +378,32 @@ export default function History() {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">AI Caption / Copy</p>
                     <p className="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap">{cw.caption}</p>
+                  </div>
+                )}
+
+                {/* QC Results */}
+                {dQc && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs font-medium text-muted-foreground">Quality Check</p>
+                      <Badge variant={dQc.passed ? "default" : "destructive"} className="gap-1 text-xs">
+                        {dQc.passed ? (
+                          <><CheckCircle2 className="h-3 w-3" /> Pass ({dQc.score}/100)</>
+                        ) : (
+                          <><AlertTriangle className="h-3 w-3" /> Fail ({dQc.score}/100)</>
+                        )}
+                      </Badge>
+                    </div>
+                    {dQc.issues && dQc.issues.length > 0 && (
+                      <ul className="text-sm bg-muted rounded-md p-3 space-y-1">
+                        {dQc.issues.map((issue: string, i: number) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground">{issue}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
 

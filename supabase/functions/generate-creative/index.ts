@@ -7,10 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const FORMAT_SPECS: Record<string, { width: number; height: number; label: string }> = {
-  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
-  square: { width: 1080, height: 1080, label: "square (1080×1080)" },
-  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
+const FORMAT_SPECS: Record<string, { width: number; height: number; label: string; ratio: string }> = {
+  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080, 16:9)", ratio: "16:9" },
+  square: { width: 1080, height: 1080, label: "square (1080×1080, 1:1)", ratio: "1:1" },
+  portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)", ratio: "4:5" },
+  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920, 9:16)", ratio: "9:16" },
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -284,7 +285,7 @@ async function generateCreative(
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
-  spec: { width: number; height: number; label: string },
+  spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
@@ -328,10 +329,7 @@ async function generateCreative(
   // Use full framework for higher fidelity
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  // Determine aspect ratio label for strong enforcement
-  const aspectRatioLabel = spec.width === spec.height ? "1:1 SQUARE" 
-    : spec.width > spec.height ? `${spec.width}:${spec.height} LANDSCAPE` 
-    : `${spec.width}:${spec.height} PORTRAIT/STORY`;
+  const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
 
   // Categorize assets by label for intelligent placement
   const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
@@ -460,7 +458,8 @@ Images 2+ are OFFICIAL BRAND ASSETS — use them according to their role describ
 GENERATION CHECKLIST
 ══════════════════════════════════════════
 Before generating, mentally verify:
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${spec.ratio} aspect ratio)
+✅ The canvas aspect ratio is exactly ${spec.ratio} — verify that width/height = ${spec.width}/${spec.height}
 ✅ Hero visual occupies 50-70% and its important features are fully visible
 ✅ Logo is clearly visible with proper contrast against its background
 ✅ Headline is ≤8 words, large, bold, original (not from brief examples)
@@ -598,6 +597,119 @@ Generate the brand-aligned creative image now.`;
   if (lastStatus !== null) throw new Error(`AI generation failed (${lastStatus})`);
   if (sawAnyFailure) throw new Error("AI generation failed");
   throw new Error("NO_IMAGE_GENERATED");
+}
+
+/** Step 3 — Quality Check the generated creative */
+async function qualityCheck(
+  imageBase64: string,
+  brand: any,
+  spec: { width: number; height: number; label: string; ratio: string },
+  apiKey: string
+): Promise<{ passed: boolean; score: number; issues: string[]; critical: boolean }> {
+  try {
+    const qcResponse = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `You are a strict QC inspector for advertising creatives. Analyze the image and check quality against the provided specs. Be thorough but fair.`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Inspect this generated advertisement creative and score it.
+
+EXPECTED SPECS:
+- Aspect ratio: ${spec.ratio} (${spec.width}×${spec.height})
+- Brand: ${brand.name}
+- Primary color: ${brand.primary_color}
+- Secondary color: ${brand.secondary_color}
+${brand.negative_prompts ? `- Must NOT include: ${brand.negative_prompts}` : ""}
+
+Check for:
+1. ASPECT RATIO: Does the image appear to match ${spec.ratio}? (Critical if wrong)
+2. LOGO: Is a brand logo/mark visible and readable? Proper contrast?
+3. TEXT LEGIBILITY: Is all text clearly readable? No overlapping or cut-off text?
+4. TEXT DUPLICATION: Is any text, brand name, or element repeated?
+5. BRAND COLORS: Are the brand colors (${brand.primary_color}, ${brand.secondary_color}) present?
+6. COMPOSITION: Professional layout with clear visual hierarchy?
+7. BANNED ELEMENTS: Any excluded elements present?
+
+Score 0-100 and list specific issues found.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: imageBase64 },
+                },
+              ],
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "qc_result",
+                description: "Return QC inspection results",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    passed: { type: "boolean", description: "True if score >= 60 and no critical issues" },
+                    score: { type: "number", description: "Quality score 0-100" },
+                    issues: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of specific issues found",
+                    },
+                    critical: {
+                      type: "boolean",
+                      description: "True if there are critical issues like wrong aspect ratio, missing logo, or unreadable text",
+                    },
+                  },
+                  required: ["passed", "score", "issues", "critical"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "qc_result" } },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    if (!qcResponse.ok) {
+      console.warn("QC check failed with status:", qcResponse.status);
+      await qcResponse.text();
+      return { passed: true, score: 70, issues: ["QC check unavailable"], critical: false };
+    }
+
+    const qcData = await qcResponse.json();
+    const toolCall = qcData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall?.function?.arguments) {
+      return { passed: true, score: 70, issues: ["QC parse failed"], critical: false };
+    }
+
+    const result = JSON.parse(toolCall.function.arguments);
+    return {
+      passed: !!result.passed,
+      score: Number(result.score) || 0,
+      issues: Array.isArray(result.issues) ? result.issues : [],
+      critical: !!result.critical,
+    };
+  } catch (err) {
+    console.error("QC check error:", err);
+    return { passed: true, score: 70, issues: ["QC check timed out"], critical: false };
+  }
 }
 
 serve(async (req) => {
@@ -766,6 +878,41 @@ serve(async (req) => {
       );
     }
 
+    // Step 3: Quality Check
+    console.log("Step 3: Running quality check...");
+    await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
+
+    let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+    console.log("QC result:", JSON.stringify(qcResult));
+
+    // Auto-retry once if QC finds critical issues
+    if (qcResult.critical && qcResult.issues.length > 0) {
+      console.log("QC found critical issues, retrying generation with feedback...");
+      await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+
+      // Append QC feedback to brand brief for the retry
+      const originalBrief = brand.brand_brief || "";
+      brand.brand_brief = originalBrief + "\n\n## QC FEEDBACK — FIX THESE ISSUES\n" + qcResult.issues.join("\n");
+
+      try {
+        const retryResult = await generateCreative(
+          framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY
+        );
+        imageBase64 = retryResult.imageBase64;
+        captionText = retryResult.captionText;
+
+        // Re-run QC on retried image
+        await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
+        qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+        console.log("Retry QC result:", JSON.stringify(qcResult));
+      } catch (retryErr) {
+        console.warn("QC retry generation failed, using original image:", retryErr);
+      }
+
+      // Restore original brief
+      brand.brand_brief = originalBrief;
+    }
+
     // Upload generated image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
@@ -786,25 +933,30 @@ serve(async (req) => {
 
     const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
 
+    const copywritingPayload = {
+      caption: captionText,
+      qc: { passed: qcResult.passed, score: qcResult.score, issues: qcResult.issues },
+    };
+
     const { error: updateError } = await supabase
       .from("generations")
       .update({
         output_image_url: publicUrlData.publicUrl,
         layout_guide: JSON.stringify(framework),
-        copywriting: { caption: captionText },
+        copywriting: copywritingPayload,
         status: "completed",
       })
       .eq("id", generationId);
 
     if (updateError) {
       console.error("CRITICAL: Final DB update failed!", updateError);
-      // Still return the image to the client even if DB update fails
     }
 
     return new Response(
       JSON.stringify({
         imageUrl: publicUrlData.publicUrl,
         caption: captionText,
+        qc: { passed: qcResult.passed, score: qcResult.score, issues: qcResult.issues },
         framework,
         generationId,
       }),

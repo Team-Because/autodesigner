@@ -21,22 +21,28 @@ import {
   RectangleHorizontal,
   Square,
   Smartphone,
+  RectangleVertical,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 type StudioState = "idle" | "generating" | "complete";
 
-type OutputFormat = "landscape" | "square" | "story";
+type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
   { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
   { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
+  { value: "portrait", label: "Portrait", description: "1080×1350 · Instagram Feed, Pinterest", icon: RectangleVertical, aspect: "aspect-[4/5]" },
   { value: "story", label: "Story", description: "1080×1920 · Instagram & Facebook Stories, Reels", icon: Smartphone, aspect: "aspect-[9/16]" },
 ];
 
 interface GenerationResult {
   imageUrl: string;
   caption: string;
+  qc?: { passed: boolean; score: number; issues: string[] };
 }
 
 export default function Studio() {
@@ -171,10 +177,14 @@ export default function Studio() {
         });
       }, 1500);
 
-      // Phase transition after ~8 seconds (analysis should be done)
-      const phaseTimeout = setTimeout(() => {
+      const phaseTimeout1 = setTimeout(() => {
         setProgressPhase("Generating brand creative...");
       }, 8000);
+
+      const phaseTimeout2 = setTimeout(() => {
+        setProgressPhase("Quality checking output...");
+        setProgress((prev) => Math.max(prev, 88));
+      }, 35000);
 
       // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
@@ -229,7 +239,8 @@ export default function Studio() {
       }
 
       clearInterval(progressInterval);
-      clearTimeout(phaseTimeout);
+      clearTimeout(phaseTimeout1);
+      clearTimeout(phaseTimeout2);
 
       if (invokeErrorMessage || fnError) {
         throw new Error(invokeErrorMessage || "Generation failed");
@@ -244,6 +255,7 @@ export default function Studio() {
       setResult({
         imageUrl: fnData.imageUrl,
         caption: fnData.caption,
+        qc: fnData.qc || undefined,
       });
       setStudioState("complete");
 
@@ -253,7 +265,10 @@ export default function Studio() {
           .from("generations")
           .update({
             output_image_url: fnData.imageUrl,
-            copywriting: fnData.caption ? { caption: fnData.caption } : undefined,
+            copywriting: {
+              caption: fnData.caption,
+              ...(fnData.qc ? { qc: fnData.qc } : {}),
+            },
             status: "completed",
           })
           .eq("id", gen.id);
@@ -440,7 +455,7 @@ export default function Studio() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {FORMAT_OPTIONS.map((fmt) => (
                   <button
                     key={fmt.value}
@@ -524,13 +539,42 @@ export default function Studio() {
               )}
               {studioState === "complete" && result && (
                 <div className="w-full space-y-4">
-                  <div className="rounded-lg overflow-hidden border border-border">
+                  <div className="rounded-lg overflow-hidden border border-border relative">
                     <img
                       src={result.imageUrl}
                       alt="Generated creative"
                       className="w-full"
                     />
+                    {result.qc && (
+                      <div className="absolute top-3 right-3">
+                        <Badge
+                          variant={result.qc.passed ? "default" : "destructive"}
+                          className="gap-1 text-xs"
+                        >
+                          {result.qc.passed ? (
+                            <><CheckCircle2 className="h-3 w-3" /> QC Pass ({result.qc.score}/100)</>
+                          ) : (
+                            <><AlertTriangle className="h-3 w-3" /> QC Fail ({result.qc.score}/100)</>
+                          )}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
+                  {result.qc && !result.qc.passed && result.qc.issues.length > 0 && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-2">QC Issues</p>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {result.qc.issues.map((issue, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                              {issue}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
                   {result.caption && (
                     <Card>
                       <CardContent className="pt-4">
