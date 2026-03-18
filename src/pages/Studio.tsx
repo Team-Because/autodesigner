@@ -63,7 +63,6 @@ export default function Studio() {
   });
 
   const [selectedBrandId, setSelectedBrandId] = useState("");
-  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
