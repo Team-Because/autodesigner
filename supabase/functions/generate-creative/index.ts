@@ -16,6 +16,28 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface StructuredBrandSections {
+  brandIdentity: string;
+  mustInclude: string;
+  visualDirection: string;
+  voiceAndTone: string;
+  dos: string;
+  donts: string;
+  colorNotes: string;
+  referenceNotes: string;
+}
+
+const EMPTY_BRAND_SECTIONS: StructuredBrandSections = {
+  brandIdentity: "",
+  mustInclude: "",
+  visualDirection: "",
+  voiceAndTone: "",
+  dos: "",
+  donts: "",
+  colorNotes: "",
+  referenceNotes: "",
+};
+
 function parseStoredFramework(value: unknown): Record<string, unknown> | null {
   if (!value) return null;
 
@@ -46,6 +68,107 @@ function extractStoredCaption(copywriting: unknown): string {
 function toCompactText(value: unknown, maxChars: number): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+function getRenderedBrandBrief(brandBrief: unknown): string {
+  if (typeof brandBrief !== "string" || !brandBrief.trim()) return "";
+
+  try {
+    const parsed = JSON.parse(brandBrief);
+    if (parsed?._structured && typeof parsed?._rendered === "string") {
+      return parsed._rendered.trim();
+    }
+  } catch {
+    // legacy free-text brief
+  }
+
+  return brandBrief.trim();
+}
+
+function parseStructuredBrandSections(brandBrief: unknown): StructuredBrandSections {
+  if (typeof brandBrief !== "string" || !brandBrief.trim()) return { ...EMPTY_BRAND_SECTIONS };
+
+  try {
+    const parsed = JSON.parse(brandBrief);
+    if (parsed?._structured && parsed?.sections && typeof parsed.sections === "object") {
+      return {
+        ...EMPTY_BRAND_SECTIONS,
+        ...Object.fromEntries(
+          Object.entries(parsed.sections as Record<string, unknown>).map(([key, value]) => [
+            key,
+            typeof value === "string" ? value.trim() : "",
+          ])
+        ),
+      } as StructuredBrandSections;
+    }
+  } catch {
+    // legacy free-text brief
+  }
+
+  return { ...EMPTY_BRAND_SECTIONS };
+}
+
+function extractProductCandidatesFromBrief(sections: StructuredBrandSections, renderedBrief: string): string[] {
+  const candidates = new Set<string>();
+  const sourceLines = `${sections.brandIdentity}\n${sections.mustInclude}\n${renderedBrief}`
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of sourceLines) {
+    const colonMatch = /^(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 '&/+()-]{1,40}):\s*(.+)$/.exec(line);
+    if (!colonMatch) continue;
+
+    const label = colonMatch[1].trim();
+    const rhs = colonMatch[2].trim();
+
+    if (/(samosa|momo|spring roll|roll|patty|kebab|tikki|snack|meal)/i.test(label)) {
+      candidates.add(label.replace(/\bProducts?\b/i, "").trim());
+    }
+
+    if (/(brand name|tagline|cta|contact|legal|other|visual|content|mood|lighting|photography|layout|composition|voice|audience|response|use|avoid|rule)/i.test(label)) {
+      continue;
+    }
+
+    for (const part of rhs.split(/,\s*/)) {
+      const cleaned = part.replace(/^[-•]\s*/, "").trim();
+      if (
+        cleaned &&
+        cleaned.length <= 40 &&
+        /[A-Za-z]/.test(cleaned) &&
+        !/(ready in just|order now|link in bio|admissions|contact|http|www\.)/i.test(cleaned)
+      ) {
+        candidates.add(cleaned);
+      }
+    }
+  }
+
+  return Array.from(candidates).slice(0, 12);
+}
+
+function inferFocusProductFromFramework(
+  framework: Record<string, unknown>,
+  productCandidates: string[]
+): string {
+  if (productCandidates.length === 0) return "";
+
+  const frameworkText = JSON.stringify(framework).toLowerCase();
+  const preferenceMap = [
+    { keywords: ["spring", "roll"], matcher: /spring roll/i },
+    { keywords: ["dumpling", "momo"], matcher: /momo/i },
+    { keywords: ["nugget", "fried", "crispy", "triangle", "snack"], matcher: /samosa/i },
+    { keywords: ["patty", "burger"], matcher: /patty/i },
+    { keywords: ["kebab", "cutlet"], matcher: /kebab/i },
+  ];
+
+  for (const preference of preferenceMap) {
+    if (preference.keywords.some((keyword) => frameworkText.includes(keyword))) {
+      const match = productCandidates.find((candidate) => preference.matcher.test(candidate));
+      if (match) return match;
+    }
+  }
+
+  return productCandidates[0];
 }
 
 function extractCaptionText(aiData: any): string {
