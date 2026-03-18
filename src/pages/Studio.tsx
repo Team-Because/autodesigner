@@ -447,7 +447,7 @@ export default function Studio() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {FORMAT_OPTIONS.map((fmt) => (
                   <button
                     key={fmt.value}
