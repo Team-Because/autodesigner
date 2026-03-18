@@ -307,8 +307,8 @@ export default function BrandForm() {
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Create campaigns for specific objectives</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Use campaigns to layer specific rules (audience, CTAs, exclusions) on top of brand guidelines.</p>
+                    <p className="font-medium">Group brands into campaigns</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Duplicate and customize brands for different objectives, then group them together.</p>
                   </div>
                 </div>
               </div>
