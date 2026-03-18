@@ -521,11 +521,25 @@ export default function Studio() {
                       <Download className="h-4 w-4 mr-2" /> Download
                     </Button>
                     <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setResult(null);
+                        setStudioState("idle");
+                        setProgress(0);
+                        setProgressPhase("");
+                        // Keep brand + reference + format selected, just re-trigger
+                        setTimeout(() => handleGenerate(), 50);
+                      }}
+                      className="rounded-xl h-11 font-semibold px-5"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" /> Retry
+                    </Button>
+                    <Button
                       variant="outline"
                       onClick={handleReset}
-                      className="flex-1 rounded-xl h-11 font-semibold"
+                      className="rounded-xl h-11 font-semibold px-5"
                     >
-                      <RotateCcw className="h-4 w-4 mr-2" /> New Creative
+                      New
                     </Button>
                   </div>
                 </div>
