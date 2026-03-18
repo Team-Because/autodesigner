@@ -728,6 +728,35 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // --- Credit check ---
+    // Get user_id from the generation record or auth header
+    const authHeader = req.headers.get("Authorization") || "";
+    let callerUserId: string | null = null;
+    if (authHeader) {
+      const callerClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user: callerUser } } = await callerClient.auth.getUser();
+      callerUserId = callerUser?.id || null;
+    }
+
+    if (callerUserId) {
+      const { data: credits } = await supabase
+        .from("user_credits")
+        .select("credits_remaining")
+        .eq("user_id", callerUserId)
+        .single();
+
+      if (credits && credits.credits_remaining <= 0) {
+        return new Response(
+          JSON.stringify({ error: "No credits remaining. Contact your admin to add more." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Fetch brand + assets in parallel
     const [brandRes, assetsRes] = await Promise.all([
       supabase.from("brands").select("*").eq("id", brandId).single(),
