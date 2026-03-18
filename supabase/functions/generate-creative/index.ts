@@ -1058,7 +1058,7 @@ serve(async (req) => {
 
       try {
         const retryResult = await generateCreative(
-          framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY
+          framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY, refinedBriefResult
         );
         imageBase64 = retryResult.imageBase64;
         captionText = retryResult.captionText;
