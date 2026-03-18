@@ -112,6 +112,11 @@ export default function History() {
     return cw;
   };
 
+  const getQcResult = (g: any) => {
+    const cw = getCopywriting(g);
+    return cw?.qc || null;
+  };
+
   const handleDownload = async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
