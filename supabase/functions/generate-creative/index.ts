@@ -7,10 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const FORMAT_SPECS: Record<string, { width: number; height: number; label: string }> = {
-  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
-  square: { width: 1080, height: 1080, label: "square (1080×1080)" },
-  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
+const FORMAT_SPECS: Record<string, { width: number; height: number; label: string; ratio: string }> = {
+  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080, 16:9)", ratio: "16:9" },
+  square: { width: 1080, height: 1080, label: "square (1080×1080, 1:1)", ratio: "1:1" },
+  portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)", ratio: "4:5" },
+  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920, 9:16)", ratio: "9:16" },
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
