@@ -287,29 +287,29 @@ export default function BrandForm() {
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Fill each guided section below</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">The form maps directly to the AI's understanding. Structured input = consistent output.</p>
+                    <p className="font-medium">Fill what matters, skip the rest</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Each field maps directly to the AI prompt. Write naturally — no need to fill every one.</p>
                   </div>
                 </div>
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium">Upload & tag all visual assets</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, renders, product shots, mascots. Tag each one so the AI knows how to use them.</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, renders, product shots. Tag each one (Logo, Hero, etc.) so the AI knows its role.</p>
                   </div>
                 </div>
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Separate "Visual Nevers" from "Content Nevers"</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">In Do's & Don'ts section, keep visual and content constraints separate.</p>
+                    <p className="font-medium">Separate Do's from Don'ts</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Do's reinforce the AI's direction. Don'ts become strict exclusions — keep them distinct.</p>
                   </div>
                 </div>
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Group brands into campaigns</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Duplicate and customize brands for different objectives, then group them together.</p>
+                    <p className="font-medium">Must-Include = non-negotiable text</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Brand name, tagline, CTA, legal — anything that MUST appear on every creative goes here.</p>
                   </div>
                 </div>
               </div>
