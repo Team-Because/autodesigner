@@ -285,7 +285,7 @@ async function generateCreative(
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
-  spec: { width: number; height: number; label: string },
+  spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
