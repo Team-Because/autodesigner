@@ -19,3 +19,17 @@ export interface BrandAsset {
   label: string;
   created_at: string;
 }
+
+export interface Campaign {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  campaign_brief: string;
+  target_audience: string;
+  mandatory_elements: string;
+  negative_prompts: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
