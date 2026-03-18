@@ -606,6 +606,19 @@ async function qualityCheck(
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ passed: boolean; score: number; issues: string[]; critical: boolean }> {
+  // Build rich brand context for QC
+  let brandBriefText = "";
+  try {
+    const parsed = JSON.parse(brand.brand_brief || "");
+    if (parsed?._structured && parsed?._rendered) brandBriefText = parsed._rendered;
+  } catch {
+    brandBriefText = brand.brand_brief || "";
+  }
+
+  const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+    ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
+    : "";
+
   try {
     const qcResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -620,32 +633,42 @@ async function qualityCheck(
           messages: [
             {
               role: "system",
-              content: `You are a strict QC inspector for advertising creatives. Analyze the image and check quality against the provided specs. Be thorough but fair.`,
+              content: `You are an uncompromising QC inspector for advertising creatives at a premium agency. You protect the brand from any output that would embarrass it. Score STRICTLY — only genuinely professional, brand-aligned work should pass. A score of 70+ means "client-ready". Below 65 means "unacceptable, must redo".`,
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: `Inspect this generated advertisement creative and score it.
+                  text: `Inspect this generated advertisement creative STRICTLY against the brand specs below.
 
-EXPECTED SPECS:
-- Aspect ratio: ${spec.ratio} (${spec.width}×${spec.height})
-- Brand: ${brand.name}
-- Primary color: ${brand.primary_color}
-- Secondary color: ${brand.secondary_color}
-${brand.negative_prompts ? `- Must NOT include: ${brand.negative_prompts}` : ""}
+══════════════════════════════════
+BRAND SPECIFICATIONS
+══════════════════════════════════
+Brand Name: ${brand.name}
+Primary Color: ${brand.primary_color}
+Secondary Color: ${brand.secondary_color}
+${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
+Required Aspect Ratio: ${spec.ratio} (${spec.width}×${spec.height})
+${brand.brand_voice_rules ? `Voice & Tone Rules: ${brand.brand_voice_rules}` : ""}
+${brand.negative_prompts ? `⛔ BANNED ELEMENTS (must NOT appear): ${brand.negative_prompts}` : ""}
+${brandBriefText ? `Brand Brief / Guidelines:\n${brandBriefText}` : ""}
 
-Check for:
-1. ASPECT RATIO: Does the image appear to match ${spec.ratio}? (Critical if wrong)
-2. LOGO: Is a brand logo/mark visible and readable? Proper contrast?
-3. TEXT LEGIBILITY: Is all text clearly readable? No overlapping or cut-off text?
-4. TEXT DUPLICATION: Is any text, brand name, or element repeated?
-5. BRAND COLORS: Are the brand colors (${brand.primary_color}, ${brand.secondary_color}) present?
-6. COMPOSITION: Professional layout with clear visual hierarchy?
-7. BANNED ELEMENTS: Any excluded elements present?
+══════════════════════════════════
+QC CHECKLIST — Score each area:
+══════════════════════════════════
+1. ASPECT RATIO (Critical): Does the image match ${spec.ratio}? Wrong ratio = automatic critical failure.
+2. LOGO VISIBILITY (Critical): Is the brand logo/mark clearly visible with proper contrast? Missing/illegible logo = critical.
+3. TEXT LEGIBILITY (Critical): Is ALL text clearly readable? No overlapping, cut-off, garbled, or wrong-language text? Unreadable text = critical.
+4. TEXT DUPLICATION: Is any text, brand name, tagline, or element unnecessarily repeated?
+5. BRAND COLOR ALIGNMENT: Are ${brand.primary_color} and ${brand.secondary_color} prominently used as specified?
+6. BRAND VOICE COMPLIANCE: Does the copy match the brand's tone and voice rules? Is it original (not copied from guidelines)?
+7. BANNED ELEMENTS: Are ANY of the banned/excluded elements present? If so = critical.
+8. COMPOSITION & HIERARCHY: Professional layout with clear visual flow? Hero visual prominent? Clean, not cluttered?
+9. OVERALL BRAND ALIGNMENT: Does this creative FEEL like it belongs to "${brand.name}"? Would a brand manager approve this?
 
-Score 0-100 and list specific issues found.`,
+Score 0-100. Be strict. Only score 70+ if genuinely client-ready.
+Mark critical=true if ANY critical check fails.`,
                 },
                 {
                   type: "image_url",
@@ -663,16 +686,16 @@ Score 0-100 and list specific issues found.`,
                 parameters: {
                   type: "object",
                   properties: {
-                    passed: { type: "boolean", description: "True if score >= 60 and no critical issues" },
-                    score: { type: "number", description: "Quality score 0-100" },
+                    passed: { type: "boolean", description: "True if score >= 65 and no critical issues" },
+                    score: { type: "number", description: "Quality score 0-100. Be strict — 70+ means client-ready." },
                     issues: {
                       type: "array",
                       items: { type: "string" },
-                      description: "List of specific issues found",
+                      description: "List of specific issues found, each as an actionable fix instruction",
                     },
                     critical: {
                       type: "boolean",
-                      description: "True if there are critical issues like wrong aspect ratio, missing logo, or unreadable text",
+                      description: "True if there are critical issues: wrong aspect ratio, missing/illegible logo, unreadable text, banned elements present",
                     },
                   },
                   required: ["passed", "score", "issues", "critical"],
@@ -880,26 +903,28 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Quality Check with auto-retry loop (up to 2 retries)
+    // Step 3: Quality Check with auto-retry loop (up to 3 retries)
     console.log("Step 3: Running quality check...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
 
     let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
 
-    const MAX_QC_RETRIES = 2;
+    const MAX_QC_RETRIES = 3;
+    const MIN_ACCEPTABLE_SCORE = 65;
     const originalBrief = brand.brand_brief || "";
 
     for (let qcRetry = 0; qcRetry < MAX_QC_RETRIES; qcRetry++) {
-      // Retry if score < 70 OR critical issues found
-      const shouldRetry = qcResult.score < 70 || qcResult.critical;
+      // Retry if score < MIN_ACCEPTABLE_SCORE OR critical issues found
+      const shouldRetry = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
       if (!shouldRetry || qcResult.issues.length === 0) break;
 
       console.log(`QC retry ${qcRetry + 1}/${MAX_QC_RETRIES}: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
       await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
-      // Inject QC feedback as a top-level instruction block (not buried in brand_brief JSON)
-      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC)\n══════════════════════════════════════════\nThe previous generation scored ${qcResult.score}/100. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${qcRetry === 0 ? "second" : "final"} attempt.`;
+      // Inject QC feedback as a top-level instruction block
+      const attemptLabel = qcRetry === 0 ? "second" : qcRetry === 1 ? "third" : "FINAL";
+      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC — score ${qcResult.score}/100)\n══════════════════════════════════════════\nThe previous generation FAILED quality check. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${attemptLabel} attempt.${qcRetry >= 2 ? " THIS IS YOUR LAST CHANCE — make it perfect." : ""}`;
 
       brand.brand_brief = originalBrief + qcFeedbackBlock;
 
@@ -922,6 +947,32 @@ serve(async (req) => {
 
     // Restore original brief
     brand.brand_brief = originalBrief;
+
+    // GATE: If QC still fails after all retries, reject the output
+    const finalFailed = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
+    if (finalFailed) {
+      console.warn(`Final QC REJECTED: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
+      
+      // Save the QC data for diagnostics but mark as failed
+      const failedPayload = {
+        caption: captionText,
+        qc: { passed: false, score: qcResult.score, issues: qcResult.issues, rejected: true },
+      };
+      await supabase.from("generations").update({
+        status: "failed",
+        copywriting: failedPayload,
+        layout_guide: JSON.stringify(framework),
+      }).eq("id", generationId);
+
+      return new Response(
+        JSON.stringify({
+          error: `Quality check failed after ${MAX_QC_RETRIES + 1} attempts (score: ${qcResult.score}/100). The AI couldn't produce a result that meets your brand standards. Try adjusting your reference image or brand brief, then retry.`,
+          qc: { score: qcResult.score, issues: qcResult.issues },
+          retryable: true,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Upload generated image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");

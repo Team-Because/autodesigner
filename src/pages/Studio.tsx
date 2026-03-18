@@ -223,6 +223,12 @@ export default function Studio() {
         const isRetryableOverload =
           (context?.status === 503 || context?.status === 429) && retryable;
 
+        // QC rejection (422) — don't retry, show clear message
+        if (context?.status === 422) {
+          invokeErrorMessage = errorMessage;
+          break;
+        }
+
         if (isRetryableOverload && invokeAttempt < maxInvokeAttempts) {
           const waitMs = Math.max(retryAfterSeconds * 1000, 45000);
           setProgressPhase(`AI providers are busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
