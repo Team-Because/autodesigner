@@ -954,6 +954,26 @@ serve(async (req) => {
       console.error("CRITICAL: Final DB update failed!", updateError);
     }
 
+    // Deduct credit after successful generation
+    if (callerUserId) {
+      const { data: currentCredits } = await supabase
+        .from("user_credits")
+        .select("credits_remaining, credits_used")
+        .eq("user_id", callerUserId)
+        .single();
+
+      if (currentCredits) {
+        await supabase
+          .from("user_credits")
+          .update({
+            credits_remaining: Math.max(0, currentCredits.credits_remaining - 1),
+            credits_used: currentCredits.credits_used + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", callerUserId);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         imageUrl: publicUrlData.publicUrl,
