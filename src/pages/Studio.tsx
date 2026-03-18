@@ -14,7 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import {
   Upload,
-  Sparkles,
+  Zap,
   Download,
   RotateCcw,
   Loader2,
@@ -33,10 +33,10 @@ type StudioState = "idle" | "generating" | "complete";
 type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
-  { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
-  { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
-  { value: "portrait", label: "Portrait", description: "1080×1350 · Instagram Feed, Pinterest", icon: RectangleVertical, aspect: "aspect-[4/5]" },
-  { value: "story", label: "Story", description: "1080×1920 · Instagram & Facebook Stories, Reels", icon: Smartphone, aspect: "aspect-[9/16]" },
+  { value: "landscape", label: "Landscape", description: "1920×1080 · 16:9", icon: RectangleHorizontal, aspect: "aspect-video" },
+  { value: "square", label: "Square", description: "1080×1080 · 1:1", icon: Square, aspect: "aspect-square" },
+  { value: "portrait", label: "Portrait", description: "1080×1350 · 4:5", icon: RectangleVertical, aspect: "aspect-[4/5]" },
+  { value: "story", label: "Story", description: "1080×1920 · 9:16", icon: Smartphone, aspect: "aspect-[9/16]" },
 ];
 
 interface GenerationResult {
@@ -137,7 +137,6 @@ export default function Studio() {
     setProgressPhase("Uploading reference image...");
 
     try {
-      // Upload reference image
       const ext = referenceFile.name.split(".").pop();
       const refPath = `${user.id}/ref-${crypto.randomUUID()}.${ext}`;
       const { error: uploadErr } = await supabase.storage
@@ -152,7 +151,6 @@ export default function Studio() {
       setProgress(10);
       setProgressPhase("Creating generation record...");
 
-      // Create generation record
       const { data: gen, error: insertError } = await supabase
         .from("generations")
         .insert({
@@ -166,11 +164,9 @@ export default function Studio() {
 
       if (insertError || !gen) throw new Error("Failed to create generation record");
 
-      // Phase 1: Analyzing reference layout
       setProgress(15);
       setProgressPhase("Analyzing reference layout...");
 
-      // Simulate progress during the long AI call
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
           if (prev < 35) return prev + 1;
@@ -188,7 +184,6 @@ export default function Studio() {
         setProgress((prev) => Math.max(prev, 88));
       }, 35000);
 
-      // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
@@ -221,7 +216,7 @@ export default function Studio() {
             retryable = !!payload?.retryable;
             retryAfterSeconds = Number(payload?.retryAfterSeconds || 0);
           } catch {
-            // ignore JSON parse failure
+            // ignore
           }
         }
 
@@ -260,7 +255,6 @@ export default function Studio() {
       });
       setStudioState("complete");
 
-      // Safety net: update generation record from client side in case edge function DB update failed
       if (fnData.imageUrl && gen.id) {
         await supabase
           .from("generations")
@@ -301,31 +295,33 @@ export default function Studio() {
   const isGenerating = studioState === "generating";
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto" onPaste={handlePaste} tabIndex={-1}>
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in" onPaste={handlePaste} tabIndex={-1}>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">
-            The Studio
+          <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
+            Studio
           </h1>
           <p className="text-muted-foreground mt-1">
-            Select a brand, upload a reference ad, and get a brand-aligned
-            creative instantly.
+            Upload a reference, pick your brand, and generate.
           </p>
         </div>
         {credits && (
-          <Badge variant={credits.credits_remaining > 0 ? "secondary" : "destructive"} className="text-sm px-3 py-1">
-            {credits.credits_remaining} credit{credits.credits_remaining !== 1 ? "s" : ""} remaining
+          <Badge
+            variant={credits.credits_remaining > 0 ? "secondary" : "destructive"}
+            className="text-sm px-4 py-1.5 rounded-xl font-semibold"
+          >
+            {credits.credits_remaining} credit{credits.credits_remaining !== 1 ? "s" : ""}
           </Badge>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* ─── INPUT SECTION ─── */}
+        {/* ─── INPUT ─── */}
         <div className="space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-display">
-                1. Select Brand
+          <Card className="glass-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                1 · Brand
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -334,7 +330,7 @@ export default function Studio() {
                 onValueChange={setSelectedBrandId}
                 disabled={isGenerating}
               >
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl h-11 bg-muted/30 border-border/50">
                   <SelectValue placeholder="Choose a brand profile..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -342,11 +338,7 @@ export default function Studio() {
                     <SelectItem key={b.id} value={b.id}>
                       <div className="flex items-center gap-2">
                         {b.logo_url ? (
-                          <img
-                            src={b.logo_url}
-                            alt=""
-                            className="h-5 w-5 rounded object-cover"
-                          />
+                          <img src={b.logo_url} alt="" className="h-5 w-5 rounded object-cover" />
                         ) : null}
                         <span>{b.name}</span>
                       </div>
@@ -356,45 +348,29 @@ export default function Studio() {
               </Select>
               {selectedBrand && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: selectedBrand.primary_color }}
-                  />
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: selectedBrand.secondary_color }}
-                  />
-                  <span>
-                    {selectedBrand.primary_color} /{" "}
-                    {selectedBrand.secondary_color}
-                  </span>
+                  <div className="h-4 w-4 rounded-full ring-1 ring-border" style={{ backgroundColor: selectedBrand.primary_color }} />
+                  <div className="h-4 w-4 rounded-full ring-1 ring-border" style={{ backgroundColor: selectedBrand.secondary_color }} />
+                  <span className="font-medium">{selectedBrand.primary_color} / {selectedBrand.secondary_color}</span>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-display">
-                2. Upload Reference Ad
+          <Card className="glass-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                2 · Reference
               </CardTitle>
             </CardHeader>
             <CardContent>
               {referencePreview ? (
-                <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img
-                    src={referencePreview}
-                    alt="Reference"
-                    className="w-full aspect-video object-cover"
-                  />
+                <div className="relative rounded-xl overflow-hidden border border-border/50">
+                  <img src={referencePreview} alt="Reference" className="w-full aspect-video object-cover" />
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setReferenceFile(null);
-                      setReferencePreview("");
-                    }}
+                    className="absolute top-2 right-2 rounded-lg"
+                    onClick={() => { setReferenceFile(null); setReferencePreview(""); }}
                     disabled={isGenerating}
                   >
                     Change
@@ -402,32 +378,29 @@ export default function Studio() {
                 </div>
               ) : (
                 <label
-                  className="border-2 border-dashed border-border rounded-lg p-10 flex flex-col items-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-colors"
+                  className="border-2 border-dashed border-border/50 rounded-2xl p-10 flex flex-col items-center cursor-pointer hover:border-primary/40 hover:bg-accent/30 transition-all duration-300"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleFileDrop}
                 >
-                  <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-sm font-medium text-foreground">
-                    Drop or paste your reference advertisement here
+                  <div className="h-14 w-14 rounded-2xl bg-accent flex items-center justify-center mb-4">
+                    <Upload className="h-6 w-6 text-accent-foreground" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Drop or paste your reference ad
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     or click to browse — PNG, JPG, WebP
                   </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+                  <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                 </label>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-display">
-                3. Output Format
+          <Card className="glass-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">
+                3 · Format
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -438,14 +411,14 @@ export default function Studio() {
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setOutputFormat(fmt.value)}
-                    className={`relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all text-center ${
+                    className={`relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all duration-200 text-center ${
                       outputFormat === fmt.value
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border hover:border-primary/30 hover:bg-accent/30"
+                        ? "border-primary bg-accent shadow-sm glow-sm"
+                        : "border-border/50 hover:border-primary/30 hover:bg-accent/30"
                     } ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <fmt.icon className={`h-6 w-6 ${outputFormat === fmt.value ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className={`text-sm font-medium ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
+                    <span className={`text-xs font-semibold ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
                       {fmt.label}
                     </span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
@@ -458,45 +431,41 @@ export default function Studio() {
           </Card>
 
           <Button
-            className="w-full h-12 text-base gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
+            className="w-full h-13 text-base rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground font-bold glow-sm"
             onClick={handleGenerate}
             disabled={isGenerating || !selectedBrandId || !referenceFile}
           >
             {isGenerating ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generating...
-              </>
+              <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generating...</>
             ) : (
-              <>
-                <Sparkles className="h-5 w-5 mr-2" /> Generate Creative
-              </>
+              <><Zap className="h-5 w-5 mr-2" /> Generate Creative</>
             )}
           </Button>
         </div>
 
-        {/* ─── OUTPUT SECTION ─── */}
+        {/* ─── OUTPUT ─── */}
         <div className="space-y-5">
-          <Card className="min-h-[400px] flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-base font-display">Output</CardTitle>
+          <Card className="glass-card min-h-[400px] flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">Output</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex items-center justify-center">
               {studioState === "idle" && (
                 <div className="text-center text-muted-foreground py-16">
-                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p className="text-sm">
-                    Select a brand and upload a reference to begin.
-                  </p>
+                  <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                    <Zap className="h-8 w-8 opacity-30" />
+                  </div>
+                  <p className="text-sm font-medium">Your creative will appear here.</p>
                 </div>
               )}
               {studioState === "generating" && (
                 <div className="w-full space-y-6 py-8">
-                  <div className="relative w-full aspect-video rounded-lg bg-muted overflow-hidden">
+                  <div className="relative w-full aspect-video rounded-2xl bg-muted/30 overflow-hidden border border-border/30">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer" />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center px-4">
                         <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary mb-4" />
-                        <p className="text-sm font-medium text-foreground animate-pulse-glow">
+                        <p className="text-sm font-semibold text-foreground animate-pulse-glow">
                           {progressPhase || "Generating your brand creative..."}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
@@ -506,40 +475,36 @@ export default function Studio() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Progress value={progress} className="h-2" />
-                    <p className="text-xs text-muted-foreground text-right">
-                      {progress}%
+                    <Progress value={progress} className="h-2 rounded-full" />
+                    <p className="text-xs text-muted-foreground text-right font-medium">
+                      {Math.round(progress)}%
                     </p>
                   </div>
                 </div>
               )}
               {studioState === "complete" && result && (
                 <div className="w-full space-y-4">
-                  <div className="rounded-lg overflow-hidden border border-border relative">
-                    <img
-                      src={result.imageUrl}
-                      alt="Generated creative"
-                      className="w-full"
-                    />
+                  <div className="rounded-2xl overflow-hidden border border-border/30 relative shadow-lg">
+                    <img src={result.imageUrl} alt="Generated creative" className="w-full" />
                     {result.qc && (
                       <div className="absolute top-3 right-3">
                         <Badge
                           variant={result.qc.passed ? "default" : "destructive"}
-                          className="gap-1 text-xs"
+                          className="gap-1 text-xs rounded-lg"
                         >
                           {result.qc.passed ? (
-                            <><CheckCircle2 className="h-3 w-3" /> QC Pass ({result.qc.score}/100)</>
+                            <><CheckCircle2 className="h-3 w-3" /> QC {result.qc.score}/100</>
                           ) : (
-                            <><AlertTriangle className="h-3 w-3" /> QC Fail ({result.qc.score}/100)</>
+                            <><AlertTriangle className="h-3 w-3" /> QC {result.qc.score}/100</>
                           )}
                         </Badge>
                       </div>
                     )}
                   </div>
                   {result.qc && !result.qc.passed && result.qc.issues.length > 0 && (
-                    <Card>
+                    <Card className="glass-card border-destructive/20">
                       <CardContent className="pt-4">
-                        <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-2">QC Issues</p>
+                        <p className="text-xs font-semibold text-destructive uppercase tracking-wider mb-2">QC Issues</p>
                         <ul className="text-sm text-muted-foreground space-y-1">
                           {result.qc.issues.map((issue, i) => (
                             <li key={i} className="flex items-start gap-2">
@@ -552,10 +517,10 @@ export default function Studio() {
                     </Card>
                   )}
                   {result.caption && (
-                    <Card>
+                    <Card className="glass-card">
                       <CardContent className="pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                          AI Caption / Copy
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                          AI Caption
                         </p>
                         <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                           {result.caption}
@@ -566,14 +531,14 @@ export default function Studio() {
                   <div className="flex gap-3">
                     <Button
                       onClick={() => window.open(result.imageUrl, "_blank")}
-                      className="flex-1"
+                      className="flex-1 rounded-xl h-11 gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
                     >
                       <Download className="h-4 w-4 mr-2" /> Download
                     </Button>
                     <Button
                       variant="outline"
                       onClick={handleReset}
-                      className="flex-1"
+                      className="flex-1 rounded-xl h-11 font-semibold"
                     >
                       <RotateCcw className="h-4 w-4 mr-2" /> New Creative
                     </Button>
