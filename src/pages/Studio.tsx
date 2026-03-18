@@ -351,6 +351,36 @@ export default function Studio() {
             </CardContent>
           </Card>
 
+          {/* Campaign Selector (optional) */}
+          {selectedBrandId && campaigns.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-display">
+                  Campaign <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={selectedCampaignId || "none"}
+                  onValueChange={(val) => setSelectedCampaignId(val === "none" ? "" : val)}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No campaign — use brand defaults" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No campaign — brand defaults</SelectItem>
+                    {campaigns.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-display">
