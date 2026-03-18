@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -18,6 +19,20 @@ export default function BrandHub() {
       const { data, error } = await supabase.from("brands").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: campaignCounts = {} } = useQuery({
+    queryKey: ["campaign-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns").select("brand_id, id").eq("status", "active");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((c: any) => {
+        counts[c.brand_id] = (counts[c.brand_id] || 0) + 1;
+      });
+      return counts;
     },
     enabled: !!user,
   });
@@ -66,7 +81,12 @@ export default function BrandHub() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
+                      {campaignCounts[brand.id] > 0 && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">{campaignCounts[brand.id]} campaign{campaignCounts[brand.id] > 1 ? "s" : ""}</Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.primary_color }} />
                       <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.secondary_color }} />

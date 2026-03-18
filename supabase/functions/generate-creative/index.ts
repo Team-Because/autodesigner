@@ -293,7 +293,18 @@ async function generateCreative(
 
   const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
-  const brandBrief = toCompactText(brand.brand_brief, 3000);
+
+  // Extract rendered brief from structured JSON envelope if present
+  let rawBrief = brand.brand_brief || "";
+  try {
+    const parsed = JSON.parse(rawBrief);
+    if (parsed?._structured && parsed?._rendered) {
+      rawBrief = parsed._rendered;
+    }
+  } catch {
+    // legacy plain text — use as-is
+  }
+  const brandBrief = toCompactText(rawBrief, 3000);
 
   const brandContext = [
     `Brand Name: ${brand.name}`,
@@ -594,7 +605,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
+    const { brandId, campaignId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
     const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -605,11 +616,16 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch brand + assets in parallel
-    const [brandRes, assetsRes] = await Promise.all([
+    // Fetch brand + assets + campaign in parallel
+    const fetchPromises: Promise<any>[] = [
       supabase.from("brands").select("*").eq("id", brandId).single(),
       supabase.from("brand_assets").select("image_url, label").eq("brand_id", brandId),
-    ]);
+    ];
+    if (campaignId) {
+      fetchPromises.push(supabase.from("campaigns").select("*").eq("id", campaignId).single());
+    }
+
+    const [brandRes, assetsRes, campaignRes] = await Promise.all(fetchPromises);
 
     if (brandRes.error || !brandRes.data) {
       return new Response(
@@ -620,6 +636,28 @@ serve(async (req) => {
 
     const brand = brandRes.data;
     const brandAssets = assetsRes.data || [];
+    const campaign = campaignRes?.data || null;
+
+    // Merge campaign context on top of brand
+    if (campaign) {
+      console.log(`Merging campaign: ${campaign.name}`);
+      // Campaign brief appends to brand brief
+      if (campaign.campaign_brief) {
+        brand.brand_brief = (brand.brand_brief || "") + "\n\n## CAMPAIGN-SPECIFIC RULES\n" + campaign.campaign_brief;
+      }
+      // Campaign audience overrides brand audience
+      if (campaign.target_audience) {
+        brand.brand_voice_rules = campaign.target_audience;
+      }
+      // Campaign mandatory elements append
+      if (campaign.mandatory_elements) {
+        brand.brand_brief = (brand.brand_brief || "") + "\n\n## CAMPAIGN MANDATORY ELEMENTS\n" + campaign.mandatory_elements;
+      }
+      // Campaign negatives append
+      if (campaign.negative_prompts) {
+        brand.negative_prompts = (brand.negative_prompts || "") + "\n" + campaign.negative_prompts;
+      }
+    }
 
     const generationRes = generationId
       ? await supabase

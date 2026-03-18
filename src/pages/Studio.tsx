@@ -57,6 +57,7 @@ export default function Studio() {
   });
 
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
@@ -64,6 +65,22 @@ export default function Studio() {
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
+
+  // Fetch campaigns for selected brand
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["campaigns", selectedBrandId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("brand_id", selectedBrandId)
+        .eq("status", "active")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBrandId,
+  });
 
   const setImageFile = useCallback((file: File) => {
     setReferenceFile(file);
@@ -132,9 +149,10 @@ export default function Studio() {
         .insert({
           user_id: user.id,
           brand_id: selectedBrandId,
+          campaign_id: selectedCampaignId || null,
           reference_image_url: refUrlData.publicUrl,
           status: "processing",
-        })
+        } as any)
         .select()
         .single();
 
@@ -168,6 +186,7 @@ export default function Studio() {
         const response = await supabase.functions.invoke("generate-creative", {
           body: {
             brandId: selectedBrandId,
+            campaignId: selectedCampaignId || undefined,
             referenceImageUrl: refUrlData.publicUrl,
             generationId: gen.id,
             outputFormat,
@@ -288,7 +307,10 @@ export default function Studio() {
             <CardContent>
               <Select
                 value={selectedBrandId}
-                onValueChange={setSelectedBrandId}
+                onValueChange={(val) => {
+                  setSelectedBrandId(val);
+                  setSelectedCampaignId("");
+                }}
                 disabled={isGenerating}
               >
                 <SelectTrigger>
@@ -329,6 +351,36 @@ export default function Studio() {
               )}
             </CardContent>
           </Card>
+
+          {/* Campaign Selector (optional) */}
+          {selectedBrandId && campaigns.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-display">
+                  Campaign <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={selectedCampaignId || "none"}
+                  onValueChange={(val) => setSelectedCampaignId(val === "none" ? "" : val)}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No campaign — use brand defaults" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No campaign — brand defaults</SelectItem>
+                    {campaigns.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

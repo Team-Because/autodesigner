@@ -94,9 +94,60 @@ export type Database = {
         }
         Relationships: []
       }
+      campaigns: {
+        Row: {
+          brand_id: string
+          campaign_brief: string | null
+          created_at: string
+          id: string
+          mandatory_elements: string | null
+          name: string
+          negative_prompts: string | null
+          status: string
+          target_audience: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          campaign_brief?: string | null
+          created_at?: string
+          id?: string
+          mandatory_elements?: string | null
+          name: string
+          negative_prompts?: string | null
+          status?: string
+          target_audience?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          campaign_brief?: string | null
+          created_at?: string
+          id?: string
+          mandatory_elements?: string | null
+          name?: string
+          negative_prompts?: string | null
+          status?: string
+          target_audience?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generations: {
         Row: {
           brand_id: string
+          campaign_id: string | null
           campaign_message: string | null
           copywriting: Json | null
           created_at: string
@@ -110,6 +161,7 @@ export type Database = {
         }
         Insert: {
           brand_id: string
+          campaign_id?: string | null
           campaign_message?: string | null
           copywriting?: Json | null
           created_at?: string
@@ -123,6 +175,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string
+          campaign_id?: string | null
           campaign_message?: string | null
           copywriting?: Json | null
           created_at?: string
@@ -140,6 +193,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
         ]
