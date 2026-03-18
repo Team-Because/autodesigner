@@ -381,6 +381,32 @@ export default function History() {
                   </div>
                 )}
 
+                {/* QC Results */}
+                {dQc && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs font-medium text-muted-foreground">Quality Check</p>
+                      <Badge variant={dQc.passed ? "default" : "destructive"} className="gap-1 text-xs">
+                        {dQc.passed ? (
+                          <><CheckCircle2 className="h-3 w-3" /> Pass ({dQc.score}/100)</>
+                        ) : (
+                          <><AlertTriangle className="h-3 w-3" /> Fail ({dQc.score}/100)</>
+                        )}
+                      </Badge>
+                    </div>
+                    {dQc.issues && dQc.issues.length > 0 && (
+                      <ul className="text-sm bg-muted rounded-md p-3 space-y-1">
+                        {dQc.issues.map((issue: string, i: number) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground">{issue}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 {dImg && (
                   <div className="flex gap-3">
