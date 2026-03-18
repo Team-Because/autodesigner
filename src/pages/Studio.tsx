@@ -302,14 +302,21 @@ export default function Studio() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto" onPaste={handlePaste} tabIndex={-1}>
-      <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground">
-          The Studio
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Select a brand, upload a reference ad, and get a brand-aligned
-          creative instantly.
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground">
+            The Studio
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Select a brand, upload a reference ad, and get a brand-aligned
+            creative instantly.
+          </p>
+        </div>
+        {credits && (
+          <Badge variant={credits.credits_remaining > 0 ? "secondary" : "destructive"} className="text-sm px-3 py-1">
+            {credits.credits_remaining} credit{credits.credits_remaining !== 1 ? "s" : ""} remaining
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
