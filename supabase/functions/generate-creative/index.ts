@@ -16,6 +16,28 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface StructuredBrandSections {
+  brandIdentity: string;
+  mustInclude: string;
+  visualDirection: string;
+  voiceAndTone: string;
+  dos: string;
+  donts: string;
+  colorNotes: string;
+  referenceNotes: string;
+}
+
+const EMPTY_BRAND_SECTIONS: StructuredBrandSections = {
+  brandIdentity: "",
+  mustInclude: "",
+  visualDirection: "",
+  voiceAndTone: "",
+  dos: "",
+  donts: "",
+  colorNotes: "",
+  referenceNotes: "",
+};
+
 function parseStoredFramework(value: unknown): Record<string, unknown> | null {
   if (!value) return null;
 
@@ -46,6 +68,107 @@ function extractStoredCaption(copywriting: unknown): string {
 function toCompactText(value: unknown, maxChars: number): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+function getRenderedBrandBrief(brandBrief: unknown): string {
+  if (typeof brandBrief !== "string" || !brandBrief.trim()) return "";
+
+  try {
+    const parsed = JSON.parse(brandBrief);
+    if (parsed?._structured && typeof parsed?._rendered === "string") {
+      return parsed._rendered.trim();
+    }
+  } catch {
+    // legacy free-text brief
+  }
+
+  return brandBrief.trim();
+}
+
+function parseStructuredBrandSections(brandBrief: unknown): StructuredBrandSections {
+  if (typeof brandBrief !== "string" || !brandBrief.trim()) return { ...EMPTY_BRAND_SECTIONS };
+
+  try {
+    const parsed = JSON.parse(brandBrief);
+    if (parsed?._structured && parsed?.sections && typeof parsed.sections === "object") {
+      return {
+        ...EMPTY_BRAND_SECTIONS,
+        ...Object.fromEntries(
+          Object.entries(parsed.sections as Record<string, unknown>).map(([key, value]) => [
+            key,
+            typeof value === "string" ? value.trim() : "",
+          ])
+        ),
+      } as StructuredBrandSections;
+    }
+  } catch {
+    // legacy free-text brief
+  }
+
+  return { ...EMPTY_BRAND_SECTIONS };
+}
+
+function extractProductCandidatesFromBrief(sections: StructuredBrandSections, renderedBrief: string): string[] {
+  const candidates = new Set<string>();
+  const sourceLines = `${sections.brandIdentity}\n${sections.mustInclude}\n${renderedBrief}`
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of sourceLines) {
+    const colonMatch = /^(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 '&/+()-]{1,40}):\s*(.+)$/.exec(line);
+    if (!colonMatch) continue;
+
+    const label = colonMatch[1].trim();
+    const rhs = colonMatch[2].trim();
+
+    if (/(samosa|momo|spring roll|roll|patty|kebab|tikki|snack|meal)/i.test(label)) {
+      candidates.add(label.replace(/\bProducts?\b/i, "").trim());
+    }
+
+    if (/(brand name|tagline|cta|contact|legal|other|visual|content|mood|lighting|photography|layout|composition|voice|audience|response|use|avoid|rule)/i.test(label)) {
+      continue;
+    }
+
+    for (const part of rhs.split(/,\s*/)) {
+      const cleaned = part.replace(/^[-•]\s*/, "").trim();
+      if (
+        cleaned &&
+        cleaned.length <= 40 &&
+        /[A-Za-z]/.test(cleaned) &&
+        !/(ready in just|order now|link in bio|admissions|contact|http|www\.)/i.test(cleaned)
+      ) {
+        candidates.add(cleaned);
+      }
+    }
+  }
+
+  return Array.from(candidates).slice(0, 12);
+}
+
+function inferFocusProductFromFramework(
+  framework: Record<string, unknown>,
+  productCandidates: string[]
+): string {
+  if (productCandidates.length === 0) return "";
+
+  const frameworkText = JSON.stringify(framework).toLowerCase();
+  const preferenceMap = [
+    { keywords: ["spring", "roll"], matcher: /spring roll/i },
+    { keywords: ["dumpling", "momo"], matcher: /momo/i },
+    { keywords: ["nugget", "fried", "crispy", "triangle", "snack"], matcher: /samosa/i },
+    { keywords: ["patty", "burger"], matcher: /patty/i },
+    { keywords: ["kebab", "cutlet"], matcher: /kebab/i },
+  ];
+
+  for (const preference of preferenceMap) {
+    if (preference.keywords.some((keyword) => frameworkText.includes(keyword))) {
+      const match = productCandidates.find((candidate) => preference.matcher.test(candidate));
+      if (match) return match;
+    }
+  }
+
+  return productCandidates[0];
 }
 
 function extractCaptionText(aiData: any): string {
@@ -281,6 +404,7 @@ async function analyzeFramework(
 
 /** Step 1.5 — Pre-generation Creative Brief Review */
 interface RefinedBrief {
+  productName: string;
   headline: string;
   subCopy: string;
   ctaText: string;
@@ -297,12 +421,10 @@ async function refineBrief(
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<RefinedBrief> {
-  // Build brand context for the reviewer
-  let rawBrief = brand.brand_brief || "";
-  try {
-    const parsed = JSON.parse(rawBrief);
-    if (parsed?._structured && parsed?._rendered) rawBrief = parsed._rendered;
-  } catch { /* legacy */ }
+  const rawBrief = getRenderedBrandBrief(brand.brand_brief);
+  const sections = parseStructuredBrandSections(brand.brand_brief);
+  const productCandidates = extractProductCandidatesFromBrief(sections, rawBrief);
+  const focusProductHint = inferFocusProductFromFramework(framework, productCandidates);
 
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
@@ -310,29 +432,26 @@ async function refineBrief(
 
   const assetLabels = brandAssets.slice(0, 5).map((a: any) => a.label || "Brand asset").join(", ");
 
-  const systemPrompt = `You are a senior creative director at a Cannes Lions-winning agency. Your job is to review an assembled creative brief BEFORE it goes to the image generation model, and produce an optimised, conflict-free creative direction.
-
-You will receive:
-1. A structural design framework extracted from a reference image
-2. Full brand guidelines (colors, voice, mandatory elements, exclusions)
-3. The output format specification
-4. A list of available brand assets
+  const systemPrompt = `You are a senior creative director at a Cannes Lions-winning agency. Your job is to review an assembled creative brief BEFORE it goes to the image generation model and produce an optimised, conflict-free creative direction.
 
 Your task:
-- Write the EXACT headline text (≤8 words, punchy, benefit-driven, original — never copy from brand brief examples)
+- Choose ONE exact hero product name for this creative
+- Write the EXACT headline text (≤8 words, punchy, benefit-driven, original)
 - Write the EXACT sub-copy text (≤20 words, one supporting sentence)
 - Write the EXACT CTA text (short call-to-action or contact info)
-- Produce specific visual direction that resolves any conflicts between the reference framework style and the brand guidelines
-- Define a color strategy: which brand color goes where (background, headline, accents, CTA bar, etc.)
+- Produce specific visual direction that resolves conflicts between the reference framework and the brand rules
+- Define a color strategy: which brand color goes where
 - Provide layout adaptation notes for fitting the framework to this brand
 - Flag any warnings about potential issues
 
 CRITICAL RULES:
-- The headline and copy must match the brand's voice/tone rules exactly
-- If the brand brief has mandatory elements (tagline, contact info, legal text), they MUST appear in the copy
-- If the framework suggests a dark mood but the brand is light/airy (or vice versa), RESOLVE this — pick one direction and commit
+- If the brand says to always include product name, the chosen productName MUST appear verbatim in the headline or subCopy
+- If the brand has a mandatory tagline or CTA, include them verbatim in subCopy/ctaText instead of paraphrasing
+- If the reference is lifestyle-heavy but the brand says food first, OVERRIDE the reference and make the food the unmistakable hero
+- If the reference mood conflicts with the brand mood, resolve it decisively
 - Never use placeholder text — every word must be final, print-ready
-- All copy must be in the brand's language (infer from brand name and brief)`;
+- All copy must be in the brand's language
+- Avoid generic lines like “Mealtime revolution” — sound like the brand, not an ad cliché`;
 
   const userPrompt = `BRAND CONTEXT:
 Brand Name: ${brand.name}
@@ -341,7 +460,13 @@ Secondary Color: ${brand.secondary_color}
 ${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
 ${brand.brand_voice_rules ? `Voice & Tone: ${brand.brand_voice_rules}` : ""}
 ${brand.negative_prompts ? `⛔ EXCLUSIONS (never use): ${brand.negative_prompts}` : ""}
-${rawBrief ? `Brand Brief / Guidelines:\n${rawBrief}` : ""}
+${sections.mustInclude ? `MANDATORY ELEMENTS:\n${sections.mustInclude}` : ""}
+${sections.visualDirection ? `VISUAL DIRECTION RULES:\n${sections.visualDirection}` : ""}
+${sections.colorNotes ? `COLOR NOTES:\n${sections.colorNotes}` : ""}
+${rawBrief ? `FULL BRAND BRIEF:\n${rawBrief}` : ""}
+
+PRODUCT CANDIDATES: ${productCandidates.join(", ") || "None provided — choose the most plausible product from the brief."}
+${focusProductHint ? `FOCUS PRODUCT HINT: ${focusProductHint}` : ""}
 
 DESIGN FRAMEWORK (from reference analysis):
 ${JSON.stringify(framework, null, 2)}
@@ -373,29 +498,33 @@ Review this brief and produce the optimised creative direction.`;
             parameters: {
               type: "object",
               properties: {
+                productName: {
+                  type: "string",
+                  description: "One exact hero product name to feature in the creative. Must be a real product from the brand brief when available.",
+                },
                 headline: {
                   type: "string",
-                  description: "Exact headline text to render. ≤8 words, bold, benefit-driven, original.",
+                  description: "Exact headline text to render. ≤8 words, bold, benefit-driven, and brand-true.",
                 },
                 subCopy: {
                   type: "string",
-                  description: "Exact sub-copy text. ≤20 words, one supporting sentence.",
+                  description: "Exact sub-copy text. ≤20 words. Include mandatory tagline/product mention here if needed.",
                 },
                 ctaText: {
                   type: "string",
-                  description: "Exact CTA or contact text. Short and actionable.",
+                  description: "Exact CTA or contact text. Preserve required CTA wording when provided.",
                 },
                 visualDirection: {
                   type: "string",
-                  description: "Specific visual instructions for the image model: mood, lighting, photography style, background treatment. Resolves any conflicts between framework and brand.",
+                  description: "Specific visual instructions for the image model: mood, lighting, photography style, background treatment, and hero emphasis.",
                 },
                 colorStrategy: {
                   type: "string",
-                  description: "Exactly which brand color goes where: background color, headline color, accent/strip color, CTA bar color, text color. Use actual hex values.",
+                  description: "Exactly which brand color goes where: background, headline, accents, CTA bar, and supporting text. Use actual hex values.",
                 },
                 layoutNotes: {
                   type: "string",
-                  description: "How to adapt the reference framework for this brand: which zones to emphasize, what to swap, spacing adjustments.",
+                  description: "How to adapt the reference framework for this brand: which zones to emphasize, what to simplify, and what must change.",
                 },
                 warnings: {
                   type: "array",
@@ -403,7 +532,7 @@ Review this brief and produce the optimised creative direction.`;
                   description: "Any conflicts found and how they were resolved, or risks to watch for.",
                 },
               },
-              required: ["headline", "subCopy", "ctaText", "visualDirection", "colorStrategy", "layoutNotes", "warnings"],
+              required: ["productName", "headline", "subCopy", "ctaText", "visualDirection", "colorStrategy", "layoutNotes", "warnings"],
               additionalProperties: false,
             },
           },
@@ -428,6 +557,7 @@ Review this brief and produce the optimised creative direction.`;
 
   const result = JSON.parse(toolCall.function.arguments);
   return {
+    productName: result.productName || focusProductHint || productCandidates[0] || "",
     headline: result.headline || "",
     subCopy: result.subCopy || "",
     ctaText: result.ctaText || "",
@@ -446,7 +576,8 @@ async function generateCreative(
   referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string,
-  refinedBrief?: RefinedBrief | null
+  refinedBrief?: RefinedBrief | null,
+  qcFeedback: string[] = []
 ): Promise<{ imageBase64: string; captionText: string }> {
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
@@ -454,40 +585,52 @@ async function generateCreative(
 
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
   const voiceRules = toCompactText(brand.brand_voice_rules, 1600);
-
-  let renderedBrandBrief = "";
-  if (typeof brand.brand_brief === "string") {
-    try {
-      const parsed = JSON.parse(brand.brand_brief);
-      if (parsed?._structured && typeof parsed?._rendered === "string") {
-        renderedBrandBrief = parsed._rendered.trim();
-      } else {
-        renderedBrandBrief = brand.brand_brief.trim();
-      }
-    } catch {
-      renderedBrandBrief = brand.brand_brief.trim();
-    }
-  }
-
-  const selectedAssets = brandAssets.slice(0, 5);
-  const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
-  const hasAssets = selectedAssets.length > 0;
-
+  const renderedBrandBrief = getRenderedBrandBrief(brand.brand_brief);
+  const brandSections = parseStructuredBrandSections(brand.brand_brief);
   const frameworkJson = JSON.stringify(framework, null, 2);
   const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
+  const focusProductName = refinedBrief?.productName?.trim() || inferFocusProductFromFramework(
+    framework,
+    extractProductCandidatesFromBrief(brandSections, renderedBrandBrief)
+  );
+  const foodFirstBrand = /food is always hero|focus on food first|food-focused|drool-worthy|texture|fillings visible/i
+    .test(`${brandSections.visualDirection}\n${renderedBrandBrief}`);
 
-  const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
-  const architectureAssets = selectedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
-  const heroAssets = selectedAssets.filter((a: any) => /hero|lifestyle|product|mascot|master/i.test(a.label || ""));
-  const otherAssets = selectedAssets.filter((a: any) =>
-    !logoAssets.includes(a) && !architectureAssets.includes(a) && !heroAssets.includes(a)
+  const dedupedAssets = brandAssets.filter((asset: any, index: number, all: any[]) => {
+    const assetLabel = String(asset?.label || "").trim().toLowerCase();
+    return index === all.findIndex((candidate: any) => {
+      const candidateLabel = String(candidate?.label || "").trim().toLowerCase();
+      return candidate?.image_url === asset?.image_url || (assetLabel && candidateLabel === assetLabel);
+    });
+  });
+
+  const logoAssets = dedupedAssets.filter((a: any) => /logo/i.test(a.label || ""));
+  const patternAssets = dedupedAssets.filter((a: any) => /pattern|texture|background/i.test(a.label || ""));
+  const architectureAssets = dedupedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
+  const productAssets = dedupedAssets.filter((a: any) => /hero|lifestyle|product|food|pack|packshot|dish|meal|mascot|master/i.test(a.label || ""));
+  const supportingAssets = dedupedAssets.filter((a: any) =>
+    !logoAssets.includes(a) &&
+    !patternAssets.includes(a) &&
+    !architectureAssets.includes(a) &&
+    !productAssets.includes(a)
   );
 
+  const selectedAssets = [
+    ...logoAssets.slice(0, 1),
+    ...productAssets.slice(0, 2),
+    ...architectureAssets.slice(0, 1),
+    ...patternAssets.slice(0, 1),
+    ...supportingAssets.slice(0, 1),
+  ].slice(0, 5);
+  const omittedAssetsCount = Math.max(dedupedAssets.length - selectedAssets.length, 0);
+  const hasAssets = selectedAssets.length > 0;
+
   const assetRoleDescriptions = [
-    ...logoAssets.map((a: any) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone. Adjust contrast for readability.`),
-    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Use as hero visual. Preserve architecture, enhance lighting/angle/atmosphere.`),
-    ...heroAssets.map((a: any) => `  🖼️ HERO/LIFESTYLE: "${a.label || "Visual"}" — Use as primary or secondary visual.`),
-    ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
+    ...logoAssets.slice(0, 1).map((a: any) => `  🔷 OFFICIAL LOGO: "${a.label || "Logo"}" — Use exactly once in a clear brand zone. Never redraw it. Add a backing panel if contrast is weak.`),
+    ...productAssets.slice(0, 2).map((a: any) => `  🍽️ PRODUCT/HERO ASSET: "${a.label || "Visual"}" — Use as hero or supporting visual without altering identity.`),
+    ...architectureAssets.slice(0, 1).map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Preserve architecture exactly; only enhance lighting, angle, and atmosphere.`),
+    ...patternAssets.slice(0, 1).map((a: any) => `  🎛️ PATTERN/TEXTURE: "${a.label || "Pattern"}" — Optional only. Use subtly (5-12% opacity) behind the hero. Never let it dominate or clutter the frame.`),
+    ...supportingAssets.slice(0, 1).map((a: any) => `  📎 SUPPORTING ASSET: "${a.label || "Brand asset"}" — Use only if it strengthens hierarchy and clarity.`),
   ].join("\n");
 
   const refinedBlock = refinedBrief ? `
@@ -495,6 +638,9 @@ async function generateCreative(
 🎯 CREATIVE DIRECTION (from Creative Director review)
 ══════════════════════════════════════════
 The following has been pre-approved by the Creative Director. Follow these EXACTLY:
+
+FOCUS PRODUCT (must be shown clearly and named in copy):
+"${refinedBrief.productName}"
 
 HEADLINE (render this text VERBATIM, large and bold):
 "${refinedBrief.headline}"
@@ -516,7 +662,17 @@ ${refinedBrief.layoutNotes}
 
 ${refinedBrief.warnings.length > 0 ? `⚠️ WARNINGS TO ADDRESS:\n${refinedBrief.warnings.map((w, i) => `${i + 1}. ${w}`).join("\n")}` : ""}
 
-IMPORTANT: The headline, sub-copy, and CTA text above are FINAL — render them EXACTLY as written. Do NOT improvise or change the wording.
+IMPORTANT: The product name, headline, sub-copy, and CTA above are FINAL. Render them EXACTLY as written. Do NOT improvise or change the wording.
+` : "";
+
+  const retryFeedbackBlock = qcFeedback.length > 0 ? `
+══════════════════════════════════════════
+⚠️ MANDATORY FIXES FROM QC
+══════════════════════════════════════════
+The previous attempt failed quality check. Fix ALL of these issues in this new generation:
+${qcFeedback.map((issue, index) => `${index + 1}. ${issue}`).join("\n")}
+
+Do not repeat any of these mistakes.
 ` : "";
 
   const systemPrompt = `You are an elite creative director at a top-tier advertising agency. You produce award-winning, publication-ready advertisements.
@@ -534,9 +690,10 @@ DO NOT generate an image in any other aspect ratio.
 ══════════════════════════════════════════
 🧭 REFERENCE ADAPTATION RULES
 ══════════════════════════════════════════
-- The reference image is layout inspiration only — NEVER copy its source text, logo treatment, language, or exact crop.
+- The reference image is layout inspiration only — NEVER copy its source text, logo treatment, language, exact crop, or human subject literally.
 - ALWAYS adapt the composition to ${spec.ratio}; the requested format overrides the reference orientation.
 - Preserve only the high-level composition logic and hierarchy, not the reference's text, aspect ratio, or brand identity.
+${foodFirstBrand ? "- This brand is FOOD-FIRST. Override lifestyle-heavy references when necessary so the food itself is the hero, not a generic person-eating moment." : ""}
 
 ══════════════════════════════════════════
 🔤 TEXT RENDERING GUARDRAILS
@@ -546,6 +703,7 @@ DO NOT generate an image in any other aspect ratio.
 - No extra labels, duplicate slogans, watermark-like text, or decorative fake glyphs.
 - No mirrored, garbled, cut-off, wrong-language, or non-Latin text unless the approved brand copy explicitly requires it.
 - If text cannot be rendered cleanly, simplify layout around the approved text — do NOT invent substitute text.
+${focusProductName ? `- The product name "${focusProductName}" must appear verbatim in the approved copy.` : ""}
 
 ══════════════════════════════════════════
 🎨 LOGO CONTRAST & READABILITY
@@ -554,19 +712,13 @@ DO NOT generate an image in any other aspect ratio.
 - On LIGHT backgrounds: Use logo as-is or dark form.
 - On BUSY backgrounds: Place logo in a clear zone with a backing panel.
 - Logo must NEVER blend into the background or be covered by the hero visual.
-${refinedBlock}
-══════════════════════════════════════════
-🏗️ 3D RENDERS — CREATIVE FREEDOM
-══════════════════════════════════════════
-- MUST preserve EXACT architecture (shape, facade, proportions).
-- MAY enhance: lighting, angle, atmosphere, cropping.
-- Goal: aspirational and premium.
-
+${refinedBlock}${retryFeedbackBlock}
 ══════════════════════════════════════════
 🔒 LOGO & PRODUCT ASSET FIDELITY
 ══════════════════════════════════════════
 - NEVER redraw or reimagine logos, products, or mascots.
 - Place official assets EXACTLY as provided — only adjust size, placement, and contrast.
+- If no official product photo exists, generate a premium food-first hero image of the selected product that matches the brief.
 
 ══════════════════════════════════════════
 📐 QUALITY STANDARDS
@@ -577,6 +729,8 @@ ${refinedBlock}
 - No duplicated elements (logo, name, location, price, CTA).
 - Intentional negative space.
 - Secondary color must be visibly present, not incidental.
+- The background pattern must remain subtle and supportive, never noisy or dominant.
+${foodFirstBrand ? "- Show the food close-up, appetizing, hot, and texture-rich. Avoid a generic stock-style human scene as the main focal point." : ""}
 
 ══════════════════════════════════════════
 📋 BRAND CONTEXT
@@ -587,6 +741,8 @@ Secondary Color: ${brand.secondary_color}
 ${extraColorsText}
 ${voiceRules ? `Voice & Tone Rules: ${voiceRules}` : ""}
 ${negativePrompts ? `⛔ EXCLUSIONS: ${negativePrompts}` : ""}
+${focusProductName ? `Hero Product: ${focusProductName}` : ""}
+${brandSections.mustInclude ? `Mandatory Elements:\n${brandSections.mustInclude}` : ""}
 
 ══════════════════════════════════════════
 BRAND BRIEF / GUIDELINES
@@ -613,6 +769,7 @@ CHECKLIST
 ✅ Logo clearly visible with proper contrast
 ✅ Only approved brand copy is visible
 ✅ No extra or wrong-language text
+${focusProductName ? `✅ Product name "${focusProductName}" appears verbatim in the copy and matches the hero visual` : "✅ Product choice is explicit and matches the hero visual"}
 ${refinedBrief ? `✅ Headline: "${refinedBrief.headline}" — rendered VERBATIM
 ✅ Sub-copy: "${refinedBrief.subCopy}" — rendered VERBATIM
 ✅ CTA: "${refinedBrief.ctaText}" — rendered VERBATIM` : `✅ Headline ≤8 words, bold, original
@@ -629,8 +786,8 @@ Generate the brand-aligned creative image now.`;
     {
       type: "text",
       text: hasAssets
-        ? `Use the FIRST image only as structural inspiration for composition and zone hierarchy. Do NOT copy any text, language, logo treatment, or original aspect ratio from it. Adapt the layout to ${spec.label} (${spec.ratio}). The following ${selectedAssets.length} image(s) are official brand assets — use them exactly as provided.`
-        : `Use the reference image only as structural inspiration. Do NOT copy its text, language, logo treatment, or original aspect ratio. Adapt everything to ${spec.label} (${spec.ratio}) and follow the brand rules exactly.`,
+        ? `Use the FIRST image only as structural inspiration for composition and zone hierarchy. Do NOT copy any text, language, logo treatment, human subject, or original aspect ratio from it. Adapt the layout to ${spec.label} (${spec.ratio}). The following ${selectedAssets.length} image(s) are official brand assets — use them exactly as instructed.`
+        : `Use the reference image only as structural inspiration. Do NOT copy its text, language, logo treatment, human subject, or original aspect ratio. Adapt everything to ${spec.label} (${spec.ratio}) and follow the brand rules exactly.`,
     },
     {
       type: "image_url",
@@ -754,17 +911,11 @@ async function qualityCheck(
   imageBase64: string,
   brand: any,
   spec: { width: number; height: number; label: string; ratio: string },
-  apiKey: string
+  apiKey: string,
+  focusedProductName = ""
 ): Promise<{ passed: boolean; score: number; issues: string[]; critical: boolean }> {
-  // Build rich brand context for QC
-  let brandBriefText = "";
-  try {
-    const parsed = JSON.parse(brand.brand_brief || "");
-    if (parsed?._structured && parsed?._rendered) brandBriefText = parsed._rendered;
-  } catch {
-    brandBriefText = brand.brand_brief || "";
-  }
-
+  const brandBriefText = getRenderedBrandBrief(brand.brand_brief);
+  const brandSections = parseStructuredBrandSections(brand.brand_brief);
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
     : "";
@@ -783,7 +934,7 @@ async function qualityCheck(
           messages: [
             {
               role: "system",
-              content: `You are an uncompromising QC inspector for advertising creatives at a premium agency. You protect the brand from any output that would embarrass it. Score STRICTLY — only genuinely professional, brand-aligned work should pass. A score of 70+ means "client-ready". Below 65 means "unacceptable, must redo".`,
+              content: `You are an uncompromising QC inspector for advertising creatives at a premium agency. You protect the brand from any output that would embarrass it. Score STRICTLY — only genuinely professional, brand-aligned work should pass. A score of 70+ means "client-ready". Below 65 means "unacceptable, must redo".`
             },
             {
               role: "user",
@@ -800,8 +951,10 @@ Primary Color: ${brand.primary_color}
 Secondary Color: ${brand.secondary_color}
 ${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
 Required Aspect Ratio: ${spec.ratio} (${spec.width}×${spec.height})
+${focusedProductName ? `Focused Product (must be shown and named): ${focusedProductName}` : ""}
 ${brand.brand_voice_rules ? `Voice & Tone Rules: ${brand.brand_voice_rules}` : ""}
 ${brand.negative_prompts ? `⛔ BANNED ELEMENTS (must NOT appear): ${brand.negative_prompts}` : ""}
+${brandSections.mustInclude ? `Mandatory Elements:\n${brandSections.mustInclude}` : ""}
 ${brandBriefText ? `Brand Brief / Guidelines:\n${brandBriefText}` : ""}
 
 ══════════════════════════════════
@@ -811,14 +964,15 @@ QC CHECKLIST — Score each area:
 2. LOGO VISIBILITY (Critical): Is the brand logo/mark clearly visible with proper contrast? Missing/illegible logo = critical.
 3. TEXT LEGIBILITY (Critical): Is ALL text clearly readable? No overlapping, cut-off, garbled, or wrong-language text? Unreadable text = critical.
 4. TEXT DUPLICATION: Is any text, brand name, tagline, or element unnecessarily repeated?
-5. BRAND COLOR ALIGNMENT: Are ${brand.primary_color} and ${brand.secondary_color} prominently used as specified?
-6. BRAND VOICE COMPLIANCE: Does the copy match the brand's tone and voice rules? Is it original (not copied from guidelines)?
-7. BANNED ELEMENTS: Are ANY of the banned/excluded elements present? If so = critical.
-8. COMPOSITION & HIERARCHY: Professional layout with clear visual flow? Hero visual prominent? Clean, not cluttered?
-9. OVERALL BRAND ALIGNMENT: Does this creative FEEL like it belongs to "${brand.name}"? Would a brand manager approve this?
+5. HERO PRODUCT SPECIFICITY: If a focused product is provided, is that exact product clearly shown and explicitly mentioned in the text?
+6. BRAND COLOR ALIGNMENT: Are ${brand.primary_color} and ${brand.secondary_color} prominently used as specified?
+7. BRAND VOICE COMPLIANCE: Does the copy match the brand's tone and voice rules? Is it original (not copied from guidelines)?
+8. BANNED ELEMENTS: Are ANY of the banned/excluded elements present? If so = critical.
+9. COMPOSITION & HIERARCHY: Professional layout with clear visual flow? Hero visual prominent? Clean, not cluttered?
+10. OVERALL BRAND ALIGNMENT: Does this creative FEEL like it belongs to "${brand.name}"? Would a brand manager approve this?
 
 Score 0-100. Be strict. Only score 70+ if genuinely client-ready.
-Mark critical=true if ANY critical check fails.`,
+Mark critical=true if ANY critical check fails. If the focused product name is missing from visible text, that should normally fail the piece.`,
                 },
                 {
                   type: "image_url",
@@ -1071,41 +1225,40 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Quality Check with auto-retry loop (up to 3 retries)
+    // Step 3: Quality Check with a single guided retry
     console.log("Step 3: Running quality check...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
 
-    let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+    const focusedProductName = refinedBriefResult?.productName || "";
+    let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY, focusedProductName);
     console.log("QC result:", JSON.stringify(qcResult));
 
     const MAX_QC_RETRIES = 1;
     const MIN_ACCEPTABLE_SCORE = 65;
-    const originalBrief = brand.brand_brief || "";
 
     for (let qcRetry = 0; qcRetry < MAX_QC_RETRIES; qcRetry++) {
-      // Retry if score < MIN_ACCEPTABLE_SCORE OR critical issues found
       const shouldRetry = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
       if (!shouldRetry || qcResult.issues.length === 0) break;
 
       console.log(`QC retry ${qcRetry + 1}/${MAX_QC_RETRIES}: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
       await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
-      // Inject QC feedback as a top-level instruction block
-      const attemptLabel = qcRetry === 0 ? "second" : qcRetry === 1 ? "third" : "FINAL";
-      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC — score ${qcResult.score}/100)\n══════════════════════════════════════════\nThe previous generation FAILED quality check. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${attemptLabel} attempt.${qcRetry >= 2 ? " THIS IS YOUR LAST CHANCE — make it perfect." : ""}`;
-
-      brand.brand_brief = originalBrief + qcFeedbackBlock;
-
       try {
         const retryResult = await generateCreative(
-          framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY, refinedBriefResult
+          framework,
+          brand,
+          brandAssets,
+          referenceImageUrl,
+          spec,
+          LOVABLE_API_KEY,
+          refinedBriefResult,
+          qcResult.issues
         );
         imageBase64 = retryResult.imageBase64;
         captionText = retryResult.captionText;
 
-        // Re-run QC on retried image
         await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
-        qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+        qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY, focusedProductName);
         console.log(`QC retry ${qcRetry + 1} result:`, JSON.stringify(qcResult));
       } catch (retryErr) {
         console.warn(`QC retry ${qcRetry + 1} generation failed, keeping current image:`, retryErr);
@@ -1113,18 +1266,19 @@ serve(async (req) => {
       }
     }
 
-    // Restore original brief
-    brand.brand_brief = originalBrief;
-
-    // GATE: If QC still fails after all retries, reject the output
     const finalFailed = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
     if (finalFailed) {
       console.warn(`Final QC REJECTED: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
-      
-      // Save the QC data for diagnostics but mark as failed
+
       const failedPayload = {
         caption: captionText,
-        qc: { passed: false, score: qcResult.score, issues: qcResult.issues, rejected: true },
+        qc: {
+          passed: false,
+          score: qcResult.score,
+          issues: qcResult.issues,
+          rejected: true,
+          focusedProductName: focusedProductName || undefined,
+        },
       };
       await supabase.from("generations").update({
         status: "failed",
@@ -1135,7 +1289,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: `Quality check failed after ${MAX_QC_RETRIES + 1} attempts (score: ${qcResult.score}/100). The AI couldn't produce a result that meets your brand standards. Try adjusting your reference image or brand brief, then retry.`,
-          qc: { score: qcResult.score, issues: qcResult.issues },
+          qc: { score: qcResult.score, issues: qcResult.issues, focusedProductName: focusedProductName || undefined },
           retryable: true,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
