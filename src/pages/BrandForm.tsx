@@ -449,11 +449,11 @@ export default function BrandForm() {
           </CardContent>
         </Card>
 
-        {/* Structured Brand Profile OR Legacy Brief */}
+        {/* Brand Profile */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-display">Brand Brief / Guidelines</CardTitle>
+              <CardTitle className="text-base font-display">Brand Brief</CardTitle>
               {isLegacy && (
                 <Button
                   type="button"
@@ -469,7 +469,7 @@ export default function BrandForm() {
             <CardDescription>
               {isLegacy
                 ? "Legacy free-text format. Switch to the guided form for better AI results."
-                : "Fill in each section — the AI uses this structure directly."}
+                : "Fill what's relevant, skip what's not. Each field maps directly to the AI prompt."}
             </CardDescription>
           </CardHeader>
           <CardContent>
