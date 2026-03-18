@@ -72,21 +72,6 @@ export default function BrandForm() {
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // Campaigns query
-  const { data: campaigns = [] } = useQuery({
-    queryKey: ["campaigns", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("brand_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!isEditing,
-  });
-
   useEffect(() => {
     if (isEditing) {
       Promise.all([
