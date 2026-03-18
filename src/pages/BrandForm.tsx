@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,8 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import BrandProfileSections from "@/components/BrandProfileSections";
-import { parse, serialize, EMPTY_PROFILE, type StructuredBrandProfile } from "@/lib/brandProfileSerializer";
 
 const ASSET_CATEGORIES = [
   "Logo",
@@ -63,11 +61,9 @@ export default function BrandForm() {
   const [primaryColor, setPrimaryColor] = useState("#2563EB");
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
-  const [profile, setProfile] = useState<StructuredBrandProfile>({ ...EMPTY_PROFILE });
-  const [legacyBrief, setLegacyBrief] = useState("");
-  const [isLegacy, setIsLegacy] = useState(false);
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
+  const [brandBrief, setBrandBrief] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -85,18 +81,8 @@ export default function BrandForm() {
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
           setNegativePrompts(data.negative_prompts || "");
-
-          // Parse structured profile
-          const brief = (data as any).brand_brief || "";
-          const parsed = parse(brief);
-          if (parsed.structured) {
-            setProfile(parsed.profile);
-            setIsLegacy(false);
-          } else {
-            setLegacyBrief(brief);
-            setIsLegacy(!!brief);
-          }
-
+          setBrandBrief((data as any).brand_brief || "");
+          // Load extra colors
           const ec = (data as any).extra_colors;
           if (ec && Array.isArray(ec)) {
             setExtraColors(ec);
@@ -155,6 +141,7 @@ export default function BrandForm() {
     setAssets((prev) => prev.map((a, i) => (i === index ? { ...a, label } : a)));
   };
 
+  // Auto-save label on blur for existing assets
   const handleLabelBlur = useCallback(async (index: number) => {
     const asset = assets[index];
     if (asset.id && isEditing) {
@@ -170,6 +157,7 @@ export default function BrandForm() {
     }
   }, [assets, isEditing]);
 
+  // Extra colors management
   const addExtraColor = () => {
     setExtraColors((prev) => [...prev, { name: "", hex: "#888888" }]);
   };
@@ -190,30 +178,14 @@ export default function BrandForm() {
     }
 
     setLoading(true);
-
-    let brandBrief: string;
-    let finalVoiceRules: string;
-    let finalNegativePrompts: string;
-
-    if (isLegacy) {
-      brandBrief = legacyBrief;
-      finalVoiceRules = voiceRules;
-      finalNegativePrompts = negativePrompts;
-    } else {
-      const serialized = serialize(profile);
-      brandBrief = serialized.brand_brief;
-      finalVoiceRules = serialized.brand_voice_rules;
-      finalNegativePrompts = serialized.negative_prompts;
-    }
-
     const payload: any = {
       name,
       logo_url: assets.length > 0 ? assets[0].image_url : "",
       primary_color: primaryColor,
       secondary_color: secondaryColor,
       extra_colors: extraColors,
-      brand_voice_rules: finalVoiceRules,
-      negative_prompts: finalNegativePrompts,
+      brand_voice_rules: voiceRules,
+      negative_prompts: negativePrompts,
       brand_brief: brandBrief,
       user_id: user.id,
     };
@@ -223,6 +195,7 @@ export default function BrandForm() {
 
     if (isEditing) {
       ({ error } = await supabase.from("brands").update(payload).eq("id", id));
+      // Update labels for existing assets
       for (const asset of assets) {
         if (asset.id) {
           await supabase.from("brand_assets").update({ label: asset.label }).eq("id", asset.id);
@@ -287,29 +260,46 @@ export default function BrandForm() {
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Fill what matters, skip the rest</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Each field maps directly to the AI prompt. Write naturally — no need to fill every one.</p>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
                     <p className="font-medium">Upload & tag all visual assets</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, renders, product shots. Tag each one (Logo, Hero, etc.) so the AI knows its role.</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, building renders, product shots, mascots, and patterns. Tag each one (e.g., "Logo", "Architecture") so the AI knows how to use them correctly — logos stay exact, hero images set the mood.</p>
                   </div>
                 </div>
+
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Separate Do's from Don'ts</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Do's reinforce the AI's direction. Don'ts become strict exclusions — keep them distinct.</p>
+                    <p className="font-medium">Define your full color palette</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Set Primary & Secondary colors, then add extra colors (Accent, Background, Text, etc.) with descriptive names. Include usage rules like "Red only for developer branding, never as the main visual color."</p>
                   </div>
                 </div>
+
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Must-Include = non-negotiable text</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Brand name, tagline, CTA, legal — anything that MUST appear on every creative goes here.</p>
+                    <p className="font-medium">Write a structured Brand Brief</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Use clear sections with markdown headers:<br />
+                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DNA</code> — mood, lighting, photography style<br />
+                      <code className="bg-muted px-1 rounded text-xs">## MANDATORY ELEMENTS</code> — project name, tagline, contact, legal text<br />
+                      <code className="bg-muted px-1 rounded text-xs">## COLOUR PALETTE</code> — full palette with usage guidance<br />
+                      <code className="bg-muted px-1 rounded text-xs">## MESSAGING PILLARS</code> — key themes and vocabulary<br />
+                      <code className="bg-muted px-1 rounded text-xs">## VOCABULARY</code> — words to use vs. words to avoid
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Separate "Visual Nevers" from "Content Nevers"</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">In the Never List, use two sections: <code className="bg-muted px-1 rounded text-xs">## VISUAL NEVERS</code> (e.g., "Never alter villa rooflines") and <code className="bg-muted px-1 rounded text-xs">## CONTENT NEVERS</code> (e.g., "Never use the word 'cheap'"). This prevents the AI from mixing up visual and text constraints.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5">
+                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Be specific about your audience</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">In "Tone & Audience", include age range, psychographics, and the desired emotional response. E.g., "Affluent homebuyers (35-55) seeking low-density luxury living — tone should feel grounded, premium, and nature-led."</p>
                   </div>
                 </div>
               </div>
@@ -335,7 +325,7 @@ export default function BrandForm() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-display">Brand Assets</CardTitle>
-            <CardDescription>Upload logos, product photos, building shots, mascots — tag each so the AI knows its role.</CardDescription>
+            <CardDescription>Upload logos, product photos, building shots, mascots — tag each so the AI knows its role. The first image becomes the brand thumbnail.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {assets.length > 0 && (
@@ -350,10 +340,15 @@ export default function BrandForm() {
                         value={asset.label || ""}
                         onValueChange={(val) => {
                           handleLabelChange(index, val);
+                          // Auto-save for existing assets
                           if (asset.id && isEditing) {
-                            supabase.from("brand_assets").update({ label: val }).eq("id", asset.id).then(({ error }) => {
-                              if (error) toast.error("Failed to save tag.");
-                            });
+                            supabase
+                              .from("brand_assets")
+                              .update({ label: val })
+                              .eq("id", asset.id)
+                              .then(({ error }) => {
+                                if (error) toast.error("Failed to save tag.");
+                              });
                           }
                         }}
                       >
@@ -399,7 +394,14 @@ export default function BrandForm() {
                 {uploading ? "Uploading..." : "Click to add images"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB — select multiple</p>
-              <input type="file" accept="image/*" multiple onChange={handleAssetUpload} className="hidden" disabled={uploading} />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleAssetUpload}
+                className="hidden"
+                disabled={uploading}
+              />
             </label>
           </CardContent>
         </Card>
@@ -408,7 +410,7 @@ export default function BrandForm() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-display">Brand Color Palette</CardTitle>
-            <CardDescription>Define your complete palette. Name each color for context.</CardDescription>
+            <CardDescription>Define your complete palette. Name each color for context (e.g., "Accent Gold", "Text Dark Brown").</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -428,15 +430,34 @@ export default function BrandForm() {
               </div>
             </div>
 
+            {/* Extra colors */}
             {extraColors.length > 0 && (
               <div className="space-y-3 pt-2">
                 <Label className="text-xs text-muted-foreground">Additional Colors</Label>
                 {extraColors.map((color, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <input type="color" value={color.hex} onChange={(e) => updateExtraColor(index, "hex", e.target.value)} className="h-9 w-10 rounded-md border border-input cursor-pointer shrink-0" />
-                    <Input value={color.hex} onChange={(e) => updateExtraColor(index, "hex", e.target.value)} className="font-mono text-sm w-28 shrink-0" />
-                    <Input value={color.name} onChange={(e) => updateExtraColor(index, "name", e.target.value)} placeholder="e.g., Accent Gold" className="text-sm flex-1" />
-                    <button type="button" onClick={() => removeExtraColor(index)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                    <input
+                      type="color"
+                      value={color.hex}
+                      onChange={(e) => updateExtraColor(index, "hex", e.target.value)}
+                      className="h-9 w-10 rounded-md border border-input cursor-pointer shrink-0"
+                    />
+                    <Input
+                      value={color.hex}
+                      onChange={(e) => updateExtraColor(index, "hex", e.target.value)}
+                      className="font-mono text-sm w-28 shrink-0"
+                    />
+                    <Input
+                      value={color.name}
+                      onChange={(e) => updateExtraColor(index, "name", e.target.value)}
+                      placeholder="e.g., Accent Gold"
+                      className="text-sm flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraColor(index)}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -450,45 +471,54 @@ export default function BrandForm() {
           </CardContent>
         </Card>
 
-        {/* Brand Profile */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-display">Brand Brief</CardTitle>
-              {isLegacy && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setIsLegacy(false); setLegacyBrief(""); }}
-                  className="text-xs"
-                >
-                  Switch to Guided Form
-                </Button>
-              )}
-            </div>
-            <CardDescription>
-              {isLegacy
-                ? "Legacy free-text format. Switch to the guided form for better AI results."
-                : "Fill what's relevant, skip what's not. Each field maps directly to the AI prompt."}
-            </CardDescription>
+            <CardTitle className="text-base font-display">Brand Brief / Guidelines</CardTitle>
           </CardHeader>
-          <CardContent>
-            {isLegacy ? (
-              <div className="space-y-2">
-                <Textarea
-                  value={legacyBrief}
-                  onChange={(e) => setLegacyBrief(e.target.value)}
-                  placeholder="Paste your complete brand guidelines here..."
-                  rows={10}
-                  className="font-mono text-xs"
-                />
-              </div>
-            ) : (
-              <BrandProfileSections profile={profile} onChange={setProfile} />
-            )}
+          <CardContent className="space-y-2">
+            <Label htmlFor="brief">Paste your full brand brief, guidelines, or system prompt here</Label>
+            <Textarea
+              id="brief"
+              value={brandBrief}
+              onChange={(e) => setBrandBrief(e.target.value)}
+              placeholder="Paste your complete brand guidelines, tone of voice, visual style, target audience, campaign details, typography rules, key messages, and any other brand information here..."
+              rows={10}
+              className="font-mono text-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              Include everything the AI needs to know about your brand. Use markdown headers (## SECTION) for structure.
+            </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-display">Communication Rules</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="voice">Tone, Demographics & Target Audience</Label>
+              <Textarea
+                id="voice"
+                value={voiceRules}
+                onChange={(e) => setVoiceRules(e.target.value)}
+                placeholder='"Subjects must strictly be 3-4 year old toddlers. Warm, nurturing tone."'
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="negative">The "Never" List (Strict Exclusions)</Label>
+              <Textarea
+                id="negative"
+                value={negativePrompts}
+                onChange={(e) => setNegativePrompts(e.target.value)}
+                placeholder='"Never use the color green for real estate ads. Remove all background clutter."'
+                rows={4}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex justify-end">
           <Button type="submit" disabled={loading} className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8">
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
