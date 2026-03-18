@@ -18,6 +18,15 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ─── Brand brief helpers ───
 
+function parseBrandSections(brandBrief: unknown): Record<string, string> | null {
+  if (typeof brandBrief !== "string" || !brandBrief.trim()) return null;
+  try {
+    const parsed = JSON.parse(brandBrief);
+    if (parsed?._structured && parsed?.sections) return parsed.sections;
+  } catch { /* legacy */ }
+  return null;
+}
+
 function getRenderedBrandBrief(brandBrief: unknown): string {
   if (typeof brandBrief !== "string" || !brandBrief.trim()) return "";
   try {
@@ -51,6 +60,42 @@ function extractImagePayload(aiData: any): string | null {
     if (typeof c === "string" && c.length > 0) return c;
   }
   return null;
+}
+
+// ─── Build structured brand context for adapt step ───
+
+function buildBrandContext(brand: any): string {
+  const sections = parseBrandSections(brand.brand_brief);
+  const extraColorsText =
+    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+      ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
+      : "";
+
+  if (sections) {
+    // Structured format — labeled blocks
+    const blocks: string[] = [];
+    blocks.push(`BRAND: ${brand.name}`);
+    blocks.push(`COLORS: Primary ${brand.primary_color}, Secondary ${brand.secondary_color}${extraColorsText ? `, ${extraColorsText}` : ""}`);
+    if (sections.brandIdentity) blocks.push(`IDENTITY:\n${sections.brandIdentity}`);
+    if (sections.mustInclude) blocks.push(`MUST-INCLUDE (verbatim on every creative):\n${sections.mustInclude}`);
+    if (sections.visualDirection) blocks.push(`VISUAL:\n${sections.visualDirection}`);
+    if (sections.voiceAndTone) blocks.push(`VOICE:\n${sections.voiceAndTone}`);
+    if (sections.dos) blocks.push(`DO:\n${sections.dos}`);
+    if (sections.donts) blocks.push(`DON'T:\n${sections.donts}`);
+    if (sections.colorNotes) blocks.push(`COLOR RULES:\n${sections.colorNotes}`);
+    if (sections.referenceNotes) blocks.push(`NOTES:\n${sections.referenceNotes}`);
+    return blocks.join("\n\n");
+  }
+
+  // Legacy fallback
+  const lines: string[] = [];
+  lines.push(`BRAND: ${brand.name}`);
+  lines.push(`COLORS: Primary ${brand.primary_color}, Secondary ${brand.secondary_color}${extraColorsText ? `, ${extraColorsText}` : ""}`);
+  const rendered = getRenderedBrandBrief(brand.brand_brief);
+  if (rendered) lines.push(rendered);
+  if (brand.brand_voice_rules) lines.push(`VOICE:\n${brand.brand_voice_rules}`);
+  if (brand.negative_prompts) lines.push(`DON'T:\n${brand.negative_prompts}`);
+  return lines.join("\n\n");
 }
 
 // ─── Step 1: Analyze reference image ───
@@ -159,7 +204,7 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 2: Adapt to brand (think before drawing) ───
+// ─── Step 2: Adapt to brand ───
 
 interface CreativeDirective {
   headline: string;
@@ -175,16 +220,11 @@ interface CreativeDirective {
 async function adaptToBrand(
   framework: Record<string, unknown>,
   brand: any,
+  referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<CreativeDirective> {
-  const renderedBrief = getRenderedBrandBrief(brand.brand_brief);
-  const extraColorsText =
-    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
-      ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
-      : "";
-  const voiceRules = (brand.brand_voice_rules || "").trim();
-  const negativePrompts = (brand.negative_prompts || "").trim();
+  const brandContext = buildBrandContext(brand);
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -194,35 +234,35 @@ async function adaptToBrand(
       messages: [
         {
           role: "system",
-          content: `You are a creative strategist. Given a design framework (extracted from a reference ad) and a brand's full context, produce a precise Creative Directive that an image-generation model will follow verbatim.
+          content: `You are a creative strategist. You receive a design framework from a reference ad, the reference image itself, and a brand's full context. Produce a precise Creative Directive that an image-generation model will follow verbatim.
 
 Your job:
-1. Map the reference layout zones to this brand's elements (logo, product, copy).
-2. Write the EXACT text strings (headline, sub-copy, CTA) — brand-aligned, original, short.
-3. Assign brand colors to specific zones (background, accent, text, CTA button).
-4. Describe the hero visual in terms of this brand's products/identity.
-5. Explain how to adapt the reference layout to ${spec.ratio} (${spec.label}).
-6. Flag any conflicts (e.g., reference is landscape but output is portrait).
+1. Study the reference image's visual approach (composition, lighting, mood, hero placement) and map it to this brand.
+2. Map the reference layout zones to this brand's elements (logo, product, copy).
+3. Write the EXACT text strings (headline, sub-copy, CTA) — use the brand's mandatory elements and campaign lines verbatim.
+4. Assign brand colors to specific zones.
+5. Describe the hero visual specifically for this brand's products — keep the reference's visual style (angle, lighting, mood) but swap to the brand's product.
+6. Explain how to adapt the layout to ${spec.ratio} (${spec.label}).
 
-Be specific and decisive. No vague suggestions — write the actual copy and pick the actual colors.`,
+CRITICAL: If the brand context includes MUST-INCLUDE elements (campaign line, tagline, CTA), use them EXACTLY as written. Do not rephrase.`,
         },
         {
           role: "user",
-          content: `DESIGN FRAMEWORK (from reference):
+          content: [
+            {
+              type: "text",
+              text: `DESIGN FRAMEWORK (from reference):
 ${JSON.stringify(framework, null, 2)}
 
 BRAND CONTEXT:
-Name: ${brand.name}
-Primary Color: ${brand.primary_color}
-Secondary Color: ${brand.secondary_color}
-${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
-${voiceRules ? `Voice & Tone: ${voiceRules}` : ""}
-${negativePrompts ? `Never use: ${negativePrompts}` : ""}
-${renderedBrief ? `Brand Guidelines:\n${renderedBrief}` : ""}
+${brandContext}
 
 OUTPUT FORMAT: ${spec.ratio} (${spec.width}×${spec.height})
 
 Produce the Creative Directive now.`,
+            },
+            { type: "image_url", image_url: { url: referenceImageUrl } },
+          ],
         },
       ],
       tools: [
@@ -249,7 +289,7 @@ Produce the Creative Directive now.`,
                   required: ["background", "accent", "text", "cta"],
                   additionalProperties: false,
                 },
-                heroDescription: { type: "string", description: "What the main visual should show — specific to this brand" },
+                heroDescription: { type: "string", description: "What the main visual should show — specific product, angle, lighting, mood. Reference the style from the original image." },
                 layoutAdaptation: { type: "string", description: "How to adapt the reference layout to the target aspect ratio" },
                 warnings: { type: "array", items: { type: "string" }, description: "Any conflicts or concerns" },
               },
@@ -261,7 +301,7 @@ Produce the Creative Directive now.`,
       ],
       tool_choice: { type: "function", function: { name: "creative_directive" } },
     }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(25000),
   });
 
   if (!response.ok) {
@@ -276,10 +316,9 @@ Produce the Creative Directive now.`,
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 3: Generate the creative ───
+// ─── Step 3: Generate the creative (simplified, visual-first prompt) ───
 
 async function generateCreative(
-  framework: Record<string, unknown>,
   directive: CreativeDirective,
   brand: any,
   brandAssets: any[],
@@ -296,47 +335,27 @@ async function generateCreative(
   const selectedAssets = [...logoAssets.slice(0, 1), ...otherAssets.slice(0, 4)].slice(0, 5);
   const hasAssets = selectedAssets.length > 0;
 
-  const systemPrompt = `You are an elite creative director producing a publication-ready advertisement.
+  const orientationHint = spec.height > spec.width ? "VERTICAL (portrait)" : spec.width > spec.height ? "HORIZONTAL (landscape)" : "perfectly SQUARE";
 
-═══ OUTPUT FORMAT (CRITICAL) ═══
-Generate EXACTLY a ${spec.ratio} image (${spec.width}×${spec.height}).
-${spec.height > spec.width ? "The image MUST be VERTICAL (portrait)." : spec.width > spec.height ? "The image MUST be HORIZONTAL (landscape)." : "The image MUST be perfectly SQUARE."}
+  // Short, visual-first prompt — what image models respond to best
+  const systemPrompt = `Create a ${spec.ratio} ${orientationHint} advertisement (${spec.width}×${spec.height}).
 
-═══ REFERENCE IMAGE ═══
-The first image is STRUCTURAL INSPIRATION ONLY — copy its LAYOUT and COMPOSITION, never its text/logo/identity.
-${directive.layoutAdaptation}
+VISUAL: ${directive.heroDescription}
+The hero visual fills 50-70% of the canvas. ${directive.layoutAdaptation}
 
-═══ CREATIVE DIRECTIVE (follow exactly) ═══
-HEADLINE: "${directive.headline}"
-SUB-COPY: "${directive.subCopy}"
-CTA: "${directive.ctaText}"
-LOGO: ${directive.logoPlacement}
+BACKGROUND: ${directive.colorMap.background}. Accent: ${directive.colorMap.accent}.
 
-COLORS:
-- Background: ${directive.colorMap.background}
-- Accent: ${directive.colorMap.accent}
-- Text: ${directive.colorMap.text}
-- CTA: ${directive.colorMap.cta}
+TEXT (render exactly as written, legible, high contrast):
+• Headline: "${directive.headline}" — large, bold, ${directive.colorMap.text}
+• Sub-copy: "${directive.subCopy}" — smaller, below headline
+• CTA: "${directive.ctaText}" — button/banner, ${directive.colorMap.cta} background
 
-HERO VISUAL: ${directive.heroDescription}
+LOGO: ${directive.logoPlacement}${hasAssets ? ". Use the provided brand logo/assets exactly — do not redraw them." : `. Show "${brand.name}" as text.`}
 
-${hasAssets ? `BRAND ASSETS: The first image is the reference (layout only). Images 2+ are official brand assets — use them exactly as provided, do not redraw.` : `No brand assets provided. Use "${brand.name}" as prominent text.`}
-
-═══ RULES ═══
-1. Render the headline, sub-copy, and CTA EXACTLY as written above — no rewording.
-2. Hero visual: 50-70% of canvas, fully visible, not obscured by text.
-3. Clear hierarchy: hero → headline → sub-copy → CTA.
-4. ALL text must be legible with proper contrast.
-5. No duplicated elements. No clutter.
-${directive.warnings.length > 0 ? `\n⚠️ WARNINGS: ${directive.warnings.join("; ")}` : ""}
-
-Generate the advertisement now.`;
+First image = layout reference (copy composition only, not its text/branding). ${hasAssets ? "Images 2+ = brand assets to use as-is." : ""}`;
 
   const userContent: any[] = [
-    {
-      type: "text",
-      text: `Create this ${spec.ratio} ad following the creative directive exactly. First image = layout reference only.`,
-    },
+    { type: "text", text: `Generate this ${spec.ratio} ad now.` },
     { type: "image_url", image_url: { url: referenceImageUrl } },
   ];
 
@@ -419,7 +438,7 @@ Generate the advertisement now.`;
   throw new Error("NO_IMAGE_GENERATED");
 }
 
-// ─── Step 3: Advisory QC (never blocks) ───
+// ─── Advisory QC (kept for optional use) ───
 
 async function advisoryQC(
   imageBase64: string,
@@ -509,7 +528,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
+    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape", runQC = false } = await req.json();
     const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -597,13 +616,13 @@ serve(async (req) => {
       await supabase.from("generations").update({ layout_guide: JSON.stringify(framework) }).eq("id", generationId);
     }
 
-    // Step 2: Adapt to brand
+    // Step 2: Adapt to brand (now receives reference image too)
     console.log("Step 2: Adapting to brand...");
     await supabase.from("generations").update({ status: "adapting" }).eq("id", generationId);
 
     let directive: CreativeDirective;
     try {
-      directive = await adaptToBrand(framework, brand, spec, LOVABLE_API_KEY);
+      directive = await adaptToBrand(framework, brand, referenceImageUrl, spec, LOVABLE_API_KEY);
       console.log("Directive:", JSON.stringify(directive));
     } catch (err) {
       console.error("Adaptation failed:", err);
@@ -614,14 +633,14 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Generate
+    // Step 3: Generate (simplified prompt)
     console.log("Step 3: Generating creative...");
     await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
     let imageBase64: string;
     let captionText: string;
     try {
-      const result = await generateCreative(framework, directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
+      const result = await generateCreative(directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
     } catch (err: any) {
@@ -646,11 +665,14 @@ serve(async (req) => {
       });
     }
 
-    // Step 4: Advisory QC (non-blocking)
-    console.log("Step 4: Running advisory QC...");
-    await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
-    const qcResult = await advisoryQC(imageBase64, brand, spec, LOVABLE_API_KEY);
-    console.log("QC result:", JSON.stringify(qcResult));
+    // Step 4: Advisory QC — only if explicitly requested
+    let qcResult: { score: number; issues: string[] } | null = null;
+    if (runQC) {
+      console.log("Step 4: Running advisory QC...");
+      await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
+      qcResult = await advisoryQC(imageBase64, brand, spec, LOVABLE_API_KEY);
+      console.log("QC result:", JSON.stringify(qcResult));
+    }
 
     // Upload image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
@@ -675,7 +697,10 @@ serve(async (req) => {
     await supabase.from("generations").update({
       output_image_url: publicUrlData.publicUrl,
       layout_guide: JSON.stringify(framework),
-      copywriting: { caption: captionText, qc: { score: qcResult.score, issues: qcResult.issues } },
+      copywriting: {
+        caption: captionText,
+        ...(qcResult ? { qc: { score: qcResult.score, issues: qcResult.issues } } : {}),
+      },
       status: "completed",
     }).eq("id", generationId);
 
@@ -699,7 +724,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       imageUrl: publicUrlData.publicUrl,
       caption: captionText,
-      qc: { score: qcResult.score, issues: qcResult.issues },
+      ...(qcResult ? { qc: { score: qcResult.score, issues: qcResult.issues } } : {}),
       framework,
       generationId,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
