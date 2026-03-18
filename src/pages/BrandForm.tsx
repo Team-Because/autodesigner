@@ -255,9 +255,6 @@ export default function BrandForm() {
     }
   };
 
-  const activeCampaigns = campaigns.filter((c: any) => c.status === "active");
-  const archivedCampaigns = campaigns.filter((c: any) => c.status === "archived");
-
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       <Button variant="ghost" onClick={() => navigate("/brands")} className="gap-2">
