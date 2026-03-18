@@ -279,6 +279,165 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
+/** Step 1.5 — Pre-generation Creative Brief Review */
+interface RefinedBrief {
+  headline: string;
+  subCopy: string;
+  ctaText: string;
+  visualDirection: string;
+  colorStrategy: string;
+  layoutNotes: string;
+  warnings: string[];
+}
+
+async function refineBrief(
+  framework: Record<string, unknown>,
+  brand: any,
+  brandAssets: any[],
+  spec: { width: number; height: number; label: string; ratio: string },
+  apiKey: string
+): Promise<RefinedBrief> {
+  // Build brand context for the reviewer
+  let rawBrief = brand.brand_brief || "";
+  try {
+    const parsed = JSON.parse(rawBrief);
+    if (parsed?._structured && parsed?._rendered) rawBrief = parsed._rendered;
+  } catch { /* legacy */ }
+
+  const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+    ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
+    : "";
+
+  const assetLabels = brandAssets.slice(0, 5).map((a: any) => a.label || "Brand asset").join(", ");
+
+  const systemPrompt = `You are a senior creative director at a Cannes Lions-winning agency. Your job is to review an assembled creative brief BEFORE it goes to the image generation model, and produce an optimised, conflict-free creative direction.
+
+You will receive:
+1. A structural design framework extracted from a reference image
+2. Full brand guidelines (colors, voice, mandatory elements, exclusions)
+3. The output format specification
+4. A list of available brand assets
+
+Your task:
+- Write the EXACT headline text (≤8 words, punchy, benefit-driven, original — never copy from brand brief examples)
+- Write the EXACT sub-copy text (≤20 words, one supporting sentence)
+- Write the EXACT CTA text (short call-to-action or contact info)
+- Produce specific visual direction that resolves any conflicts between the reference framework style and the brand guidelines
+- Define a color strategy: which brand color goes where (background, headline, accents, CTA bar, etc.)
+- Provide layout adaptation notes for fitting the framework to this brand
+- Flag any warnings about potential issues
+
+CRITICAL RULES:
+- The headline and copy must match the brand's voice/tone rules exactly
+- If the brand brief has mandatory elements (tagline, contact info, legal text), they MUST appear in the copy
+- If the framework suggests a dark mood but the brand is light/airy (or vice versa), RESOLVE this — pick one direction and commit
+- Never use placeholder text — every word must be final, print-ready
+- All copy must be in the brand's language (infer from brand name and brief)`;
+
+  const userPrompt = `BRAND CONTEXT:
+Brand Name: ${brand.name}
+Primary Color: ${brand.primary_color}
+Secondary Color: ${brand.secondary_color}
+${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
+${brand.brand_voice_rules ? `Voice & Tone: ${brand.brand_voice_rules}` : ""}
+${brand.negative_prompts ? `⛔ EXCLUSIONS (never use): ${brand.negative_prompts}` : ""}
+${rawBrief ? `Brand Brief / Guidelines:\n${rawBrief}` : ""}
+
+DESIGN FRAMEWORK (from reference analysis):
+${JSON.stringify(framework, null, 2)}
+
+OUTPUT FORMAT: ${spec.label} (${spec.ratio})
+
+AVAILABLE BRAND ASSETS: ${assetLabels || "None"}
+
+Review this brief and produce the optimised creative direction.`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "refined_creative_brief",
+            description: "Return the optimised creative brief for image generation",
+            parameters: {
+              type: "object",
+              properties: {
+                headline: {
+                  type: "string",
+                  description: "Exact headline text to render. ≤8 words, bold, benefit-driven, original.",
+                },
+                subCopy: {
+                  type: "string",
+                  description: "Exact sub-copy text. ≤20 words, one supporting sentence.",
+                },
+                ctaText: {
+                  type: "string",
+                  description: "Exact CTA or contact text. Short and actionable.",
+                },
+                visualDirection: {
+                  type: "string",
+                  description: "Specific visual instructions for the image model: mood, lighting, photography style, background treatment. Resolves any conflicts between framework and brand.",
+                },
+                colorStrategy: {
+                  type: "string",
+                  description: "Exactly which brand color goes where: background color, headline color, accent/strip color, CTA bar color, text color. Use actual hex values.",
+                },
+                layoutNotes: {
+                  type: "string",
+                  description: "How to adapt the reference framework for this brand: which zones to emphasize, what to swap, spacing adjustments.",
+                },
+                warnings: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Any conflicts found and how they were resolved, or risks to watch for.",
+                },
+              },
+              required: ["headline", "subCopy", "ctaText", "visualDirection", "colorStrategy", "layoutNotes", "warnings"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "refined_creative_brief" } },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Brief refinement error:", response.status, errText);
+    throw new Error(`Brief refinement failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall?.function?.arguments) {
+    throw new Error("No refined brief returned");
+  }
+
+  const result = JSON.parse(toolCall.function.arguments);
+  return {
+    headline: result.headline || "",
+    subCopy: result.subCopy || "",
+    ctaText: result.ctaText || "",
+    visualDirection: result.visualDirection || "",
+    colorStrategy: result.colorStrategy || "",
+    layoutNotes: result.layoutNotes || "",
+    warnings: Array.isArray(result.warnings) ? result.warnings : [],
+  };
+}
+
 /** Step 2 — Generate the brand creative using the framework */
 async function generateCreative(
   framework: Record<string, unknown>,
