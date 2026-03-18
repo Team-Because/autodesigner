@@ -250,6 +250,7 @@ export default function Studio() {
       setResult({
         imageUrl: fnData.imageUrl,
         caption: fnData.caption,
+        qc: fnData.qc || undefined,
       });
       setStudioState("complete");
 
