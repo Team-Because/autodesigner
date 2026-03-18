@@ -911,17 +911,11 @@ async function qualityCheck(
   imageBase64: string,
   brand: any,
   spec: { width: number; height: number; label: string; ratio: string },
-  apiKey: string
+  apiKey: string,
+  focusedProductName = ""
 ): Promise<{ passed: boolean; score: number; issues: string[]; critical: boolean }> {
-  // Build rich brand context for QC
-  let brandBriefText = "";
-  try {
-    const parsed = JSON.parse(brand.brand_brief || "");
-    if (parsed?._structured && parsed?._rendered) brandBriefText = parsed._rendered;
-  } catch {
-    brandBriefText = brand.brand_brief || "";
-  }
-
+  const brandBriefText = getRenderedBrandBrief(brand.brand_brief);
+  const brandSections = parseStructuredBrandSections(brand.brand_brief);
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
     : "";
@@ -940,7 +934,7 @@ async function qualityCheck(
           messages: [
             {
               role: "system",
-              content: `You are an uncompromising QC inspector for advertising creatives at a premium agency. You protect the brand from any output that would embarrass it. Score STRICTLY — only genuinely professional, brand-aligned work should pass. A score of 70+ means "client-ready". Below 65 means "unacceptable, must redo".`,
+              content: `You are an uncompromising QC inspector for advertising creatives at a premium agency. You protect the brand from any output that would embarrass it. Score STRICTLY — only genuinely professional, brand-aligned work should pass. A score of 70+ means "client-ready". Below 65 means "unacceptable, must redo".`
             },
             {
               role: "user",
@@ -957,8 +951,10 @@ Primary Color: ${brand.primary_color}
 Secondary Color: ${brand.secondary_color}
 ${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
 Required Aspect Ratio: ${spec.ratio} (${spec.width}×${spec.height})
+${focusedProductName ? `Focused Product (must be shown and named): ${focusedProductName}` : ""}
 ${brand.brand_voice_rules ? `Voice & Tone Rules: ${brand.brand_voice_rules}` : ""}
 ${brand.negative_prompts ? `⛔ BANNED ELEMENTS (must NOT appear): ${brand.negative_prompts}` : ""}
+${brandSections.mustInclude ? `Mandatory Elements:\n${brandSections.mustInclude}` : ""}
 ${brandBriefText ? `Brand Brief / Guidelines:\n${brandBriefText}` : ""}
 
 ══════════════════════════════════
@@ -968,14 +964,15 @@ QC CHECKLIST — Score each area:
 2. LOGO VISIBILITY (Critical): Is the brand logo/mark clearly visible with proper contrast? Missing/illegible logo = critical.
 3. TEXT LEGIBILITY (Critical): Is ALL text clearly readable? No overlapping, cut-off, garbled, or wrong-language text? Unreadable text = critical.
 4. TEXT DUPLICATION: Is any text, brand name, tagline, or element unnecessarily repeated?
-5. BRAND COLOR ALIGNMENT: Are ${brand.primary_color} and ${brand.secondary_color} prominently used as specified?
-6. BRAND VOICE COMPLIANCE: Does the copy match the brand's tone and voice rules? Is it original (not copied from guidelines)?
-7. BANNED ELEMENTS: Are ANY of the banned/excluded elements present? If so = critical.
-8. COMPOSITION & HIERARCHY: Professional layout with clear visual flow? Hero visual prominent? Clean, not cluttered?
-9. OVERALL BRAND ALIGNMENT: Does this creative FEEL like it belongs to "${brand.name}"? Would a brand manager approve this?
+5. HERO PRODUCT SPECIFICITY: If a focused product is provided, is that exact product clearly shown and explicitly mentioned in the text?
+6. BRAND COLOR ALIGNMENT: Are ${brand.primary_color} and ${brand.secondary_color} prominently used as specified?
+7. BRAND VOICE COMPLIANCE: Does the copy match the brand's tone and voice rules? Is it original (not copied from guidelines)?
+8. BANNED ELEMENTS: Are ANY of the banned/excluded elements present? If so = critical.
+9. COMPOSITION & HIERARCHY: Professional layout with clear visual flow? Hero visual prominent? Clean, not cluttered?
+10. OVERALL BRAND ALIGNMENT: Does this creative FEEL like it belongs to "${brand.name}"? Would a brand manager approve this?
 
 Score 0-100. Be strict. Only score 70+ if genuinely client-ready.
-Mark critical=true if ANY critical check fails.`,
+Mark critical=true if ANY critical check fails. If the focused product name is missing from visible text, that should normally fail the piece.`,
                 },
                 {
                   type: "image_url",
