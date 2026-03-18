@@ -139,7 +139,6 @@ export default function Studio() {
         .insert({
           user_id: user.id,
           brand_id: selectedBrandId,
-          campaign_id: selectedCampaignId || null,
           reference_image_url: refUrlData.publicUrl,
           status: "processing",
         } as any)
