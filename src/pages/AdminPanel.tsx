@@ -30,7 +30,6 @@ export default function AdminPanel() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all users (profiles)
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
@@ -40,15 +39,8 @@ export default function AdminPanel() {
         .order("created_at", { ascending: false });
       if (error) throw error;
 
-      // Fetch credits for all users
-      const { data: credits } = await supabase
-        .from("user_credits")
-        .select("*");
-
-      // Fetch generation counts
-      const { data: generations } = await supabase
-        .from("generations")
-        .select("user_id, id");
+      const { data: credits } = await supabase.from("user_credits").select("*");
+      const { data: generations } = await supabase.from("generations").select("user_id, id");
 
       const genCounts: Record<string, number> = {};
       generations?.forEach((g: any) => {
@@ -70,21 +62,16 @@ export default function AdminPanel() {
     enabled: !!user,
   });
 
-  // Fetch all brands (for transfer)
   const { data: allBrands = [] } = useQuery({
     queryKey: ["admin-brands"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("brands")
-        .select("id, name, user_id")
-        .order("name");
+      const { data, error } = await supabase.from("brands").select("id, name, user_id").order("name");
       if (error) throw error;
       return data;
     },
     enabled: !!user,
   });
 
-  // --- Create User ---
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newCredits, setNewCredits] = useState("10");
@@ -98,15 +85,11 @@ export default function AdminPanel() {
     setCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke("admin-create-user", {
-        body: {
-          username: newUsername.trim(),
-          password: newPassword,
-          initialCredits: parseInt(newCredits) || 0,
-        },
+        body: { username: newUsername.trim(), password: newPassword, initialCredits: parseInt(newCredits) || 0 },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(`User "${newUsername}" created successfully!`);
+      toast.success(`User "${newUsername}" created!`);
       setNewUsername("");
       setNewPassword("");
       setNewCredits("10");
@@ -118,7 +101,6 @@ export default function AdminPanel() {
     }
   };
 
-  // --- Manage Credits ---
   const [creditUserId, setCreditUserId] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [adjusting, setAdjusting] = useState(false);
@@ -146,7 +128,6 @@ export default function AdminPanel() {
     }
   };
 
-  // --- Transfer Brand ---
   const [transferBrandId, setTransferBrandId] = useState("");
   const [transferTargetUserId, setTransferTargetUserId] = useState("");
   const [transferring, setTransferring] = useState(false);
@@ -163,7 +144,7 @@ export default function AdminPanel() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success("Brand transferred successfully!");
+      toast.success("Brand transferred!");
       setTransferBrandId("");
       setTransferTargetUserId("");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -178,76 +159,56 @@ export default function AdminPanel() {
   const getUserLabel = (u: any) => u.username || u.display_name || u.user_id?.slice(0, 8);
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground">Admin Panel</h1>
+        <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Admin Panel</h1>
         <p className="text-muted-foreground mt-1">Manage users, credits, and brand transfers.</p>
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="users" className="gap-2">
+        <TabsList className="rounded-xl bg-muted/50 p-1">
+          <TabsTrigger value="users" className="gap-2 rounded-lg">
             <Users className="h-4 w-4" /> Users
           </TabsTrigger>
-          <TabsTrigger value="credits" className="gap-2">
+          <TabsTrigger value="credits" className="gap-2 rounded-lg">
             <CreditCard className="h-4 w-4" /> Credits
           </TabsTrigger>
-          <TabsTrigger value="transfer" className="gap-2">
+          <TabsTrigger value="transfer" className="gap-2 rounded-lg">
             <ArrowRightLeft className="h-4 w-4" /> Transfer
           </TabsTrigger>
         </TabsList>
 
-        {/* ─── Users Tab ─── */}
         <TabsContent value="users" className="space-y-6">
-          {/* Create User Form */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base font-display flex items-center gap-2">
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Plus className="h-4 w-4" /> Create New User
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
                 <div className="space-y-2">
-                  <Label>Username</Label>
-                  <Input
-                    placeholder="e.g. real-estate"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    disabled={creating}
-                  />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Username</Label>
+                  <Input placeholder="e.g. real-estate" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} disabled={creating} className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    disabled={creating}
-                  />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Password</Label>
+                  <Input type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={creating} className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Initial Credits</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={newCredits}
-                    onChange={(e) => setNewCredits(e.target.value)}
-                    disabled={creating}
-                  />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Credits</Label>
+                  <Input type="number" min="0" value={newCredits} onChange={(e) => setNewCredits(e.target.value)} disabled={creating} className="rounded-xl" />
                 </div>
-                <Button onClick={handleCreateUser} disabled={creating}>
+                <Button onClick={handleCreateUser} disabled={creating} className="rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold">
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create User"}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Users Table */}
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base font-display">All Users</CardTitle>
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">All Users</CardTitle>
             </CardHeader>
             <CardContent>
               {usersLoading ? (
@@ -257,27 +218,25 @@ export default function AdminPanel() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Username</TableHead>
-                      <TableHead className="text-right">Credits Left</TableHead>
-                      <TableHead className="text-right">Credits Used</TableHead>
-                      <TableHead className="text-right">Generations</TableHead>
-                      <TableHead>Joined</TableHead>
+                    <TableRow className="border-border/30">
+                      <TableHead className="font-semibold">Username</TableHead>
+                      <TableHead className="text-right font-semibold">Credits Left</TableHead>
+                      <TableHead className="text-right font-semibold">Used</TableHead>
+                      <TableHead className="text-right font-semibold">Generations</TableHead>
+                      <TableHead className="font-semibold">Joined</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {users.map((u: any) => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-medium">
-                          {getUserLabel(u)}
-                        </TableCell>
+                      <TableRow key={u.id} className="border-border/20">
+                        <TableCell className="font-semibold">{getUserLabel(u)}</TableCell>
                         <TableCell className="text-right">
-                          <Badge variant={u.credits_remaining > 0 ? "default" : "destructive"}>
+                          <Badge variant={u.credits_remaining > 0 ? "default" : "destructive"} className="rounded-lg">
                             {u.credits_remaining}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">{u.credits_used}</TableCell>
-                        <TableCell className="text-right">{u.generation_count}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{u.credits_used}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{u.generation_count}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {new Date(u.created_at).toLocaleDateString()}
                         </TableCell>
@@ -290,20 +249,17 @@ export default function AdminPanel() {
           </Card>
         </TabsContent>
 
-        {/* ─── Credits Tab ─── */}
         <TabsContent value="credits">
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base font-display">Adjust Credits</CardTitle>
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">Adjust Credits</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                 <div className="space-y-2">
-                  <Label>User</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">User</Label>
                   <Select value={creditUserId} onValueChange={setCreditUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user..." />
-                    </SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select user..." /></SelectTrigger>
                     <SelectContent>
                       {users.map((u: any) => (
                         <SelectItem key={u.user_id} value={u.user_id}>
@@ -314,16 +270,10 @@ export default function AdminPanel() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Amount (+/-)</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 50 or -10"
-                    value={creditAmount}
-                    onChange={(e) => setCreditAmount(e.target.value)}
-                    disabled={adjusting}
-                  />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount (+/-)</Label>
+                  <Input type="number" placeholder="e.g. 50 or -10" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} disabled={adjusting} className="rounded-xl" />
                 </div>
-                <Button onClick={handleAdjustCredits} disabled={adjusting}>
+                <Button onClick={handleAdjustCredits} disabled={adjusting} className="rounded-xl font-semibold">
                   {adjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adjust Credits"}
                 </Button>
               </div>
@@ -331,20 +281,17 @@ export default function AdminPanel() {
           </Card>
         </TabsContent>
 
-        {/* ─── Transfer Tab ─── */}
         <TabsContent value="transfer">
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base font-display">Transfer Brand</CardTitle>
+              <CardTitle className="text-sm font-display font-semibold uppercase tracking-wider text-muted-foreground">Transfer Brand</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                 <div className="space-y-2">
-                  <Label>Brand</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</Label>
                   <Select value={transferBrandId} onValueChange={setTransferBrandId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select brand..." />
-                    </SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select brand..." /></SelectTrigger>
                     <SelectContent>
                       {allBrands.map((b: any) => {
                         const owner = users.find((u: any) => u.user_id === b.user_id);
@@ -358,21 +305,17 @@ export default function AdminPanel() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Transfer To</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transfer To</Label>
                   <Select value={transferTargetUserId} onValueChange={setTransferTargetUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user..." />
-                    </SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select user..." /></SelectTrigger>
                     <SelectContent>
                       {users.map((u: any) => (
-                        <SelectItem key={u.user_id} value={u.user_id}>
-                          {getUserLabel(u)}
-                        </SelectItem>
+                        <SelectItem key={u.user_id} value={u.user_id}>{getUserLabel(u)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handleTransferBrand} disabled={transferring} variant="outline">
+                <Button onClick={handleTransferBrand} disabled={transferring} variant="outline" className="rounded-xl font-semibold">
                   {transferring ? <Loader2 className="h-4 w-4 animate-spin" /> : "Transfer Brand"}
                 </Button>
               </div>
