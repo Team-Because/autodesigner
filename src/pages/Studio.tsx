@@ -177,10 +177,14 @@ export default function Studio() {
         });
       }, 1500);
 
-      // Phase transition after ~8 seconds (analysis should be done)
-      const phaseTimeout = setTimeout(() => {
+      const phaseTimeout1 = setTimeout(() => {
         setProgressPhase("Generating brand creative...");
       }, 8000);
+
+      const phaseTimeout2 = setTimeout(() => {
+        setProgressPhase("Quality checking output...");
+        setProgress((prev) => Math.max(prev, 88));
+      }, 35000);
 
       // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
