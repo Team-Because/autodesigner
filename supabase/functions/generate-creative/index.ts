@@ -318,13 +318,12 @@ Study the reference image below. Understand its concept and idea. Then create a 
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 3: Generate the creative (simplified, visual-first prompt) ───
+// ─── Step 3: Generate the creative (concept-driven, NO reference image) ───
 
 async function generateCreative(
   directive: CreativeDirective,
   brand: any,
   brandAssets: any[],
-  referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
@@ -339,13 +338,17 @@ async function generateCreative(
 
   const orientationHint = spec.height > spec.width ? "VERTICAL (portrait)" : spec.width > spec.height ? "HORIZONTAL (landscape)" : "perfectly SQUARE";
 
-  // Short, visual-first prompt — what image models respond to best
+  // Concept-driven prompt — no reference image, purely from directive
   const systemPrompt = `Create a ${spec.ratio} ${orientationHint} advertisement (${spec.width}×${spec.height}).
 
-VISUAL: ${directive.heroDescription}
-The hero visual fills 50-70% of the canvas. ${directive.layoutAdaptation}
+CONCEPT: ${directive.concept}
 
-BACKGROUND: ${directive.colorMap.background}. Accent: ${directive.colorMap.accent}.
+HERO VISUAL: ${directive.heroDescription}
+The hero visual fills 50-70% of the canvas.
+
+COMPOSITION: ${directive.compositionGuide}
+
+COLORS: Background ${directive.colorMap.background}, Accent ${directive.colorMap.accent}.
 
 TEXT (render exactly as written, legible, high contrast):
 • Headline: "${directive.headline}" — large, bold, ${directive.colorMap.text}
@@ -354,13 +357,13 @@ TEXT (render exactly as written, legible, high contrast):
 
 LOGO: ${directive.logoPlacement}${hasAssets ? ". Use the provided brand logo/assets exactly — do not redraw them." : `. Show "${brand.name}" as text.`}
 
-First image = layout reference (copy composition only, not its text/branding). ${hasAssets ? "Images 2+ = brand assets to use as-is." : ""}`;
+This must be an ORIGINAL creative. Do not copy any existing ad. Create fresh imagery based on the concept and hero description above.`;
 
   const userContent: any[] = [
-    { type: "text", text: `Generate this ${spec.ratio} ad now.` },
-    { type: "image_url", image_url: { url: referenceImageUrl } },
+    { type: "text", text: `Generate this ${spec.ratio} ad now. Create original imagery — do not replicate any existing advertisement.` },
   ];
 
+  // Only brand assets — NO reference image
   for (const asset of selectedAssets) {
     userContent.push({ type: "image_url", image_url: { url: (asset as any).image_url } });
   }
