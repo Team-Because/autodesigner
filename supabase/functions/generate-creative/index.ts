@@ -293,7 +293,18 @@ async function generateCreative(
 
   const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
-  const brandBrief = toCompactText(brand.brand_brief, 3000);
+
+  // Extract rendered brief from structured JSON envelope if present
+  let rawBrief = brand.brand_brief || "";
+  try {
+    const parsed = JSON.parse(rawBrief);
+    if (parsed?._structured && parsed?._rendered) {
+      rawBrief = parsed._rendered;
+    }
+  } catch {
+    // legacy plain text — use as-is
+  }
+  const brandBrief = toCompactText(rawBrief, 3000);
 
   const brandContext = [
     `Brand Name: ${brand.name}`,
