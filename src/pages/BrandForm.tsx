@@ -192,17 +192,18 @@ export default function BrandForm() {
     setLoading(true);
 
     let brandBrief: string;
-    let finalVoiceRules = voiceRules;
-    let finalNegativePrompts = negativePrompts;
+    let finalVoiceRules: string;
+    let finalNegativePrompts: string;
 
     if (isLegacy) {
       brandBrief = legacyBrief;
+      finalVoiceRules = voiceRules;
+      finalNegativePrompts = negativePrompts;
     } else {
       const serialized = serialize(profile);
       brandBrief = serialized.brand_brief;
-      // Merge: if user has manually typed voice/negative, keep those; otherwise use serialized
-      if (!finalVoiceRules && serialized.brand_voice_rules) finalVoiceRules = serialized.brand_voice_rules;
-      if (!finalNegativePrompts && serialized.negative_prompts) finalNegativePrompts = serialized.negative_prompts;
+      finalVoiceRules = serialized.brand_voice_rules;
+      finalNegativePrompts = serialized.negative_prompts;
     }
 
     const payload: any = {
@@ -449,11 +450,11 @@ export default function BrandForm() {
           </CardContent>
         </Card>
 
-        {/* Structured Brand Profile OR Legacy Brief */}
+        {/* Brand Profile */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-display">Brand Brief / Guidelines</CardTitle>
+              <CardTitle className="text-base font-display">Brand Brief</CardTitle>
               {isLegacy && (
                 <Button
                   type="button"
@@ -469,7 +470,7 @@ export default function BrandForm() {
             <CardDescription>
               {isLegacy
                 ? "Legacy free-text format. Switch to the guided form for better AI results."
-                : "Fill in each section — the AI uses this structure directly."}
+                : "Fill what's relevant, skip what's not. Each field maps directly to the AI prompt."}
             </CardDescription>
           </CardHeader>
           <CardContent>
