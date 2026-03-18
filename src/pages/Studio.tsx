@@ -184,9 +184,9 @@ export default function Studio() {
       }, 10000);
 
       const phaseTimeout3 = setTimeout(() => {
-        setProgressPhase("Finishing up...");
-        setProgress((prev) => Math.max(prev, 88));
-      }, 40000);
+        setProgressPhase("Finalizing creative...");
+        setProgress((prev) => Math.max(prev, 90));
+      }, 30000);
 
       let fnData: any = null;
       let fnError: any = null;
