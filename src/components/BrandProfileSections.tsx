@@ -14,13 +14,13 @@ interface Props {
   onChange: (profile: StructuredBrandProfile) => void;
 }
 
-function update<S extends keyof StructuredBrandProfile>(
+function updateSection(
   profile: StructuredBrandProfile,
-  section: S,
-  field: StructuredBrandProfile[S] extends string ? never : keyof StructuredBrandProfile[S],
+  section: string,
+  field: string,
   value: string
 ): StructuredBrandProfile {
-  const sectionVal = profile[section];
+  const sectionVal = (profile as any)[section];
   if (typeof sectionVal === "string") return profile;
   return { ...profile, [section]: { ...sectionVal, [field]: value } };
 }
