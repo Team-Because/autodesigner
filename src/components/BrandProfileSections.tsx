@@ -26,12 +26,8 @@ function updateSection(
 }
 
 export default function BrandProfileSections({ profile, onChange }: Props) {
-  const set = <S extends keyof StructuredBrandProfile>(
-    section: S,
-    field: keyof (StructuredBrandProfile[S] extends string ? never : StructuredBrandProfile[S]),
-    value: string
-  ) => {
-    onChange(update(profile, section as any, field as any, value));
+  const set = (section: string, field: string, value: string) => {
+    onChange(updateSection(profile, section, field, value));
   };
 
   return (
