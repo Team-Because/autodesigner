@@ -1038,7 +1038,7 @@ serve(async (req) => {
     let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
 
-    const MAX_QC_RETRIES = 3;
+    const MAX_QC_RETRIES = 1;
     const MIN_ACCEPTABLE_SCORE = 65;
     const originalBrief = brand.brand_brief || "";
 
