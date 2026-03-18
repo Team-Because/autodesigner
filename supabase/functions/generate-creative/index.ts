@@ -903,26 +903,28 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Quality Check with auto-retry loop (up to 2 retries)
+    // Step 3: Quality Check with auto-retry loop (up to 3 retries)
     console.log("Step 3: Running quality check...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
 
     let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
 
-    const MAX_QC_RETRIES = 2;
+    const MAX_QC_RETRIES = 3;
+    const MIN_ACCEPTABLE_SCORE = 65;
     const originalBrief = brand.brand_brief || "";
 
     for (let qcRetry = 0; qcRetry < MAX_QC_RETRIES; qcRetry++) {
-      // Retry if score < 70 OR critical issues found
-      const shouldRetry = qcResult.score < 70 || qcResult.critical;
+      // Retry if score < MIN_ACCEPTABLE_SCORE OR critical issues found
+      const shouldRetry = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
       if (!shouldRetry || qcResult.issues.length === 0) break;
 
       console.log(`QC retry ${qcRetry + 1}/${MAX_QC_RETRIES}: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
       await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
-      // Inject QC feedback as a top-level instruction block (not buried in brand_brief JSON)
-      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC)\n══════════════════════════════════════════\nThe previous generation scored ${qcResult.score}/100. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${qcRetry === 0 ? "second" : "final"} attempt.`;
+      // Inject QC feedback as a top-level instruction block
+      const attemptLabel = qcRetry === 0 ? "second" : qcRetry === 1 ? "third" : "FINAL";
+      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC — score ${qcResult.score}/100)\n══════════════════════════════════════════\nThe previous generation FAILED quality check. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${attemptLabel} attempt.${qcRetry >= 2 ? " THIS IS YOUR LAST CHANCE — make it perfect." : ""}`;
 
       brand.brand_brief = originalBrief + qcFeedbackBlock;
 
@@ -945,6 +947,32 @@ serve(async (req) => {
 
     // Restore original brief
     brand.brand_brief = originalBrief;
+
+    // GATE: If QC still fails after all retries, reject the output
+    const finalFailed = qcResult.score < MIN_ACCEPTABLE_SCORE || qcResult.critical;
+    if (finalFailed) {
+      console.warn(`Final QC REJECTED: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
+      
+      // Save the QC data for diagnostics but mark as failed
+      const failedPayload = {
+        caption: captionText,
+        qc: { passed: false, score: qcResult.score, issues: qcResult.issues, rejected: true },
+      };
+      await supabase.from("generations").update({
+        status: "failed",
+        copywriting: failedPayload,
+        layout_guide: JSON.stringify(framework),
+      }).eq("id", generationId);
+
+      return new Response(
+        JSON.stringify({
+          error: `Quality check failed after ${MAX_QC_RETRIES + 1} attempts (score: ${qcResult.score}/100). The AI couldn't produce a result that meets your brand standards. Try adjusting your reference image or brand brief, then retry.`,
+          qc: { score: qcResult.score, issues: qcResult.issues },
+          retryable: true,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Upload generated image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
