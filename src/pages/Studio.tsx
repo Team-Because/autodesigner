@@ -276,6 +276,7 @@ export default function Studio() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["generations"] });
+      refetchCredits();
       toast.success("Creative generated successfully!");
     } catch (err: any) {
       console.error("Generation error:", err);
