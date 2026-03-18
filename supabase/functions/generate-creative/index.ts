@@ -404,6 +404,7 @@ async function analyzeFramework(
 
 /** Step 1.5 — Pre-generation Creative Brief Review */
 interface RefinedBrief {
+  productName: string;
   headline: string;
   subCopy: string;
   ctaText: string;
@@ -420,12 +421,10 @@ async function refineBrief(
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<RefinedBrief> {
-  // Build brand context for the reviewer
-  let rawBrief = brand.brand_brief || "";
-  try {
-    const parsed = JSON.parse(rawBrief);
-    if (parsed?._structured && parsed?._rendered) rawBrief = parsed._rendered;
-  } catch { /* legacy */ }
+  const rawBrief = getRenderedBrandBrief(brand.brand_brief);
+  const sections = parseStructuredBrandSections(brand.brand_brief);
+  const productCandidates = extractProductCandidatesFromBrief(sections, rawBrief);
+  const focusProductHint = inferFocusProductFromFramework(framework, productCandidates);
 
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? brand.extra_colors.map((c: any) => `${c.name || "Unnamed"}: ${c.hex}`).join(", ")
@@ -433,29 +432,26 @@ async function refineBrief(
 
   const assetLabels = brandAssets.slice(0, 5).map((a: any) => a.label || "Brand asset").join(", ");
 
-  const systemPrompt = `You are a senior creative director at a Cannes Lions-winning agency. Your job is to review an assembled creative brief BEFORE it goes to the image generation model, and produce an optimised, conflict-free creative direction.
-
-You will receive:
-1. A structural design framework extracted from a reference image
-2. Full brand guidelines (colors, voice, mandatory elements, exclusions)
-3. The output format specification
-4. A list of available brand assets
+  const systemPrompt = `You are a senior creative director at a Cannes Lions-winning agency. Your job is to review an assembled creative brief BEFORE it goes to the image generation model and produce an optimised, conflict-free creative direction.
 
 Your task:
-- Write the EXACT headline text (≤8 words, punchy, benefit-driven, original — never copy from brand brief examples)
+- Choose ONE exact hero product name for this creative
+- Write the EXACT headline text (≤8 words, punchy, benefit-driven, original)
 - Write the EXACT sub-copy text (≤20 words, one supporting sentence)
 - Write the EXACT CTA text (short call-to-action or contact info)
-- Produce specific visual direction that resolves any conflicts between the reference framework style and the brand guidelines
-- Define a color strategy: which brand color goes where (background, headline, accents, CTA bar, etc.)
+- Produce specific visual direction that resolves conflicts between the reference framework and the brand rules
+- Define a color strategy: which brand color goes where
 - Provide layout adaptation notes for fitting the framework to this brand
 - Flag any warnings about potential issues
 
 CRITICAL RULES:
-- The headline and copy must match the brand's voice/tone rules exactly
-- If the brand brief has mandatory elements (tagline, contact info, legal text), they MUST appear in the copy
-- If the framework suggests a dark mood but the brand is light/airy (or vice versa), RESOLVE this — pick one direction and commit
+- If the brand says to always include product name, the chosen productName MUST appear verbatim in the headline or subCopy
+- If the brand has a mandatory tagline or CTA, include them verbatim in subCopy/ctaText instead of paraphrasing
+- If the reference is lifestyle-heavy but the brand says food first, OVERRIDE the reference and make the food the unmistakable hero
+- If the reference mood conflicts with the brand mood, resolve it decisively
 - Never use placeholder text — every word must be final, print-ready
-- All copy must be in the brand's language (infer from brand name and brief)`;
+- All copy must be in the brand's language
+- Avoid generic lines like “Mealtime revolution” — sound like the brand, not an ad cliché`;
 
   const userPrompt = `BRAND CONTEXT:
 Brand Name: ${brand.name}
@@ -464,7 +460,13 @@ Secondary Color: ${brand.secondary_color}
 ${extraColorsText ? `Additional Colors: ${extraColorsText}` : ""}
 ${brand.brand_voice_rules ? `Voice & Tone: ${brand.brand_voice_rules}` : ""}
 ${brand.negative_prompts ? `⛔ EXCLUSIONS (never use): ${brand.negative_prompts}` : ""}
-${rawBrief ? `Brand Brief / Guidelines:\n${rawBrief}` : ""}
+${sections.mustInclude ? `MANDATORY ELEMENTS:\n${sections.mustInclude}` : ""}
+${sections.visualDirection ? `VISUAL DIRECTION RULES:\n${sections.visualDirection}` : ""}
+${sections.colorNotes ? `COLOR NOTES:\n${sections.colorNotes}` : ""}
+${rawBrief ? `FULL BRAND BRIEF:\n${rawBrief}` : ""}
+
+PRODUCT CANDIDATES: ${productCandidates.join(", ") || "None provided — choose the most plausible product from the brief."}
+${focusProductHint ? `FOCUS PRODUCT HINT: ${focusProductHint}` : ""}
 
 DESIGN FRAMEWORK (from reference analysis):
 ${JSON.stringify(framework, null, 2)}
@@ -496,29 +498,33 @@ Review this brief and produce the optimised creative direction.`;
             parameters: {
               type: "object",
               properties: {
+                productName: {
+                  type: "string",
+                  description: "One exact hero product name to feature in the creative. Must be a real product from the brand brief when available.",
+                },
                 headline: {
                   type: "string",
-                  description: "Exact headline text to render. ≤8 words, bold, benefit-driven, original.",
+                  description: "Exact headline text to render. ≤8 words, bold, benefit-driven, and brand-true.",
                 },
                 subCopy: {
                   type: "string",
-                  description: "Exact sub-copy text. ≤20 words, one supporting sentence.",
+                  description: "Exact sub-copy text. ≤20 words. Include mandatory tagline/product mention here if needed.",
                 },
                 ctaText: {
                   type: "string",
-                  description: "Exact CTA or contact text. Short and actionable.",
+                  description: "Exact CTA or contact text. Preserve required CTA wording when provided.",
                 },
                 visualDirection: {
                   type: "string",
-                  description: "Specific visual instructions for the image model: mood, lighting, photography style, background treatment. Resolves any conflicts between framework and brand.",
+                  description: "Specific visual instructions for the image model: mood, lighting, photography style, background treatment, and hero emphasis.",
                 },
                 colorStrategy: {
                   type: "string",
-                  description: "Exactly which brand color goes where: background color, headline color, accent/strip color, CTA bar color, text color. Use actual hex values.",
+                  description: "Exactly which brand color goes where: background, headline, accents, CTA bar, and supporting text. Use actual hex values.",
                 },
                 layoutNotes: {
                   type: "string",
-                  description: "How to adapt the reference framework for this brand: which zones to emphasize, what to swap, spacing adjustments.",
+                  description: "How to adapt the reference framework for this brand: which zones to emphasize, what to simplify, and what must change.",
                 },
                 warnings: {
                   type: "array",
@@ -526,7 +532,7 @@ Review this brief and produce the optimised creative direction.`;
                   description: "Any conflicts found and how they were resolved, or risks to watch for.",
                 },
               },
-              required: ["headline", "subCopy", "ctaText", "visualDirection", "colorStrategy", "layoutNotes", "warnings"],
+              required: ["productName", "headline", "subCopy", "ctaText", "visualDirection", "colorStrategy", "layoutNotes", "warnings"],
               additionalProperties: false,
             },
           },
@@ -551,6 +557,7 @@ Review this brief and produce the optimised creative direction.`;
 
   const result = JSON.parse(toolCall.function.arguments);
   return {
+    productName: result.productName || focusProductHint || productCandidates[0] || "",
     headline: result.headline || "",
     subCopy: result.subCopy || "",
     ctaText: result.ctaText || "",
