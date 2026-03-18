@@ -21,6 +21,9 @@ import {
   RectangleHorizontal,
   Square,
   Smartphone,
+  RectangleVertical,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
