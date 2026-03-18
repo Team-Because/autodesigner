@@ -250,7 +250,6 @@ export default function Studio() {
 
       clearInterval(progressInterval);
       clearTimeout(phaseTimeout1);
-      clearTimeout(phaseTimeout15);
       clearTimeout(phaseTimeout2);
 
       if (invokeErrorMessage || fnError) {
