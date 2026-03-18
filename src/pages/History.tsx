@@ -251,12 +251,6 @@ export default function History() {
                   {cw?.caption && (
                     <p className="text-xs text-muted-foreground line-clamp-2">{cw.caption}</p>
                   )}
-                  {qc && (
-                    <Badge variant={qc.passed ? "default" : "destructive"} className="text-[10px] gap-0.5 rounded-lg">
-                      {qc.passed ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />}
-                      QC {qc.score}
-                    </Badge>
-                  )}
                   <p className="text-[11px] text-muted-foreground/70 font-medium">
                     {format(new Date(g.created_at), "MMM d, yyyy · h:mm a")}
                   </p>
