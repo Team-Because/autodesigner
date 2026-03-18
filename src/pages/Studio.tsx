@@ -531,13 +531,42 @@ export default function Studio() {
               )}
               {studioState === "complete" && result && (
                 <div className="w-full space-y-4">
-                  <div className="rounded-lg overflow-hidden border border-border">
+                  <div className="rounded-lg overflow-hidden border border-border relative">
                     <img
                       src={result.imageUrl}
                       alt="Generated creative"
                       className="w-full"
                     />
+                    {result.qc && (
+                      <div className="absolute top-3 right-3">
+                        <Badge
+                          variant={result.qc.passed ? "default" : "destructive"}
+                          className="gap-1 text-xs"
+                        >
+                          {result.qc.passed ? (
+                            <><CheckCircle2 className="h-3 w-3" /> QC Pass ({result.qc.score}/100)</>
+                          ) : (
+                            <><AlertTriangle className="h-3 w-3" /> QC Fail ({result.qc.score}/100)</>
+                          )}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
+                  {result.qc && !result.qc.passed && result.qc.issues.length > 0 && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-2">QC Issues</p>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {result.qc.issues.map((issue, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                              {issue}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
                   {result.caption && (
                     <Card>
                       <CardContent className="pt-4">
