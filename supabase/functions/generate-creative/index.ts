@@ -597,14 +597,31 @@ serve(async (req) => {
       await supabase.from("generations").update({ layout_guide: JSON.stringify(framework) }).eq("id", generationId);
     }
 
-    // Step 2: Generate
-    console.log("Step 2: Generating creative...");
+    // Step 2: Adapt to brand
+    console.log("Step 2: Adapting to brand...");
+    await supabase.from("generations").update({ status: "adapting" }).eq("id", generationId);
+
+    let directive: CreativeDirective;
+    try {
+      directive = await adaptToBrand(framework, brand, spec, LOVABLE_API_KEY);
+      console.log("Directive:", JSON.stringify(directive));
+    } catch (err) {
+      console.error("Adaptation failed:", err);
+      await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+      return new Response(
+        JSON.stringify({ error: "Failed to adapt reference to your brand" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Step 3: Generate
+    console.log("Step 3: Generating creative...");
     await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
     let imageBase64: string;
     let captionText: string;
     try {
-      const result = await generateCreative(framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
+      const result = await generateCreative(framework, directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
     } catch (err: any) {
