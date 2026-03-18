@@ -445,49 +445,20 @@ async function generateCreative(
   brandAssets: any[],
   referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
-  apiKey: string
+  apiKey: string,
+  refinedBrief?: RefinedBrief | null
 ): Promise<{ imageBase64: string; captionText: string }> {
   const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
     ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
     : "";
 
-  const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
-
-  // Extract rendered brief from structured JSON envelope if present
-  let rawBrief = brand.brand_brief || "";
-  try {
-    const parsed = JSON.parse(rawBrief);
-    if (parsed?._structured && parsed?._rendered) {
-      rawBrief = parsed._rendered;
-    }
-  } catch {
-    // legacy plain text — use as-is
-  }
-  const brandBrief = toCompactText(rawBrief, 3000);
-
-  const brandContext = [
-    `Brand Name: ${brand.name}`,
-    `Primary Color: ${brand.primary_color}`,
-    `Secondary Color: ${brand.secondary_color}`,
-    extraColorsText,
-    brandVoice ? `Tone & Audience: ${brandVoice}` : "",
-    negativePrompts ? `STRICT EXCLUSIONS (never include these): ${negativePrompts}` : "",
-    brandBrief ? `Brand Guidelines & Brief: ${brandBrief}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
 
   const selectedAssets = brandAssets.slice(0, 5);
   const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
   const hasAssets = selectedAssets.length > 0;
-  const assetDescriptions = selectedAssets
-    .map((a: any, i: number) => `  - Image ${i + 1}: ${a.label || "Brand asset"}`)
-    .join("\n");
 
-  // Use full framework for higher fidelity
   const frameworkJson = JSON.stringify(framework, null, 2);
-
   const aspectRatioLabel = `${spec.ratio} (${spec.width}×${spec.height})`;
 
   // Categorize assets by label for intelligent placement
@@ -499,137 +470,117 @@ async function generateCreative(
   );
 
   const assetRoleDescriptions = [
-    ...logoAssets.map((a: any, i: number) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone. Adjust contrast for readability (see LOGO CONTRAST rules).`),
-    ...architectureAssets.map((a: any, i: number) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Use as hero visual. You MAY creatively adjust lighting, angle, and atmosphere (see 3D RENDER rules).`),
-    ...heroAssets.map((a: any, i: number) => `  🖼️ HERO/LIFESTYLE: "${a.label || "Visual"}" — Use as primary or secondary visual in the layout.`),
-    ...otherAssets.map((a: any, i: number) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
+    ...logoAssets.map((a: any) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone. Adjust contrast for readability.`),
+    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Use as hero visual. Preserve architecture, enhance lighting/angle/atmosphere.`),
+    ...heroAssets.map((a: any) => `  🖼️ HERO/LIFESTYLE: "${a.label || "Visual"}" — Use as primary or secondary visual.`),
+    ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
   ].join("\n");
 
-  const systemPrompt = `You are an elite creative director at a top-tier advertising agency. You produce award-winning, publication-ready advertisements that win Cannes Lions and D&AD Pencils.
+  // Build the system prompt — if we have a refined brief, use it for focused, specific instructions
+  const refinedBlock = refinedBrief ? `
+══════════════════════════════════════════
+🎯 CREATIVE DIRECTION (from Creative Director review)
+══════════════════════════════════════════
+The following has been pre-approved by the Creative Director. Follow these EXACTLY:
+
+HEADLINE (render this text VERBATIM, large and bold):
+"${refinedBrief.headline}"
+
+SUB-COPY (render this text VERBATIM, medium size):
+"${refinedBrief.subCopy}"
+
+CTA / CONTACT (render this text VERBATIM, small, bottom zone):
+"${refinedBrief.ctaText}"
+
+VISUAL DIRECTION:
+${refinedBrief.visualDirection}
+
+COLOR STRATEGY:
+${refinedBrief.colorStrategy}
+
+LAYOUT ADAPTATION:
+${refinedBrief.layoutNotes}
+
+${refinedBrief.warnings.length > 0 ? `⚠️ WARNINGS TO ADDRESS:\n${refinedBrief.warnings.map((w, i) => `${i + 1}. ${w}`).join("\n")}` : ""}
+
+IMPORTANT: The headline, sub-copy, and CTA text above are FINAL — render them EXACTLY as written. Do NOT improvise or change the wording.
+` : "";
+
+  const systemPrompt = `You are an elite creative director at a top-tier advertising agency. You produce award-winning, publication-ready advertisements.
 
 ══════════════════════════════════════════
 ABSOLUTE OUTPUT FORMAT REQUIREMENT
 ══════════════════════════════════════════
 The generated image MUST be exactly ${spec.width}×${spec.height} pixels — a ${aspectRatioLabel} format.
-${spec.width === spec.height ? "The image MUST be perfectly SQUARE. Equal width and height. NOT landscape, NOT portrait. SQUARE." : ""}
-${spec.height > spec.width ? "The image MUST be TALL/VERTICAL (portrait orientation). Height is greater than width." : ""}
-${spec.width > spec.height ? "The image MUST be WIDE (landscape orientation). Width is greater than height." : ""}
-DO NOT generate an image in any other aspect ratio. This is non-negotiable.
+${spec.width === spec.height ? "The image MUST be perfectly SQUARE." : ""}
+${spec.height > spec.width ? "The image MUST be TALL/VERTICAL (portrait orientation)." : ""}
+${spec.width > spec.height ? "The image MUST be WIDE (landscape orientation)." : ""}
+DO NOT generate an image in any other aspect ratio.
 
 ══════════════════════════════════════════
-🎨 LOGO CONTRAST & READABILITY — CRITICAL
+🎨 LOGO CONTRAST & READABILITY
 ══════════════════════════════════════════
-The logo MUST always be clearly visible and readable against its background:
-- On DARK backgrounds (dark photos, dark gradients, dark colors): Use a WHITE or LIGHT version of the logo. If only a dark logo is provided, place it on a light panel/strip or add a subtle light backing.
-- On LIGHT backgrounds: Use the logo as-is or in dark form.
-- On BUSY/PHOTOGRAPHIC backgrounds: Place the logo in a clear zone with a semi-transparent backing panel, solid color strip, or adequate padding from complex imagery.
-- The logo must NEVER blend into or get lost against the background.
-- Ensure minimum contrast ratio for professional readability.
-- If the brand has both light and dark color variants, choose the one that contrasts best.
-
+- On DARK backgrounds: Use WHITE/LIGHT logo or add light backing panel
+- On LIGHT backgrounds: Use logo as-is or dark form
+- On BUSY backgrounds: Place logo in clear zone with backing panel
+- Logo must NEVER blend into background
+${refinedBlock}
 ══════════════════════════════════════════
-🏗️ 3D ARCHITECTURAL RENDERS — CREATIVE FREEDOM
+🏗️ 3D RENDERS — CREATIVE FREEDOM
 ══════════════════════════════════════════
-3D renders (buildings, elevations, facades, interiors) are REFERENCE MATERIAL showing the project's design:
-- You MUST preserve the EXACT architecture: building shape, facade design, rooflines, structural proportions, materials, window patterns, floor counts.
-- You MAY and SHOULD creatively enhance:
-  • LIGHTING: Golden hour, dramatic twilight, night illumination, dawn light — choose what works best for the creative's mood
-  • ANGLE/PERSPECTIVE: Show from a different viewpoint if it creates a more compelling composition — aerial, street-level, 3/4 view, dramatic low angle
-  • ATMOSPHERE: Add environmental context — city streetscape, landscaping, sky drama, reflections, people/life
-  • CROPPING: Focus on the most visually striking portion of the building
-- The goal is to make the architecture look ASPIRATIONAL and PREMIUM while keeping it architecturally accurate
-- Think of it as a render artist re-rendering the same building with better art direction
+- MUST preserve EXACT architecture (shape, facade, proportions)
+- MAY enhance: lighting, angle, atmosphere, cropping
+- Goal: aspirational and premium
 
 ══════════════════════════════════════════
 🔒 LOGO & PRODUCT ASSET FIDELITY
 ══════════════════════════════════════════
-For LOGOS, PRODUCT PHOTOS, and MASCOTS (NOT 3D renders):
-- NEVER redraw, reimagine, recreate, or stylize these assets
-- Place them EXACTLY as provided — same proportions, same details
-- Only adjust: size/scale to fit layout, and contrast adaptation (light/dark version)
-- These are the literal brand marks — pixel-perfect fidelity required
+- NEVER redraw/reimagine logos, products, mascots
+- Place EXACTLY as provided — only adjust size and contrast
 
 ══════════════════════════════════════════
-📐 PROFESSIONAL DESIGN QUALITY STANDARDS
+📐 QUALITY STANDARDS
 ══════════════════════════════════════════
-Every creative must meet these professional standards:
-
-COMPOSITION:
-- Clear visual hierarchy: Eye should flow naturally from hero → headline → supporting info → CTA
-- The hero visual (3D render, product, lifestyle image) should occupy 50-70% of the canvas
-- Important parts of the hero image must NEVER be obscured by text overlays or other elements
-- Use the rule of thirds for element placement
-- Intentional negative space — white space is a design element, not wasted space
-
-TYPOGRAPHY & COPY:
-- Headline: Maximum 6-8 words. Punchy, memorable, benefit-driven. Large, bold, impossible to miss.
-- Sub-copy: Maximum 15-20 words. One supporting sentence. Medium size.
-- CTA/Contact: Small, clean, bottom zone. Phone, website, or action.
-- ALL text must be LEGIBLE — proper size, proper contrast, proper spacing
-- Never stack more than 3 levels of text hierarchy
-- Text should NEVER overlap with critical parts of imagery (faces, architectural details, product features)
-
-COLOR:
-- Use brand primary color for dominant elements (backgrounds, headlines, accent strips)
-- Use brand secondary color for supporting elements (sub-copy, borders, secondary panels)
-- Maintain professional color harmony — don't use ALL brand colors everywhere
-- Background color choices should complement the hero imagery
-
-LAYOUT ZONES (each appears EXACTLY ONCE):
-1. HERO ZONE (50-70%): One dominant visual — the 3D render, product shot, or lifestyle image
-2. BRAND MARK: Logo appears ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline, large and bold
-4. SUPPORTING COPY: Brief sub-copy or tagline
-5. INFO BAR: Contact/CTA/location — compact, bottom or side strip
-6. NEGATIVE SPACE: Breathing room between elements — do NOT fill every pixel
-
-DEDUPLICATION:
-- If the logo contains the brand name, do NOT repeat the brand name as separate text
-- Location appears ONCE (not in headline AND info bar)
-- Price/offer appears ONCE
-- Contact info appears ONCE
+- Clear visual hierarchy: hero → headline → supporting → CTA
+- Hero visual: 50-70% of canvas, never obscured by text
+- ALL text must be LEGIBLE with proper contrast
+- No element duplication (logo, name, location, price)
+- Intentional negative space
 
 ══════════════════════════════════════════
-📋 BRAND GUIDELINES — MANDATORY RULES
+📋 BRAND CONTEXT
 ══════════════════════════════════════════
-The following brand guidelines are NOT suggestions — they are MANDATORY rules that MUST be followed in every creative without exception:
-
-${brandContext}
-
-${brandBrief ? `\nThe Brand Brief above contains specific instructions about visual style, messaging, target audience, and mandatory/forbidden elements. Treat EVERY instruction in the brief as a hard requirement. Examples of copy in the brief are for TONE REFERENCE ONLY — generate original copy, never copy verbatim.` : ""}
-${negativePrompts ? `\n⛔ STRICT EXCLUSIONS — The following must NEVER appear in any creative:\n${negativePrompts}` : ""}
+Brand Name: ${brand.name}
+Primary Color: ${brand.primary_color}
+Secondary Color: ${brand.secondary_color}
+${extraColorsText}
+${negativePrompts ? `⛔ EXCLUSIONS: ${negativePrompts}` : ""}
 
 ══════════════════════════════════════════
-DESIGN FRAMEWORK (from reference analysis)
+DESIGN FRAMEWORK
 ══════════════════════════════════════════
-Follow this layout structure as a guide, adapting it to the brand:
 ${frameworkJson}
 
 ${hasAssets ? `══════════════════════════════════════════
-BRAND ASSETS PROVIDED (${selectedAssets.length} images)
+BRAND ASSETS (${selectedAssets.length} images)
 ══════════════════════════════════════════
 ${assetRoleDescriptions}${omittedAssetsCount > 0 ? `\n(${omittedAssetsCount} additional asset(s) omitted)` : ""}
-
-The FIRST image is the REFERENCE advertisement (for layout/composition inspiration only).
-Images 2+ are OFFICIAL BRAND ASSETS — use them according to their role described above.` : `No brand assets provided. Use "${brand.name}" as prominent text with brand colors.`}
+The FIRST image is the REFERENCE (layout inspiration only). Images 2+ are OFFICIAL BRAND ASSETS.` : `No brand assets provided. Use "${brand.name}" as prominent text with brand colors.`}
 
 ══════════════════════════════════════════
-GENERATION CHECKLIST
+CHECKLIST
 ══════════════════════════════════════════
-Before generating, mentally verify:
-✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${spec.ratio} aspect ratio)
-✅ The canvas aspect ratio is exactly ${spec.ratio} — verify that width/height = ${spec.width}/${spec.height}
-✅ Hero visual occupies 50-70% and its important features are fully visible
-✅ Logo is clearly visible with proper contrast against its background
-✅ Headline is ≤8 words, large, bold, original (not from brief examples)
-✅ Sub-copy is ≤20 words, supporting the headline
-✅ No element is duplicated (logo, brand name, location, price)
-✅ Text never obscures critical parts of imagery
-✅ Brand colors are applied: ${brand.primary_color} primary, ${brand.secondary_color} secondary
-✅ All brand brief mandatory rules are followed
-✅ All negative prompts / exclusions are respected
-✅ Intentional negative space exists — layout breathes
-✅ Professional, premium quality — worthy of a print magazine
+✅ Output is EXACTLY ${spec.width}×${spec.height} (${spec.ratio})
+✅ Hero visual 50-70%, fully visible
+✅ Logo clearly visible with proper contrast
+${refinedBrief ? `✅ Headline: "${refinedBrief.headline}" — rendered VERBATIM
+✅ Sub-copy: "${refinedBrief.subCopy}" — rendered VERBATIM
+✅ CTA: "${refinedBrief.ctaText}" — rendered VERBATIM` : `✅ Headline ≤8 words, bold, original
+✅ Sub-copy ≤20 words
+✅ CTA clean and actionable`}
+✅ Brand colors applied: ${brand.primary_color} primary, ${brand.secondary_color} secondary
+✅ No duplicated elements
+✅ Professional, premium quality
 
 Generate the brand-aligned creative image now.`;
 
