@@ -646,8 +646,8 @@ serve(async (req) => {
       });
     }
 
-    // Step 3: Advisory QC (non-blocking)
-    console.log("Step 3: Running advisory QC...");
+    // Step 4: Advisory QC (non-blocking)
+    console.log("Step 4: Running advisory QC...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
     const qcResult = await advisoryQC(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
