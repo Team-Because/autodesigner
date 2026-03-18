@@ -204,16 +204,17 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 2: Adapt to brand ───
+// ─── Step 2: Adapt concept to brand ───
 
 interface CreativeDirective {
+  concept: string;
   headline: string;
   subCopy: string;
   ctaText: string;
   logoPlacement: string;
   colorMap: { background: string; accent: string; text: string; cta: string };
   heroDescription: string;
-  layoutAdaptation: string;
+  compositionGuide: string;
   warnings: string[];
 }
 
