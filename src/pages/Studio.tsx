@@ -505,20 +505,6 @@ export default function Studio() {
                 <div className="w-full space-y-4">
                   <div className="rounded-2xl overflow-hidden border border-border/30 relative shadow-lg">
                     <img src={result.imageUrl} alt="Generated creative" className="w-full" />
-                    {result.qc && (
-                      <div className="absolute top-3 right-3">
-                        <Badge
-                          variant={result.qc.score >= 70 ? "default" : "destructive"}
-                          className="gap-1 text-xs rounded-lg"
-                        >
-                          {result.qc.score >= 70 ? (
-                            <><CheckCircle2 className="h-3 w-3" /> QC {result.qc.score}/100</>
-                          ) : (
-                            <><AlertTriangle className="h-3 w-3" /> QC {result.qc.score}/100</>
-                          )}
-                        </Badge>
-                      </div>
-                    )}
                   </div>
                   {result.caption && (
                     <Card className="glass-card">
