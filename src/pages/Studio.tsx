@@ -62,6 +62,20 @@ export default function Studio() {
     enabled: !!user,
   });
 
+  const { data: credits, refetch: refetchCredits } = useQuery({
+    queryKey: ["user-credits"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_credits")
+        .select("credits_remaining, credits_used")
+        .eq("user_id", user!.id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
