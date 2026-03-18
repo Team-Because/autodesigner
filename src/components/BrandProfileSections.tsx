@@ -17,65 +17,65 @@ const FIELDS: {
   {
     key: "brandIdentity",
     label: "Brand Identity",
-    hint: "Who you are, what you do, and what makes you different.",
+    hint: "Who you are, what you do, and what makes you unique. This sets the AI's understanding of your brand.",
     placeholder:
-      "Premium pre-school chain for ages 2–6.\nFocused on play-based, Montessori-inspired learning.\nDifferentiators: 25+ years legacy, 200+ centres, bilingual curriculum.",
+      "Premium frozen snacks brand.\nProducts: Samosas, Spring Rolls, Momos.\nKnown for: authentic taste, ready in 3 minutes, no preservatives.",
     rows: 4,
   },
   {
     key: "mustInclude",
     label: "Must-Include Elements",
-    hint: "Text that MUST appear on every creative — brand name, tagline, CTA, contact, legal.",
+    hint: "Text that MUST appear on every creative. The AI will include these verbatim.",
     placeholder:
-      'Brand Name: Shanti Juniors\nTagline: "Where Learning Meets Joy"\nCTA: Admissions Open | Enrol Now\nContact: +91 98xxx xxxxx | www.example.com\nLegal: CBSE Affiliated',
-    rows: 5,
+      'Brand Name: Meevaa Foods\nTagline: "Taste of Home"\nCTA: Order Now | Link in bio\nContact: www.meevaafoods.com',
+    rows: 4,
   },
   {
     key: "visualDirection",
     label: "Visual Direction",
-    hint: "Mood, lighting, photography style, layout preferences, textures — everything visual.",
+    hint: "Describe the look and feel you want. Be specific — this directly guides the AI's visual choices.",
     placeholder:
-      "Mood: Warm, joyful, premium\nLighting: Bright natural light, soft shadows\nPhotography: Real children, candid play moments\nLayout: Clean with generous whitespace, headline > subtext > CTA hierarchy\nTextures: Subtle watercolor washes allowed, no heavy patterns",
+      "Mood: Warm, appetizing, casual premium\nFood is always the hero — drool-worthy close-ups, steam/texture visible\nLighting: Bright, warm, natural\nLayout: Clean, not cluttered. Food dominates 50-70% of the frame.",
     rows: 5,
   },
   {
     key: "voiceAndTone",
     label: "Voice & Tone",
-    hint: "How the brand speaks, who it speaks to, desired emotional response, key phrases.",
+    hint: "How the brand speaks. The AI uses this to write headlines, taglines, and copy.",
     placeholder:
-      "Voice: Warm, trustworthy, aspirational, clear\nAudience: Parents aged 25–40, urban, education-focused\nDesired response: Confident and reassured\nUse: Future-ready, nurturing, growth\nAvoid: Guaranteed results, #1 in the world",
-    rows: 5,
+      "Voice: Friendly, relatable, slightly playful\nAudience: Young professionals, 25-40, urban foodies\nUse short punchy lines, not corporate speak\nAvoid: Overly formal language, health claims",
+    rows: 4,
   },
   {
     key: "dos",
     label: "Do's — Always",
-    hint: "What to always do — both visual and content rules.",
+    hint: "Positive rules the AI should always follow. Think of these as creative reinforcements.",
     placeholder:
-      "- Use warm, natural lighting in every visual\n- Maintain premium composition with clear focal point\n- Always include the grade/age range\n- Use approved CTAs only",
+      "- Always show the food looking appetizing and freshly prepared\n- Use brand colors prominently\n- Keep the logo clearly visible\n- Include the product name in the headline",
     rows: 4,
   },
   {
     key: "donts",
     label: "Don'ts — Never",
-    hint: "What to never do — these become strict negative constraints for the AI.",
+    hint: "Hard exclusions. The AI treats these as strict negative constraints.",
     placeholder:
-      "- No generic stock photos or clip art\n- No overcrowded layouts\n- Never use fear-based urgency\n- No exaggerated claims or superlatives",
+      "- No generic stock photos\n- No cluttered layouts with too many elements\n- Never use fear-based or aggressive urgency\n- No text that's hard to read against the background",
     rows: 4,
   },
   {
     key: "colorNotes",
     label: "Color Usage Notes",
-    hint: "Rules beyond hex codes — when to use which color, restrictions.",
+    hint: "Rules beyond hex codes — when and how to use your colors.",
     placeholder:
-      'Red only for sale campaigns, never as primary background.\nGold accent for premium communications only.',
+      "Red (#D32F2F) for accents and CTAs only, never as full background.\nCream (#FFF5E1) as secondary — use for text panels or backgrounds.\nWhite text on dark overlays for readability.",
     rows: 3,
   },
   {
     key: "referenceNotes",
     label: "Additional Notes",
-    hint: "Anything else — asset rules, seasonal guidelines, special instructions.",
+    hint: "Anything else — seasonal rules, asset handling, special instructions.",
     placeholder:
-      'Logo must never be stretched. Product photos maintain original proportions.\nDuring festival season, incorporate traditional motifs subtly.',
+      "Logo must never be stretched or recolored.\nDuring festivals, subtle traditional motifs are OK.\nProduct packaging shots should match actual pack design.",
     rows: 3,
   },
 ];
