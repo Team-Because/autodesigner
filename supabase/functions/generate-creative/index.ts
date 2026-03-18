@@ -235,24 +235,24 @@ async function adaptToBrand(
       messages: [
         {
           role: "system",
-          content: `You are a creative strategist. You receive a design framework from a reference ad, the reference image itself, and a brand's full context. Produce a precise Creative Directive that an image-generation model will follow verbatim.
+          content: `You are a creative strategist. You receive a reference ad (image + extracted framework) and a brand's full context. Your job is to understand the CONCEPT and IDEA behind the reference ad, then reimagine it entirely for the given brand.
 
-Your job:
-1. Study the reference image's visual approach (composition, lighting, mood, hero placement) and map it to this brand.
-2. Map the reference layout zones to this brand's elements (logo, product, copy).
-3. Write the EXACT text strings (headline, sub-copy, CTA) — use the brand's mandatory elements and campaign lines verbatim.
-4. Assign brand colors to specific zones.
-5. Describe the hero visual specifically for this brand's products — keep the reference's visual style (angle, lighting, mood) but swap to the brand's product.
-6. Explain how to adapt the layout to ${spec.ratio} (${spec.label}).
+DO NOT copy the reference's visuals, fonts, imagery, or layout literally. Instead:
+1. Identify the CONCEPT — what is the creative idea? (e.g., "hunger strikes at inconvenient moments", "speed as a lifestyle", "comfort food nostalgia")
+2. Understand the MOOD and EMOTIONAL APPROACH — is it playful, dramatic, warm, bold?
+3. Then CREATE A COMPLETELY NEW VISUAL CONCEPT for this brand that captures the same idea but uses the brand's own products, colors, visual style, and voice.
+4. Write the EXACT text strings (headline, sub-copy, CTA) — if the brand has MUST-INCLUDE elements or campaign lines, use those EXACTLY as written. Do not rephrase mandatory elements.
+5. Describe the hero visual in rich detail — this must be the brand's own product, shot in the brand's visual style, NOT a recreation of the reference image.
+6. Describe composition for a ${spec.ratio} (${spec.label}) format.
 
-CRITICAL: If the brand context includes MUST-INCLUDE elements (campaign line, tagline, CTA), use them EXACTLY as written. Do not rephrase.`,
+The output must feel like a BRAND-NATIVE ad that was inspired by the same creative concept, NOT a copy of the reference with a logo swap.`,
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `DESIGN FRAMEWORK (from reference):
+              text: `REFERENCE AD FRAMEWORK (extracted concept):
 ${JSON.stringify(framework, null, 2)}
 
 BRAND CONTEXT:
@@ -260,7 +260,7 @@ ${brandContext}
 
 OUTPUT FORMAT: ${spec.ratio} (${spec.width}×${spec.height})
 
-Produce the Creative Directive now.`,
+Study the reference image below. Understand its concept and idea. Then create a directive that reimagines this concept entirely for the brand above.`,
             },
             { type: "image_url", image_url: { url: referenceImageUrl } },
           ],
