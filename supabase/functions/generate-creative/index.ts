@@ -204,16 +204,17 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 2: Adapt to brand ───
+// ─── Step 2: Adapt concept to brand ───
 
 interface CreativeDirective {
+  concept: string;
   headline: string;
   subCopy: string;
   ctaText: string;
   logoPlacement: string;
   colorMap: { background: string; accent: string; text: string; cta: string };
   heroDescription: string;
-  layoutAdaptation: string;
+  compositionGuide: string;
   warnings: string[];
 }
 
@@ -234,24 +235,24 @@ async function adaptToBrand(
       messages: [
         {
           role: "system",
-          content: `You are a creative strategist. You receive a design framework from a reference ad, the reference image itself, and a brand's full context. Produce a precise Creative Directive that an image-generation model will follow verbatim.
+          content: `You are a creative strategist. You receive a reference ad (image + extracted framework) and a brand's full context. Your job is to understand the CONCEPT and IDEA behind the reference ad, then reimagine it entirely for the given brand.
 
-Your job:
-1. Study the reference image's visual approach (composition, lighting, mood, hero placement) and map it to this brand.
-2. Map the reference layout zones to this brand's elements (logo, product, copy).
-3. Write the EXACT text strings (headline, sub-copy, CTA) — use the brand's mandatory elements and campaign lines verbatim.
-4. Assign brand colors to specific zones.
-5. Describe the hero visual specifically for this brand's products — keep the reference's visual style (angle, lighting, mood) but swap to the brand's product.
-6. Explain how to adapt the layout to ${spec.ratio} (${spec.label}).
+DO NOT copy the reference's visuals, fonts, imagery, or layout literally. Instead:
+1. Identify the CONCEPT — what is the creative idea? (e.g., "hunger strikes at inconvenient moments", "speed as a lifestyle", "comfort food nostalgia")
+2. Understand the MOOD and EMOTIONAL APPROACH — is it playful, dramatic, warm, bold?
+3. Then CREATE A COMPLETELY NEW VISUAL CONCEPT for this brand that captures the same idea but uses the brand's own products, colors, visual style, and voice.
+4. Write the EXACT text strings (headline, sub-copy, CTA) — if the brand has MUST-INCLUDE elements or campaign lines, use those EXACTLY as written. Do not rephrase mandatory elements.
+5. Describe the hero visual in rich detail — this must be the brand's own product, shot in the brand's visual style, NOT a recreation of the reference image.
+6. Describe composition for a ${spec.ratio} (${spec.label}) format.
 
-CRITICAL: If the brand context includes MUST-INCLUDE elements (campaign line, tagline, CTA), use them EXACTLY as written. Do not rephrase.`,
+The output must feel like a BRAND-NATIVE ad that was inspired by the same creative concept, NOT a copy of the reference with a logo swap.`,
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `DESIGN FRAMEWORK (from reference):
+              text: `REFERENCE AD FRAMEWORK (extracted concept):
 ${JSON.stringify(framework, null, 2)}
 
 BRAND CONTEXT:
@@ -259,7 +260,7 @@ ${brandContext}
 
 OUTPUT FORMAT: ${spec.ratio} (${spec.width}×${spec.height})
 
-Produce the Creative Directive now.`,
+Study the reference image below. Understand its concept and idea. Then create a directive that reimagines this concept entirely for the brand above.`,
             },
             { type: "image_url", image_url: { url: referenceImageUrl } },
           ],
@@ -274,26 +275,27 @@ Produce the Creative Directive now.`,
             parameters: {
               type: "object",
               properties: {
-                headline: { type: "string", description: "Exact headline text, ≤8 words" },
-                subCopy: { type: "string", description: "Exact supporting text, ≤15 words" },
-                ctaText: { type: "string", description: "Exact CTA text (e.g., 'Order Now', 'Shop Today')" },
+                concept: { type: "string", description: "The core creative concept extracted from the reference, in one sentence (e.g., 'Hunger strikes when you least expect it — your snack saves the day')" },
+                headline: { type: "string", description: "Exact headline text for this brand, ≤8 words. Use brand's campaign line if available." },
+                subCopy: { type: "string", description: "Exact supporting text, ≤15 words. Use brand's mandatory elements." },
+                ctaText: { type: "string", description: "Exact CTA text from brand's must-include elements" },
                 logoPlacement: { type: "string", description: "Where and how big the logo should be (e.g., 'top-left, small')" },
                 colorMap: {
                   type: "object",
                   properties: {
-                    background: { type: "string", description: "Hex color for main background" },
-                    accent: { type: "string", description: "Hex color for accents/highlights" },
+                    background: { type: "string", description: "Hex color for main background from brand palette" },
+                    accent: { type: "string", description: "Hex color for accents from brand palette" },
                     text: { type: "string", description: "Hex color for main text" },
-                    cta: { type: "string", description: "Hex color for CTA button/banner" },
+                    cta: { type: "string", description: "Hex color for CTA from brand palette" },
                   },
                   required: ["background", "accent", "text", "cta"],
                   additionalProperties: false,
                 },
-                heroDescription: { type: "string", description: "What the main visual should show — specific product, angle, lighting, mood. Reference the style from the original image." },
-                layoutAdaptation: { type: "string", description: "How to adapt the reference layout to the target aspect ratio" },
+                heroDescription: { type: "string", description: "Detailed description of the NEW hero visual — brand's own product, shot in brand's visual style. Must NOT describe the reference image. Include: product name, angle, lighting, texture, mood, props, setting." },
+                compositionGuide: { type: "string", description: "Layout composition for the target aspect ratio — where headline, hero, CTA, and logo sit. Describe zones and proportions." },
                 warnings: { type: "array", items: { type: "string" }, description: "Any conflicts or concerns" },
               },
-              required: ["headline", "subCopy", "ctaText", "logoPlacement", "colorMap", "heroDescription", "layoutAdaptation", "warnings"],
+              required: ["concept", "headline", "subCopy", "ctaText", "logoPlacement", "colorMap", "heroDescription", "compositionGuide", "warnings"],
               additionalProperties: false,
             },
           },
@@ -316,13 +318,12 @@ Produce the Creative Directive now.`,
   return JSON.parse(toolCall.function.arguments);
 }
 
-// ─── Step 3: Generate the creative (simplified, visual-first prompt) ───
+// ─── Step 3: Generate the creative (concept-driven, NO reference image) ───
 
 async function generateCreative(
   directive: CreativeDirective,
   brand: any,
   brandAssets: any[],
-  referenceImageUrl: string,
   spec: { width: number; height: number; label: string; ratio: string },
   apiKey: string
 ): Promise<{ imageBase64: string; captionText: string }> {
@@ -337,13 +338,17 @@ async function generateCreative(
 
   const orientationHint = spec.height > spec.width ? "VERTICAL (portrait)" : spec.width > spec.height ? "HORIZONTAL (landscape)" : "perfectly SQUARE";
 
-  // Short, visual-first prompt — what image models respond to best
+  // Concept-driven prompt — no reference image, purely from directive
   const systemPrompt = `Create a ${spec.ratio} ${orientationHint} advertisement (${spec.width}×${spec.height}).
 
-VISUAL: ${directive.heroDescription}
-The hero visual fills 50-70% of the canvas. ${directive.layoutAdaptation}
+CONCEPT: ${directive.concept}
 
-BACKGROUND: ${directive.colorMap.background}. Accent: ${directive.colorMap.accent}.
+HERO VISUAL: ${directive.heroDescription}
+The hero visual fills 50-70% of the canvas.
+
+COMPOSITION: ${directive.compositionGuide}
+
+COLORS: Background ${directive.colorMap.background}, Accent ${directive.colorMap.accent}.
 
 TEXT (render exactly as written, legible, high contrast):
 • Headline: "${directive.headline}" — large, bold, ${directive.colorMap.text}
@@ -352,13 +357,13 @@ TEXT (render exactly as written, legible, high contrast):
 
 LOGO: ${directive.logoPlacement}${hasAssets ? ". Use the provided brand logo/assets exactly — do not redraw them." : `. Show "${brand.name}" as text.`}
 
-First image = layout reference (copy composition only, not its text/branding). ${hasAssets ? "Images 2+ = brand assets to use as-is." : ""}`;
+This must be an ORIGINAL creative. Do not copy any existing ad. Create fresh imagery based on the concept and hero description above.`;
 
   const userContent: any[] = [
-    { type: "text", text: `Generate this ${spec.ratio} ad now.` },
-    { type: "image_url", image_url: { url: referenceImageUrl } },
+    { type: "text", text: `Generate this ${spec.ratio} ad now. Create original imagery — do not replicate any existing advertisement.` },
   ];
 
+  // Only brand assets — NO reference image
   for (const asset of selectedAssets) {
     userContent.push({ type: "image_url", image_url: { url: (asset as any).image_url } });
   }
@@ -640,7 +645,7 @@ serve(async (req) => {
     let imageBase64: string;
     let captionText: string;
     try {
-      const result = await generateCreative(directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
+      const result = await generateCreative(directive, brand, brandAssets, spec, LOVABLE_API_KEY);
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
     } catch (err: any) {
