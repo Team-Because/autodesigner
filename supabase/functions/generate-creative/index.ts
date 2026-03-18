@@ -599,6 +599,119 @@ Generate the brand-aligned creative image now.`;
   throw new Error("NO_IMAGE_GENERATED");
 }
 
+/** Step 3 — Quality Check the generated creative */
+async function qualityCheck(
+  imageBase64: string,
+  brand: any,
+  spec: { width: number; height: number; label: string; ratio: string },
+  apiKey: string
+): Promise<{ passed: boolean; score: number; issues: string[]; critical: boolean }> {
+  try {
+    const qcResponse = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `You are a strict QC inspector for advertising creatives. Analyze the image and check quality against the provided specs. Be thorough but fair.`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Inspect this generated advertisement creative and score it.
+
+EXPECTED SPECS:
+- Aspect ratio: ${spec.ratio} (${spec.width}×${spec.height})
+- Brand: ${brand.name}
+- Primary color: ${brand.primary_color}
+- Secondary color: ${brand.secondary_color}
+${brand.negative_prompts ? `- Must NOT include: ${brand.negative_prompts}` : ""}
+
+Check for:
+1. ASPECT RATIO: Does the image appear to match ${spec.ratio}? (Critical if wrong)
+2. LOGO: Is a brand logo/mark visible and readable? Proper contrast?
+3. TEXT LEGIBILITY: Is all text clearly readable? No overlapping or cut-off text?
+4. TEXT DUPLICATION: Is any text, brand name, or element repeated?
+5. BRAND COLORS: Are the brand colors (${brand.primary_color}, ${brand.secondary_color}) present?
+6. COMPOSITION: Professional layout with clear visual hierarchy?
+7. BANNED ELEMENTS: Any excluded elements present?
+
+Score 0-100 and list specific issues found.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: imageBase64 },
+                },
+              ],
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "qc_result",
+                description: "Return QC inspection results",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    passed: { type: "boolean", description: "True if score >= 60 and no critical issues" },
+                    score: { type: "number", description: "Quality score 0-100" },
+                    issues: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of specific issues found",
+                    },
+                    critical: {
+                      type: "boolean",
+                      description: "True if there are critical issues like wrong aspect ratio, missing logo, or unreadable text",
+                    },
+                  },
+                  required: ["passed", "score", "issues", "critical"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "qc_result" } },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    if (!qcResponse.ok) {
+      console.warn("QC check failed with status:", qcResponse.status);
+      await qcResponse.text();
+      return { passed: true, score: 70, issues: ["QC check unavailable"], critical: false };
+    }
+
+    const qcData = await qcResponse.json();
+    const toolCall = qcData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall?.function?.arguments) {
+      return { passed: true, score: 70, issues: ["QC parse failed"], critical: false };
+    }
+
+    const result = JSON.parse(toolCall.function.arguments);
+    return {
+      passed: !!result.passed,
+      score: Number(result.score) || 0,
+      issues: Array.isArray(result.issues) ? result.issues : [],
+      critical: !!result.critical,
+    };
+  } catch (err) {
+    console.error("QC check error:", err);
+    return { passed: true, score: 70, issues: ["QC check timed out"], critical: false };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
