@@ -223,6 +223,7 @@ export default function History() {
             const cw = getCopywriting(g);
             const displayStatus = getDisplayStatus(g);
             const displayImage = getDisplayImage(g);
+            const qc = getQcResult(g);
             return (
               <Card
                 key={g.id}
