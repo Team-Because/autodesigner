@@ -9,7 +9,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import Dashboard from "@/pages/Dashboard";
 import BrandHub from "@/pages/BrandHub";
 import BrandForm from "@/pages/BrandForm";
-import CampaignForm from "@/pages/CampaignForm";
+
 import Studio from "@/pages/Studio";
 import History from "@/pages/History";
 import Login from "@/pages/Login";
@@ -37,8 +37,6 @@ const App = () => (
               <Route path="/brands" element={<BrandHub />} />
               <Route path="/brands/:id" element={<BrandForm />} />
               <Route path="/brands/:id/edit" element={<BrandForm />} />
-              <Route path="/brands/:brandId/campaigns/new" element={<CampaignForm />} />
-              <Route path="/brands/:brandId/campaigns/:campaignId/edit" element={<CampaignForm />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/history" element={<History />} />
             </Route>

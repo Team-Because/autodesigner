@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, Pencil, Archive, Megaphone } from "lucide-react";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -71,21 +71,6 @@ export default function BrandForm() {
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-
-  // Campaigns query
-  const { data: campaigns = [] } = useQuery({
-    queryKey: ["campaigns", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("brand_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!isEditing,
-  });
 
   useEffect(() => {
     if (isEditing) {
@@ -197,16 +182,6 @@ export default function BrandForm() {
     setExtraColors((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleArchiveCampaign = async (campaignId: string) => {
-    const { error } = await supabase.from("campaigns").update({ status: "archived" }).eq("id", campaignId);
-    if (error) {
-      toast.error("Failed to archive campaign.");
-    } else {
-      toast.success("Campaign archived.");
-      queryClient.invalidateQueries({ queryKey: ["campaigns", id] });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
@@ -280,9 +255,6 @@ export default function BrandForm() {
     }
   };
 
-  const activeCampaigns = campaigns.filter((c: any) => c.status === "active");
-  const archivedCampaigns = campaigns.filter((c: any) => c.status === "archived");
-
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       <Button variant="ghost" onClick={() => navigate("/brands")} className="gap-2">
@@ -335,8 +307,8 @@ export default function BrandForm() {
                 <div className="flex gap-2.5">
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Create campaigns for specific objectives</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Use campaigns to layer specific rules (audience, CTAs, exclusions) on top of brand guidelines.</p>
+                    <p className="font-medium">Group brands into campaigns</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">Duplicate and customize brands for different objectives, then group them together.</p>
                   </div>
                 </div>
               </div>
@@ -516,75 +488,6 @@ export default function BrandForm() {
             )}
           </CardContent>
         </Card>
-
-        {/* Campaigns Section (only when editing) */}
-        {isEditing && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Megaphone className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-base font-display">Campaigns</CardTitle>
-                  {activeCampaigns.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">{activeCampaigns.length} active</Badge>
-                  )}
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/brands/${id}/campaigns/new`)} className="gap-1.5">
-                  <Plus className="h-3.5 w-3.5" /> New Campaign
-                </Button>
-              </div>
-              <CardDescription>Campaigns layer specific rules on top of brand guidelines during generation.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {campaigns.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No campaigns yet. Create one to customize generation per objective.</p>
-              ) : (
-                <div className="space-y-2">
-                  {activeCampaigns.map((c: any) => (
-                    <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/30 transition-colors">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{c.name}</p>
-                        {c.campaign_brief && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.campaign_brief}</p>}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/brands/${id}/campaigns/${c.id}/edit`)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => handleArchiveCampaign(c.id)}>
-                          <Archive className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {archivedCampaigns.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <Button type="button" variant="ghost" size="sm" className="text-xs text-muted-foreground w-full">
-                          {archivedCampaigns.length} archived campaign{archivedCampaigns.length > 1 ? "s" : ""}
-                          <ChevronDown className="h-3 w-3 ml-1" />
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-2 pt-1">
-                        {archivedCampaigns.map((c: any) => (
-                          <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border opacity-60">
-                            <div className="min-w-0">
-                              <p className="font-medium text-sm truncate">{c.name}</p>
-                              <Badge variant="outline" className="text-[10px] mt-1">Archived</Badge>
-                            </div>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/brands/${id}/campaigns/${c.id}/edit`)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ))}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         <div className="flex justify-end">
           <Button type="submit" disabled={loading} className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8">
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}

@@ -53,6 +53,7 @@ export type Database = {
         Row: {
           brand_brief: string | null
           brand_voice_rules: string | null
+          campaign_id: string | null
           created_at: string
           extra_colors: Json | null
           id: string
@@ -67,6 +68,7 @@ export type Database = {
         Insert: {
           brand_brief?: string | null
           brand_voice_rules?: string | null
+          campaign_id?: string | null
           created_at?: string
           extra_colors?: Json | null
           id?: string
@@ -81,6 +83,7 @@ export type Database = {
         Update: {
           brand_brief?: string | null
           brand_voice_rules?: string | null
+          campaign_id?: string | null
           created_at?: string
           extra_colors?: Json | null
           id?: string
@@ -92,57 +95,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brands_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       campaigns: {
         Row: {
-          brand_id: string
-          campaign_brief: string | null
           created_at: string
           id: string
-          mandatory_elements: string | null
           name: string
-          negative_prompts: string | null
-          status: string
-          target_audience: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          brand_id: string
-          campaign_brief?: string | null
           created_at?: string
           id?: string
-          mandatory_elements?: string | null
           name: string
-          negative_prompts?: string | null
-          status?: string
-          target_audience?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          brand_id?: string
-          campaign_brief?: string | null
           created_at?: string
           id?: string
-          mandatory_elements?: string | null
           name?: string
-          negative_prompts?: string | null
-          status?: string
-          target_audience?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "campaigns_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       generations: {
         Row: {
