@@ -878,6 +878,41 @@ serve(async (req) => {
       );
     }
 
+    // Step 3: Quality Check
+    console.log("Step 3: Running quality check...");
+    await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
+
+    let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+    console.log("QC result:", JSON.stringify(qcResult));
+
+    // Auto-retry once if QC finds critical issues
+    if (qcResult.critical && qcResult.issues.length > 0) {
+      console.log("QC found critical issues, retrying generation with feedback...");
+      await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+
+      // Append QC feedback to brand brief for the retry
+      const originalBrief = brand.brand_brief || "";
+      brand.brand_brief = originalBrief + "\n\n## QC FEEDBACK — FIX THESE ISSUES\n" + qcResult.issues.join("\n");
+
+      try {
+        const retryResult = await generateCreative(
+          framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY
+        );
+        imageBase64 = retryResult.imageBase64;
+        captionText = retryResult.captionText;
+
+        // Re-run QC on retried image
+        await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
+        qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
+        console.log("Retry QC result:", JSON.stringify(qcResult));
+      } catch (retryErr) {
+        console.warn("QC retry generation failed, using original image:", retryErr);
+      }
+
+      // Restore original brief
+      brand.brand_brief = originalBrief;
+    }
+
     // Upload generated image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
@@ -898,25 +933,30 @@ serve(async (req) => {
 
     const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
 
+    const copywritingPayload = {
+      caption: captionText,
+      qc: { passed: qcResult.passed, score: qcResult.score, issues: qcResult.issues },
+    };
+
     const { error: updateError } = await supabase
       .from("generations")
       .update({
         output_image_url: publicUrlData.publicUrl,
         layout_guide: JSON.stringify(framework),
-        copywriting: { caption: captionText },
+        copywriting: copywritingPayload,
         status: "completed",
       })
       .eq("id", generationId);
 
     if (updateError) {
       console.error("CRITICAL: Final DB update failed!", updateError);
-      // Still return the image to the client even if DB update fails
     }
 
     return new Response(
       JSON.stringify({
         imageUrl: publicUrlData.publicUrl,
         caption: captionText,
+        qc: { passed: qcResult.passed, score: qcResult.score, issues: qcResult.issues },
         framework,
         generationId,
       }),
