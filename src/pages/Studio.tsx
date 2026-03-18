@@ -489,10 +489,10 @@ export default function Studio() {
                     {result.qc && (
                       <div className="absolute top-3 right-3">
                         <Badge
-                          variant={result.qc.passed ? "default" : "destructive"}
+                          variant={result.qc.score >= 70 ? "default" : "destructive"}
                           className="gap-1 text-xs rounded-lg"
                         >
-                          {result.qc.passed ? (
+                          {result.qc.score >= 70 ? (
                             <><CheckCircle2 className="h-3 w-3" /> QC {result.qc.score}/100</>
                           ) : (
                             <><AlertTriangle className="h-3 w-3" /> QC {result.qc.score}/100</>
@@ -501,21 +501,6 @@ export default function Studio() {
                       </div>
                     )}
                   </div>
-                  {result.qc && !result.qc.passed && result.qc.issues.length > 0 && (
-                    <Card className="glass-card border-destructive/20">
-                      <CardContent className="pt-4">
-                        <p className="text-xs font-semibold text-destructive uppercase tracking-wider mb-2">QC Issues</p>
-                        <ul className="text-sm text-muted-foreground space-y-1">
-                          {result.qc.issues.map((issue, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                              {issue}
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
                   {result.caption && (
                     <Card className="glass-card">
                       <CardContent className="pt-4">

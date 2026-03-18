@@ -880,21 +880,28 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Quality Check
+    // Step 3: Quality Check with auto-retry loop (up to 2 retries)
     console.log("Step 3: Running quality check...");
     await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
 
     let qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
     console.log("QC result:", JSON.stringify(qcResult));
 
-    // Auto-retry once if QC finds critical issues
-    if (qcResult.critical && qcResult.issues.length > 0) {
-      console.log("QC found critical issues, retrying generation with feedback...");
+    const MAX_QC_RETRIES = 2;
+    const originalBrief = brand.brand_brief || "";
+
+    for (let qcRetry = 0; qcRetry < MAX_QC_RETRIES; qcRetry++) {
+      // Retry if score < 70 OR critical issues found
+      const shouldRetry = qcResult.score < 70 || qcResult.critical;
+      if (!shouldRetry || qcResult.issues.length === 0) break;
+
+      console.log(`QC retry ${qcRetry + 1}/${MAX_QC_RETRIES}: score=${qcResult.score}, critical=${qcResult.critical}, issues=${qcResult.issues.length}`);
       await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
 
-      // Append QC feedback to brand brief for the retry
-      const originalBrief = brand.brand_brief || "";
-      brand.brand_brief = originalBrief + "\n\n## QC FEEDBACK — FIX THESE ISSUES\n" + qcResult.issues.join("\n");
+      // Inject QC feedback as a top-level instruction block (not buried in brand_brief JSON)
+      const qcFeedbackBlock = `\n\n══════════════════════════════════════════\n⚠️ MANDATORY FIXES (from previous attempt QC)\n══════════════════════════════════════════\nThe previous generation scored ${qcResult.score}/100. You MUST fix ALL of the following issues:\n${qcResult.issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}\n\nDo NOT repeat these mistakes. This is your ${qcRetry === 0 ? "second" : "final"} attempt.`;
+
+      brand.brand_brief = originalBrief + qcFeedbackBlock;
 
       try {
         const retryResult = await generateCreative(
@@ -906,14 +913,15 @@ serve(async (req) => {
         // Re-run QC on retried image
         await supabase.from("generations").update({ status: "quality_checking" }).eq("id", generationId);
         qcResult = await qualityCheck(imageBase64, brand, spec, LOVABLE_API_KEY);
-        console.log("Retry QC result:", JSON.stringify(qcResult));
+        console.log(`QC retry ${qcRetry + 1} result:`, JSON.stringify(qcResult));
       } catch (retryErr) {
-        console.warn("QC retry generation failed, using original image:", retryErr);
+        console.warn(`QC retry ${qcRetry + 1} generation failed, keeping current image:`, retryErr);
+        break;
       }
-
-      // Restore original brief
-      brand.brand_brief = originalBrief;
     }
+
+    // Restore original brief
+    brand.brand_brief = originalBrief;
 
     // Upload generated image
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
