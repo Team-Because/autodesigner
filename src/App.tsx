@@ -12,6 +12,7 @@ import BrandForm from "@/pages/BrandForm";
 
 import Studio from "@/pages/Studio";
 import History from "@/pages/History";
+import AdminPanel from "@/pages/AdminPanel";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/brands/:id/edit" element={<BrandForm />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/history" element={<History />} />
+              <Route path="/admin" element={<AdminPanel />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -728,6 +728,35 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // --- Credit check ---
+    // Get user_id from the generation record or auth header
+    const authHeader = req.headers.get("Authorization") || "";
+    let callerUserId: string | null = null;
+    if (authHeader) {
+      const callerClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user: callerUser } } = await callerClient.auth.getUser();
+      callerUserId = callerUser?.id || null;
+    }
+
+    if (callerUserId) {
+      const { data: credits } = await supabase
+        .from("user_credits")
+        .select("credits_remaining")
+        .eq("user_id", callerUserId)
+        .single();
+
+      if (credits && credits.credits_remaining <= 0) {
+        return new Response(
+          JSON.stringify({ error: "No credits remaining. Contact your admin to add more." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Fetch brand + assets in parallel
     const [brandRes, assetsRes] = await Promise.all([
       supabase.from("brands").select("*").eq("id", brandId).single(),
@@ -923,6 +952,26 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("CRITICAL: Final DB update failed!", updateError);
+    }
+
+    // Deduct credit after successful generation
+    if (callerUserId) {
+      const { data: currentCredits } = await supabase
+        .from("user_credits")
+        .select("credits_remaining, credits_used")
+        .eq("user_id", callerUserId)
+        .single();
+
+      if (currentCredits) {
+        await supabase
+          .from("user_credits")
+          .update({
+            credits_remaining: Math.max(0, currentCredits.credits_remaining - 1),
+            credits_used: currentCredits.credits_used + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", callerUserId);
+      }
     }
 
     return new Response(

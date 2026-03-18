@@ -1,1 +1,13 @@
 project_id = "jibbeetyogbfkjvazysy"
+
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.admin-manage-credits]
+verify_jwt = false
+
+[functions.admin-transfer-brand]
+verify_jwt = false
+
+[functions.seed-admin]
+verify_jwt = false
