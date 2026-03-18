@@ -645,7 +645,7 @@ serve(async (req) => {
     let imageBase64: string;
     let captionText: string;
     try {
-      const result = await generateCreative(directive, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY);
+      const result = await generateCreative(directive, brand, brandAssets, spec, LOVABLE_API_KEY);
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
     } catch (err: any) {
