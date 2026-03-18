@@ -182,16 +182,6 @@ export default function BrandForm() {
     setExtraColors((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleArchiveCampaign = async (campaignId: string) => {
-    const { error } = await supabase.from("campaigns").update({ status: "archived" }).eq("id", campaignId);
-    if (error) {
-      toast.error("Failed to archive campaign.");
-    } else {
-      toast.success("Campaign archived.");
-      queryClient.invalidateQueries({ queryKey: ["campaigns", id] });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
