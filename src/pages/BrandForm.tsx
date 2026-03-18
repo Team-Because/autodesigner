@@ -192,17 +192,18 @@ export default function BrandForm() {
     setLoading(true);
 
     let brandBrief: string;
-    let finalVoiceRules = voiceRules;
-    let finalNegativePrompts = negativePrompts;
+    let finalVoiceRules: string;
+    let finalNegativePrompts: string;
 
     if (isLegacy) {
       brandBrief = legacyBrief;
+      finalVoiceRules = voiceRules;
+      finalNegativePrompts = negativePrompts;
     } else {
       const serialized = serialize(profile);
       brandBrief = serialized.brand_brief;
-      // Merge: if user has manually typed voice/negative, keep those; otherwise use serialized
-      if (!finalVoiceRules && serialized.brand_voice_rules) finalVoiceRules = serialized.brand_voice_rules;
-      if (!finalNegativePrompts && serialized.negative_prompts) finalNegativePrompts = serialized.negative_prompts;
+      finalVoiceRules = serialized.brand_voice_rules;
+      finalNegativePrompts = serialized.negative_prompts;
     }
 
     const payload: any = {
