@@ -312,6 +312,7 @@ export default function History() {
             const cw = getCopywriting(selectedGeneration);
             const dImg = getDisplayImage(selectedGeneration);
             const dStatus = getDisplayStatus(selectedGeneration);
+            const dQc = getQcResult(selectedGeneration);
             return (
               <div className="space-y-5">
                 {/* Full-size image */}
