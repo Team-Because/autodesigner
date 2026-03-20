@@ -821,7 +821,10 @@ CHECKLIST:
 ✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
 ✅ All brand rules followed, exclusions respected
 ✅ Negative space, professional quality
+✅ NO text/location/currency copied from reference
+✅ Text on clean backgrounds, not on imagery
 
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
 Generate the creative now.`;
 }
 
