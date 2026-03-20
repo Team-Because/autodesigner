@@ -33,6 +33,59 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+// Strip reference-specific content from framework while preserving structural/design info
+function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown> {
+  const clean = JSON.parse(JSON.stringify(fw));
+
+  // Sanitize zone descriptions — keep name/position/size, replace description with generic role
+  if (clean.layout?.zones && Array.isArray(clean.layout.zones)) {
+    for (const zone of clean.layout.zones) {
+      if (zone.description) {
+        // Replace content description with generic role based on zone name
+        const name = (zone.name || "").toLowerCase();
+        if (/logo/.test(name)) zone.description = "brand logo zone";
+        else if (/hero|main|product|image/.test(name)) zone.description = "hero visual zone";
+        else if (/headline|title/.test(name)) zone.description = "headline text zone";
+        else if (/sub|body|copy/.test(name)) zone.description = "supporting text zone";
+        else if (/cta|button|action/.test(name)) zone.description = "call-to-action zone";
+        else if (/background|bg/.test(name)) zone.description = "background zone";
+        else if (/tag/.test(name)) zone.description = "tagline zone";
+        else if (/price|offer/.test(name)) zone.description = "promotional detail zone";
+        else if (/disclaim|legal|footer/.test(name)) zone.description = "footer/legal zone";
+        else zone.description = "design element zone";
+      }
+    }
+  }
+
+  // Sanitize text_elements — keep type/position/font_style/approximate_size, replace content_description
+  if (clean.text_elements && Array.isArray(clean.text_elements)) {
+    for (const te of clean.text_elements) {
+      if (te.content_description) {
+        const type = (te.type || "").toLowerCase();
+        if (/headline|title/.test(type)) te.content_description = "headline text";
+        else if (/sub/.test(type)) te.content_description = "subcopy text";
+        else if (/cta|button/.test(type)) te.content_description = "CTA text";
+        else if (/tag/.test(type)) te.content_description = "tagline text";
+        else if (/price|offer/.test(type)) te.content_description = "promotional detail";
+        else if (/disclaim|legal/.test(type)) te.content_description = "legal/disclaimer text";
+        else te.content_description = "text element";
+      }
+    }
+  }
+
+  // Strip any composition_notes that reference specific content
+  // Keep it but remove brand-specific mentions
+  if (typeof clean.composition_notes === "string") {
+    // Remove quoted text fragments, specific brand/location names, prices, currencies
+    clean.composition_notes = clean.composition_notes
+      .replace(/"[^"]*"/g, '"[text]"')
+      .replace(/\b[A-Z]{3}\s*[\d,.]+[MKBmkb]?\b/g, "[price]")
+      .replace(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|yds?|m)|acres?)\b/gi, "[size]");
+  }
+
+  return clean;
+}
+
 function extractStoredCaption(copywriting: unknown): string {
   if (typeof copywriting === "string") return copywriting.trim();
   if (!copywriting || typeof copywriting !== "object") return "";
@@ -385,7 +438,7 @@ LAYOUT & TEXT PLACEMENT RULES:
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
   const userMessage = `DESIGN FRAMEWORK (from reference analysis):
-${JSON.stringify(framework, null, 2)}
+${JSON.stringify(sanitizeFramework(framework), null, 2)}
 
 BRAND DATA:
 ${brandContext}
@@ -534,6 +587,21 @@ Look at the reference image and the framework above. Map every element to this b
     assetsSelected: directive.selected_assets?.length ?? 0,
   }));
 
+  // Force-include logo if brand has one but directive didn't select it
+  const hasLogoSelected = directive.selected_assets?.some(
+    (sa) => sa.role.toLowerCase() === "logo"
+  );
+  if (!hasLogoSelected) {
+    const logoIndex = brandAssets.findIndex((a: any) => /logo/i.test(a.label || ""));
+    if (logoIndex >= 0) {
+      console.log(`Force-adding logo asset at index ${logoIndex} (Adapt step missed it)`);
+      directive.selected_assets = [
+        { index: logoIndex, role: "logo", placement: "top-left corner, with contrast backing if needed", reason: "Force-included: brand logo must appear" },
+        ...(directive.selected_assets || []),
+      ];
+    }
+  }
+
   return directive;
 }
 
@@ -641,7 +709,7 @@ TYPOGRAPHY:
 DEDUPLICATION: If logo contains brand name, do NOT repeat as text. Each element appears ONCE.
 
 ═══ REFERENCE FRAMEWORK ═══
-${JSON.stringify(framework, null, 2)}
+${JSON.stringify(sanitizeFramework(framework), null, 2)}
 
 ${negativePrompts ? `⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
@@ -712,7 +780,7 @@ function buildFallbackPrompt(
         ? `${spec.width}:${spec.height} LANDSCAPE`
         : `${spec.width}:${spec.height} PORTRAIT`;
 
-  const frameworkJson = JSON.stringify(framework, null, 2);
+  const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
   return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
