@@ -148,16 +148,23 @@ export default function Studio() {
       // Simulate progress during the long AI call
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
-          if (prev < 35) return prev + 1;
-          if (prev < 85) return prev + 0.5;
+          if (prev < 25) return prev + 1;
+          if (prev < 40) return prev + 0.8;
+          if (prev < 85) return prev + 0.4;
           return prev;
         });
       }, 1500);
 
-      // Phase transition after ~8 seconds (analysis should be done)
-      const phaseTimeout = setTimeout(() => {
-        setProgressPhase("Generating brand creative...");
+      // Phase transitions for the 3-step pipeline
+      const adaptTimeout = setTimeout(() => {
+        setProgress((prev) => Math.max(prev, 30));
+        setProgressPhase("Adapting concept to brand...");
       }, 8000);
+
+      const generateTimeout = setTimeout(() => {
+        setProgress((prev) => Math.max(prev, 45));
+        setProgressPhase("Generating brand creative...");
+      }, 16000);
 
       // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
