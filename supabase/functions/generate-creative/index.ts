@@ -334,15 +334,21 @@ async function adaptDirective(
 
   const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
 
+CRITICAL — CONTENT ISOLATION:
+The reference image is for LAYOUT, COMPOSITION, and VISUAL STYLE only.
+IGNORE ALL text, names, locations, prices, currencies, phone numbers, addresses, URLs, and any written content visible in the reference image.
+ALL copy (headline, subcopy, CTA) must come EXCLUSIVELY from the brand data below.
+If the reference shows "Abu Dhabi" or "AED" or any location/currency — DO NOT use those. Use ONLY the brand's own location, currency, and details from the brand brief.
+
 You receive:
-1. A reference advertisement image (for concept/style/layout inspiration)
+1. A reference advertisement image (for concept/style/layout inspiration ONLY — ignore its text content)
 2. The extracted design framework (structural analysis of the reference)
 3. Full brand data (name, colors, voice, brief, assets)
 4. The complete asset library with labels and indices
 5. The output format/dimensions
 
 Your task:
-- Write the EXACT headline (≤8 words), subcopy (≤20 words), and CTA text for this brand
+- Write the EXACT headline (≤8 words), subcopy (≤20 words), and CTA text for this brand — sourced ONLY from brand data
 - Select which 2-4 assets (by index) to use and their roles/placements
 - Decide exact color hex values for each element
 - Explain how the reference concept adapts to this brand
@@ -359,15 +365,22 @@ ASSET SELECTION RULES:
 
 COPY RULES:
 - Headlines must be original, punchy, and aligned to brand voice
-- If the brand brief contains example copy, use it for TONE REFERENCE only — write original text
+- ALL text MUST come from the brand brief and brand data — NEVER from the reference image
+- If the brand brief contains mandatory text (e.g., RERA No., contact number, location), include it
+- If the brand brief contains example headlines, you may use them directly or adapt them
 - CTA should be actionable and brand-appropriate
-- If the brand brief specifies mandatory text (e.g., "RERA No.", "CBSE Affiliated"), include it in subcopy or as a separate element
 
 COLOR RULES:
 - Use brand primary color for dominant elements (headlines, accent strips, CTA backgrounds)
 - Use brand secondary color for supporting elements
 - Background should complement the hero imagery
 - Ensure text colors have sufficient contrast against their backgrounds
+
+LAYOUT & TEXT PLACEMENT RULES:
+- Text MUST be placed on solid color zones, gradient overlays, or dedicated text panels
+- NEVER place text directly on top of 3D renders, photos, or busy imagery
+- Create clear visual separation: hero imagery zone vs text information zone
+- If using a full-bleed hero image, text must sit on a color strip, semi-transparent panel, or dedicated sidebar
 
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
@@ -547,13 +560,15 @@ function buildDirectivePrompt(
     /architect|3d|render|building|elevation|facade/i.test(a.label || "")
   );
 
+  // We need access to the full brandAssets array to map directive indices back
+  // The selectedAssets are already filtered by directive indices in generateCreative()
   const assetRoleLines = directive.selected_assets
     .map((sa) => {
-      const asset = selectedAssets.find((_: any, i: number) => {
-        // Map directive index back — we'll handle this in the caller
-        return true;
-      });
-      return `  • [${sa.role.toUpperCase()}] → ${sa.placement} (${sa.reason})`;
+      const matchedAsset = selectedAssets.find((a: any) =>
+        (a._originalIndex ?? -1) === sa.index
+      );
+      const assetLabel = matchedAsset ? (matchedAsset.label || "Asset") : `Asset #${sa.index}`;
+      return `  • [${sa.role.toUpperCase()}] "${assetLabel}" → ${sa.placement} (${sa.reason})`;
     })
     .join("\n");
 
@@ -589,15 +604,27 @@ GENERAL ASSET RULES:
 
   const negativePrompts = toCompactText(brand.negative_prompts, 1500);
 
-  return `You are an elite creative director producing a publication-ready advertisement.
+  return `══════════════════════════════════════════
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
+══════════════════════════════════════════
+You are an elite creative director producing a publication-ready advertisement.
+
+══════════════════════════════════════════
+CONTENT ISOLATION (NON-NEGOTIABLE)
+══════════════════════════════════════════
+The reference image is for LAYOUT and VISUAL STYLE only.
+NEVER copy ANY text, names, locations, prices, currencies, phone numbers, or written content from the reference image.
+ALL text in the output MUST come from the Creative Directive below.
+If the reference shows "Abu Dhabi", "AED", "Dubai", or any location/brand — IGNORE it completely.
 
 ══════════════════════════════════════════
 FORMAT REQUIREMENT (NON-NEGOTIABLE)
 ══════════════════════════════════════════
 Output: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
 ${spec.width === spec.height ? "MUST be perfectly SQUARE. Equal width and height." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation)." : ""}
-${spec.width > spec.height ? "MUST be WIDE (landscape orientation)." : ""}
+${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation). Height is GREATER than width." : ""}
+${spec.width > spec.height ? "MUST be WIDE (landscape orientation). Width is GREATER than height." : ""}
 
 ══════════════════════════════════════════
 CREATIVE DIRECTIVE — FOLLOW EXACTLY
@@ -630,20 +657,26 @@ COMPOSITION:
 - Use rule of thirds for element placement
 - Intentional negative space — breathing room between elements
 
+TEXT PLACEMENT (CRITICAL):
+- Text MUST be placed on SOLID COLOR ZONES, gradient overlays, or dedicated text panels
+- NEVER place text directly on top of 3D renders, buildings, photos, or busy imagery
+- Create CLEAR VISUAL SEPARATION between hero imagery zone and text information zone
+- If using a full-bleed hero image, text MUST sit on a color strip, semi-transparent panel, or dedicated sidebar/footer area
+- Text zones should have a clean, uncluttered background for maximum readability
+
 TYPOGRAPHY:
 - Headline: Large, bold, impossible to miss — render EXACTLY the text above
 - Subcopy: Medium size, supporting — render EXACTLY the text above
 - CTA: Clean, prominent — render EXACTLY the text above
 - ALL text must be LEGIBLE with proper size, contrast, and spacing
 - Never stack more than 3 text hierarchy levels
-- Text must NEVER overlap critical imagery (faces, architectural details)
 
 LAYOUT ZONES (each appears EXACTLY ONCE):
 1. HERO ZONE (50-70%): Dominant visual
 2. BRAND MARK: Logo — ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline
-4. SUPPORTING COPY: Brief subcopy
-5. INFO/CTA BAR: CTA — compact, clear
+3. HEADLINE: One powerful headline — on clean background
+4. SUPPORTING COPY: Brief subcopy — on clean background
+5. INFO/CTA BAR: CTA — compact, clear — on clean background
 6. NEGATIVE SPACE: Breathing room
 
 DEDUPLICATION:
@@ -661,9 +694,9 @@ ${negativePrompts ? `═══════════════════�
 ${negativePrompts}` : ""}
 
 ══════════════════════════════════════════
-FINAL CHECKLIST
+FINAL CHECKLIST (every item MUST be true)
 ══════════════════════════════════════════
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${aspectRatioLabel}) — NOT the reference image size
 ✅ Headline is EXACTLY: "${directive.headline}"
 ✅ Subcopy is EXACTLY: "${directive.subcopy}"
 ✅ CTA is EXACTLY: "${directive.cta_text}"
@@ -673,7 +706,11 @@ FINAL CHECKLIST
 ✅ No duplicated elements
 ✅ Intentional negative space
 ✅ Professional, premium quality
+✅ NO text, location, currency, or content copied from reference image
+✅ Text is on clear solid/gradient backgrounds, NOT overlaid on imagery
+✅ ALL content comes from Creative Directive, NOTHING from reference
 
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
 Generate the creative image now.`;
 }
 
@@ -735,9 +772,18 @@ function buildFallbackPrompt(
 
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  return `You are an elite creative director producing a publication-ready advertisement.
+  return `══════════════════════════════════════════
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
+══════════════════════════════════════════
+You are an elite creative director producing a publication-ready advertisement.
+
+CONTENT ISOLATION (NON-NEGOTIABLE):
+The reference image is for LAYOUT and VISUAL STYLE only.
+NEVER copy ANY text, names, locations, prices, currencies, phone numbers from the reference.
+ALL text must come from the brand data below.
 
 OUTPUT: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
 ${spec.width === spec.height ? "MUST be perfectly SQUARE." : ""}
 ${spec.height > spec.width ? "MUST be TALL/VERTICAL." : ""}
 ${spec.width > spec.height ? "MUST be WIDE." : ""}
@@ -748,13 +794,15 @@ LOGO RULES: Logo must be clearly visible against its background. On dark backgro
 
 ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
 
-COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space.
+TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER directly on 3D renders or photos.
+
+COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space. Clear separation between imagery zone and text zone.
 TYPOGRAPHY: Headline ≤8 words, bold. Subcopy ≤20 words. CTA clean. All text legible.
 DEDUPLICATION: No repeated elements.
 
 BRAND GUIDELINES:
 ${brandContext}
-${brandBrief ? `\nBrand Brief instructions are MANDATORY. Example copy is for tone reference only.` : ""}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data, not the reference.` : ""}
 ${negativePrompts ? `\n⛔ NEVER include: ${negativePrompts}` : ""}
 
 DESIGN FRAMEWORK:
@@ -762,10 +810,10 @@ ${frameworkJson}
 
 ${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images):
 ${assetRoleDescriptions}
-First image = reference (layout inspiration). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
+First image = reference (layout inspiration ONLY — ignore its text). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
 
 CHECKLIST:
-✅ ${spec.width}×${spec.height} ${aspectRatioLabel}
+✅ ${spec.width}×${spec.height} ${aspectRatioLabel} — NOT the reference image size
 ✅ Hero 50-70%, unobscured
 ✅ Logo visible, contrasted
 ✅ Headline ≤8 words, subcopy ≤20 words
@@ -773,7 +821,10 @@ CHECKLIST:
 ✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
 ✅ All brand rules followed, exclusions respected
 ✅ Negative space, professional quality
+✅ NO text/location/currency copied from reference
+✅ Text on clean backgrounds, not on imagery
 
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
 Generate the creative now.`;
 }
 
@@ -794,11 +845,14 @@ async function generateCreative(
     const validIndices = directive.selected_assets
       .map((sa) => sa.index)
       .filter((i) => i >= 0 && i < brandAssets.length);
-    selectedAssets = validIndices.map((i) => brandAssets[i]);
+    selectedAssets = validIndices.map((i) => {
+      const asset = { ...brandAssets[i], _originalIndex: i };
+      return asset;
+    });
 
     // If directive selected no valid assets, fall back to first few
     if (selectedAssets.length === 0 && brandAssets.length > 0) {
-      selectedAssets = brandAssets.slice(0, 3);
+      selectedAssets = brandAssets.slice(0, 3).map((a: any, i: number) => ({ ...a, _originalIndex: i }));
     }
 
     systemPrompt = buildDirectivePrompt(directive, framework, brand, selectedAssets, spec);
@@ -814,10 +868,10 @@ async function generateCreative(
     {
       type: "text",
       text: directive
-        ? `The FIRST image is the reference advertisement — match its composition feel, energy, and layout style. The following ${selectedAssets.length} image(s) are brand assets — use them as specified in the Creative Directive. Render the EXACT text specified in the directive.`
+        ? `IMPORTANT: The FIRST image is the reference advertisement — use it ONLY for composition, layout energy, and visual style. IGNORE ALL TEXT visible in the reference (locations, currencies, names, phone numbers — ignore everything). ALL text in the output must come EXCLUSIVELY from the Creative Directive in the system prompt. The following ${selectedAssets.length} image(s) are brand assets — use them as specified. Output size MUST be exactly ${spec.width}×${spec.height} pixels — do NOT use the reference image dimensions.`
         : hasAssets
-          ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. Follow the design framework.`
-          : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
+          ? `IMPORTANT: The FIRST image is the reference advertisement for visual style context ONLY — IGNORE all text, locations, and content visible in it. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. ALL text must come from the brand brief. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`
+          : `Use the reference image for visual style context ONLY — IGNORE all text visible in it. Follow the design framework. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`,
     },
     {
       type: "image_url",
