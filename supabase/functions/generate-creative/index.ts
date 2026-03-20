@@ -438,7 +438,7 @@ LAYOUT & TEXT PLACEMENT RULES:
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
   const userMessage = `DESIGN FRAMEWORK (from reference analysis):
-${JSON.stringify(framework, null, 2)}
+${JSON.stringify(sanitizeFramework(framework), null, 2)}
 
 BRAND DATA:
 ${brandContext}
