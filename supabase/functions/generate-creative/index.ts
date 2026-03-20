@@ -646,12 +646,13 @@ function buildDirectivePrompt(
   if (hasLogo) {
     assetRules += `
 LOGO RULES:
-- The logo MUST be clearly visible and readable against its background
+- The brand logo is provided as a separate labeled image (marked BRAND LOGO). Study it carefully.
+- Reproduce the logo's EXACT letterforms, icon shapes, colors, and proportions — do NOT approximate or simplify
 - ${directive.logo_treatment}
-- On dark backgrounds: use a white/light version or add a light backing panel
-- On light backgrounds: use the logo as-is in dark form
-- On busy imagery: place in a clear zone with padding or semi-transparent backing
-- NEVER redraw or reimagine the logo — use it EXACTLY as provided
+- Place it at the specified location with appropriate sizing (not too small, not dominant)
+- Ensure contrast: on dark backgrounds add a light backing panel or reserved space; on light backgrounds use as-is
+- The logo visible in the REFERENCE image (IMAGE 1) is NOT your brand's logo — ignore it completely
+- NEVER write the word "LOGO" as text — always render the actual logo image
 `;
   }
 
@@ -666,7 +667,8 @@ LOGO RULES:
 
   assetRules += `
 GENERAL ASSET RULES:
-- For logos, product photos, mascots: NEVER redraw — place EXACTLY as provided, same proportions
+- For logos: faithfully reproduce exact letterforms, shapes, colors, and proportions from the provided logo image
+- For product photos, mascots: reproduce with high fidelity, preserving key visual details
 - Only adjust: size/scale to fit layout, contrast adaptation (light/dark)
 `;
 
@@ -789,9 +791,9 @@ CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE 
 ═══ DESIGN DIRECTION ═══
 Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content.
 
-LOGO: Must be clearly visible. On dark backgrounds use light version or backing panel. Never redraw logos.
+LOGO: The brand logo is provided as a separate labeled image. Study it carefully and reproduce its EXACT letterforms, icon shapes, colors, and proportions. On dark backgrounds add a light backing panel. The logo in the REFERENCE image is NOT the brand's logo — ignore it. NEVER write the word "LOGO" as text.
 3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
-ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
+ASSET FIDELITY: Faithfully reproduce logos and product photos with high fidelity. Only adjust scale and contrast.
 TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER on photos/renders.
 COMPOSITION: Clear hierarchy. Hero visual prominent. Breathing room between elements.
 TYPOGRAPHY: Headline ≤8 words bold. Subcopy ≤20 words. CTA clean. All text legible.
@@ -872,20 +874,27 @@ async function generateCreative(
   ];
 
   if (directive) {
-    for (const sa of directive.selected_assets) {
+    // Sort assets so logo comes first (IMAGE 2, right after reference) for maximum model attention
+    const sortedAssets = [...directive.selected_assets].sort((a, b) => {
+      const aIsLogo = a.role.toUpperCase() === "LOGO" ? 0 : 1;
+      const bIsLogo = b.role.toUpperCase() === "LOGO" ? 0 : 1;
+      return aIsLogo - bIsLogo;
+    });
+
+    for (const sa of sortedAssets) {
       const asset = selectedAssets.find((a: any) => (a._originalIndex ?? -1) === sa.index);
       if (!asset) continue;
       const roleLabel = sa.role.toUpperCase();
-      const mustAppear = roleLabel === "LOGO" ? " — must appear in final output, use exactly as-is" : "";
+      const imageNum = userContent.filter(c => c.type === "image_url").length + 1;
+      let labelText: string;
+      if (roleLabel === "LOGO") {
+        labelText = `IMAGE ${imageNum} — BRAND LOGO (study this carefully — reproduce its exact letterforms, colors, shapes, and proportions in the final output. This is the ONLY logo to use, ignore any logo in IMAGE 1):`;
+      } else {
+        labelText = `IMAGE ${imageNum} — ${roleLabel} (${sa.placement}):`;
+      }
       userContent.push(
-        {
-          type: "text",
-          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleLabel} (${sa.placement}${mustAppear}):`,
-        },
-        {
-          type: "image_url",
-          image_url: { url: asset.image_url },
-        }
+        { type: "text", text: labelText },
+        { type: "image_url", image_url: { url: asset.image_url } }
       );
     }
   } else {
