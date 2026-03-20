@@ -587,6 +587,21 @@ Look at the reference image and the framework above. Map every element to this b
     assetsSelected: directive.selected_assets?.length ?? 0,
   }));
 
+  // Force-include logo if brand has one but directive didn't select it
+  const hasLogoSelected = directive.selected_assets?.some(
+    (sa) => sa.role.toLowerCase() === "logo"
+  );
+  if (!hasLogoSelected) {
+    const logoIndex = brandAssets.findIndex((a: any) => /logo/i.test(a.label || ""));
+    if (logoIndex >= 0) {
+      console.log(`Force-adding logo asset at index ${logoIndex} (Adapt step missed it)`);
+      directive.selected_assets = [
+        { index: logoIndex, role: "logo", placement: "top-left corner, with contrast backing if needed", reason: "Force-included: brand logo must appear" },
+        ...(directive.selected_assets || []),
+      ];
+    }
+  }
+
   return directive;
 }
 
