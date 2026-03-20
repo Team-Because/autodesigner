@@ -1,91 +1,65 @@
 
 
-# Optimize All Brand Briefs to Best Structure
+# Fix: Logo Not Appearing — Root Cause & Solution
 
-## Analysis: How the Engine Reads Brand Data
+## The Problem
 
-The generation engine reads three separate fields with character limits:
-- `brand_brief` → truncated to **2500 chars** (Adapt step) / 3000 chars (fallback)
-- `brand_voice_rules` → truncated to **1500 chars**
-- `negative_prompts` → truncated to **1000–2000 chars**
+Three distinct failure modes happening:
 
-These are passed to the AI as separate labeled blocks:
+1. **Model writes the word "LOGO"** instead of rendering the actual logo image
+2. **Model copies the reference image's logo** instead of using the brand's logo asset
+3. **Model ignores the logo entirely**
+
+## Root Cause
+
+The image generation model (Gemini Flash Image Preview) is a **generative** model, not a **compositing** tool. When you pass it a logo as an `image_url` and say "place this exactly as-is," it tries to **redraw** the logo from scratch. It often fails because:
+
+- It doesn't understand "reproduce this image pixel-perfectly" — it generates new pixels
+- The prompt says "NEVER redraw" but the model literally can only redraw
+- With multiple images (reference + 2-4 assets), the model gets confused about which image to prioritize
+- The reference image's logo is visually prominent and the model latches onto it
+
+## The Fix — Two Changes
+
+### 1. Strengthen logo instructions in the system prompt
+
+The current prompt says "use EXACTLY as provided" — but doesn't give the model enough visual anchoring. Change to:
+
+- Tell the model to **reproduce the logo's exact shape, colors, letterforms, and proportions** from the labeled logo image
+- Add explicit instruction: "The logo is IMAGE N. Study its exact visual appearance — every letter, shape, color, symbol. Reproduce it faithfully in the output."
+- Remove generic "NEVER redraw" (contradictory — it HAS to redraw, it's generative) and replace with "faithfully reproduce"
+
+### 2. Reduce image overload — pass logo as the FIRST asset image (right after reference)
+
+Currently the order is: reference → assets in directive order. The model gives more attention to images earlier in the sequence. Ensure the logo is always IMAGE 2 (immediately after reference) regardless of directive ordering. This is already partially done by the force-inclusion at index 0, but the `userContent` building loop iterates `directive.selected_assets` in order — which may not put logo first if the directive ordered it differently.
+
+**Change in `generateCreative()`** (~line 874-907):
+- Sort `directive.selected_assets` so `role === "logo"` comes first before building `userContent`
+- In the label text, for logo specifically: "Study this logo carefully — reproduce its exact letterforms, colors, shapes, and proportions in the final output"
+
+### 3. In `buildDirectivePrompt` — rewrite LOGO RULES section
+
+Replace the current logo rules (lines 646-655) which focus on contrast/backing with rules that focus on **visual fidelity**:
+
 ```
-Brand Brief: [brand_brief content]
-Voice/Audience: [brand_voice_rules content]
-NEVER include: [negative_prompts content]
+LOGO RULES:
+- The logo is provided as a separate image. Study it carefully.
+- Reproduce the logo's EXACT letterforms, icon shapes, colors, and proportions
+- Place it at the specified location with appropriate sizing
+- Ensure contrast: on dark backgrounds add a light backing panel, on light backgrounds use as-is
+- The logo from the REFERENCE image is NOT your brand's logo — ignore it completely
 ```
 
-This means: **content duplicated across fields wastes token budget.** And any brief over ~2500 chars gets cut off — the AI never sees the rest.
+## File Changed
 
-## Optimal Structure (based on what works best)
+| File | Change |
+|---|---|
+| `supabase/functions/generate-creative/index.ts` | Reorder assets to put logo first in userContent; strengthen logo label text; rewrite LOGO RULES in directive prompt; same treatment in fallback prompt |
 
-**Kalrav Treasure** and **Venus Deshna** are the gold standard — clean markdown, front-loaded critical info, no duplication. Here's the template:
+## What This Does NOT Change
 
-```text
-brand_brief (≤2500 chars):
-  ## BRAND IDENTITY        ← what the project IS (1-2 lines)
-  ## MUST-INCLUDE ELEMENTS  ← mandatory text for every creative
-  ## VISUAL DIRECTION       ← mood, photography, key visuals
-  ## COPY STRUCTURE         ← headline examples, subtext, CTA
-  ## DO'S                   ← reinforcement of direction
-  ## COLOR NOTES            ← palette usage rules (if not covered by DB colors)
-
-brand_voice_rules (≤1500 chars):
-  Tone, audience, emotional message, messaging pillars
-
-negative_prompts (≤1000 chars):
-  Visual nevers + Content nevers (combined, concise)
-```
-
-**Rules:**
-- NO voice/tone in brand_brief (it's in `brand_voice_rules`)
-- NO nevers/don'ts in brand_brief (it's in `negative_prompts`)
-- NO color hex values that duplicate `primary_color`/`secondary_color`/`extra_colors` DB fields
-- Front-load: Identity → Must-Include → Visual Direction (most critical info first)
-- Meevaa's JSON `_structured` format wastes ~40% of chars on JSON overhead — convert to plain markdown
-
-## Brands That Need Changes
-
-### Already optimal (no changes needed)
-- **Kalrav Treasure** — perfect 8-section format, correct colors
-- **Venus Deshna** — perfect format, correct colors
-- **Venus The Planet** — perfect format, correct colors
-- **Kalrav Nest** — good format, correct colors
-
-### Need restructuring + color fixes
-
-| Brand | Brief Issue | Color Issue | Voice/Neg Issue |
-|---|---|---|---|
-| **Amansara** | Unstructured numbered text, voice+nevers mixed in | primary=#2563EB (should be #2E4A3B), secondary=#DBEAFE (should be #EFE8DA), no extra_colors | Voice is good, negatives are good |
-| **Kalrav Trails** | Unstructured, voice+nevers mixed in brief | primary=#2563EB (should be #7D5A45), secondary=#DBEAFE (should be #EDE6D8), no extra_colors | Voice is good, negatives are good |
-| **Wynn** | Unstructured with `*` markers, nevers in brief | primary=#006A4E (should be #333333), secondary=#D3AF37 (should be #A7A7A7), no extra_colors | Voice is good, negatives are good |
-| **SWS School** | `---SECTION---` markers, campaign mixed in | Colors OK | Voice OK, negatives OK |
-| **Shanti Juniors** | Plain paragraph, everything mixed together | Colors OK | Voice OK but brief has tone info too |
-| **Meevaa Foods** | JSON format wastes chars, ~5800 chars (gets truncated) | Colors OK, extra_colors OK | Voice OK, negatives OK |
-| **Meevaa Navratri** | JSON format wastes chars, ~5400 chars (gets truncated) | Colors OK | Voice OK, negatives OK |
-| **The Creek** | Good structure but uses `###` instead of `##`, slightly verbose | Colors OK | Voice OK, negatives OK |
-
-## Implementation Steps
-
-### Step 1 — Fix color mismatches (3 DB updates)
-Update `primary_color`, `secondary_color`, and `extra_colors` for Amansara, Kalrav Trails, and Wynn to match their actual brand palettes.
-
-### Step 2 — Restructure 8 brand briefs (8 DB updates)
-Rewrite `brand_brief` for the 8 brands listed above into the optimal markdown format. Key actions:
-- **Remove** voice/tone content from brand_brief (already in `brand_voice_rules`)
-- **Remove** nevers/don'ts from brand_brief (already in `negative_prompts`)  
-- **Remove** color hex definitions that duplicate DB color fields
-- **Convert** Meevaa JSON to plain markdown (saves ~40% chars)
-- **Front-load** identity and must-include elements
-- **Keep under 2500 chars** so nothing gets truncated
-
-### Step 3 — Deduplicate voice_rules and negative_prompts where needed
-For brands where voice/negatives are currently split across fields, consolidate into the correct field.
-
-## What does NOT change
-- No code changes — this is purely database content optimization
-- No changes to the edge function or how it reads the fields
-- All existing brand information is preserved — just reorganized into the right fields
-- The 4 brands that are already optimal stay untouched
+- No layout templates or constraints
+- No changes to Analyze or Adapt steps
+- No model changes
+- Asset selection logic stays the same
 
