@@ -787,14 +787,15 @@ async function generateCreative(
 
   const hasAssets = selectedAssets.length > 0;
 
+  // Build user content with explicit role labels for each image
   const userContent: any[] = [
     {
       type: "text",
-      text: directive
-        ? `IMPORTANT: The FIRST image is the reference advertisement — use it ONLY for composition, layout energy, and visual style. IGNORE ALL TEXT visible in the reference (locations, currencies, names, phone numbers — ignore everything). ALL text in the output must come EXCLUSIVELY from the Creative Directive in the system prompt. The following ${selectedAssets.length} image(s) are brand assets — use them as specified. Output size MUST be exactly ${spec.width}×${spec.height} pixels — do NOT use the reference image dimensions.`
-        : hasAssets
-          ? `IMPORTANT: The FIRST image is the reference advertisement for visual style context ONLY — IGNORE all text, locations, and content visible in it. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. ALL text must come from the brand brief. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`
-          : `Use the reference image for visual style context ONLY — IGNORE all text visible in it. Follow the design framework. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`,
+      text: `Output MUST be ${spec.width}×${spec.height} pixels. All text from Creative Directive only.`,
+    },
+    {
+      type: "text",
+      text: "IMAGE 1 — REFERENCE (composition/layout/style only — IGNORE all text, logos, names, locations visible in it):",
     },
     {
       type: "image_url",
@@ -802,11 +803,39 @@ async function generateCreative(
     },
   ];
 
-  for (const asset of selectedAssets) {
-    userContent.push({
-      type: "image_url",
-      image_url: { url: (asset as any).image_url },
-    });
+  if (directive) {
+    for (const sa of directive.selected_assets) {
+      const asset = selectedAssets.find((a: any) => (a._originalIndex ?? -1) === sa.index);
+      if (!asset) continue;
+      const roleLabel = sa.role.toUpperCase();
+      const mustAppear = roleLabel === "LOGO" ? " — must appear in final output, use exactly as-is" : "";
+      userContent.push(
+        {
+          type: "text",
+          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleLabel} (${sa.placement}${mustAppear}):`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: asset.image_url },
+        }
+      );
+    }
+  } else {
+    for (const asset of selectedAssets) {
+      const label = (asset.label || "Asset").toUpperCase();
+      const isLogo = /logo/i.test(asset.label || "");
+      const roleHint = isLogo ? "BRAND LOGO — must appear in output" : `BRAND ASSET (${label})`;
+      userContent.push(
+        {
+          type: "text",
+          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleHint}:`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: asset.image_url },
+        }
+      );
+    }
   }
 
   const modelPlan = [
