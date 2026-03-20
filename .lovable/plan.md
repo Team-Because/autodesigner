@@ -1,76 +1,46 @@
 
 
-# Fix: Logo Reliability, Content Isolation, Image Sizing — Without Layout Templates
+# Fix: Reference Content Leaking via Framework + Logo Reliability
 
-## Philosophy change from previous plan
+## Root Cause Found
 
-No predefined layout templates. The AI already receives a detailed framework from the Analyze step (zones, positions, sizes) and the Adapt step's placement decisions. The problem isn't missing templates — it's that the image model doesn't know WHICH image is the logo, WHICH is the hero, and what role each serves. The fix is better **image labeling** and **prompt clarity**, not layout constraints.
+The 3-step pipeline is architecturally correct, but there's a critical data leak: **the raw framework JSON from Step 1 is passed directly to Step 3** (line 644 in `buildDirectivePrompt`, line 738 in `buildFallbackPrompt`).
 
-## What stays the same
-- Content isolation (reference text bleeding) — same fix
-- Image size enforcement — same fix  
-- Asset mapping bug fix — already done in last deploy
+The framework contains reference-specific content like:
+- `text_elements[].content_description`: "Text says AED 1.2M starting price"  
+- `zones[].description`: "Shows Abu Dhabi skyline with luxury villa"
 
-## What changes from previous plan
+The image model sees BOTH the directive (brand content) AND the raw framework (reference content) — and gets confused, sometimes rendering the reference's text.
 
-**Remove**: `getLayoutTemplate()` function and all hardcoded zone percentages ("left 35%", "top 55%"). These constrain the AI and produce repetitive designs.
+## Two Changes
 
-**Replace with**: Explicit image labeling in the user content array so the model knows exactly what each image IS, plus cleaner prompt structure that tells the model to follow the reference layout organically.
+### 1. Sanitize framework before passing to Step 3
 
-## Three concrete changes (single file)
+Create a `sanitizeFramework()` function that strips content descriptions while preserving structural/design info:
 
-### 1. Label each image in the user content array (~line 867-887)
+- `zones[].description` → replaced with generic role (e.g., "hero visual zone", "text zone")
+- `text_elements[].content_description` → replaced with role label (e.g., "headline text", "CTA text") 
+- Keep: `position`, `size`, `font_style`, `approximate_size`, `style.*`, `composition_notes` (structural)
+- Strip: any field that describes WHAT the reference shows content-wise
 
-Currently all images are passed as unlabeled `image_url` entries. The model has to guess which is the logo. Fix: add a text label before each image.
+This means the generation model sees "there's a headline at top-center, bold, extra-large" but NOT "the headline says Luxury Villa in Abu Dhabi."
 
-```
-Current:
-  [text instruction]
-  [reference image]        ← model doesn't know this is reference
-  [asset image]            ← model doesn't know this is a logo
-  [asset image]            ← model doesn't know this is a hero render
+### 2. Strengthen logo handling in the Adapt step
 
-Fixed:
-  [text instruction]
-  [text: "IMAGE 1 — REFERENCE (style/layout only, ignore all text in it):"]
-  [reference image]
-  [text: "IMAGE 2 — BRAND LOGO (must appear in final output, use exactly as-is):"]
-  [logo image]
-  [text: "IMAGE 3 — HERO VISUAL (main visual element, preserve architecture):"]
-  [hero image]
-```
-
-Each asset gets labeled with its role from the directive's `selected_assets[].role` field. This is the single biggest fix for missing logos — the model now explicitly sees "this is the logo, use it."
-
-### 2. Simplify the system prompt — remove redundant warnings (~lines 607-714)
-
-The current `buildDirectivePrompt` has ~110 lines with heavy repetition. The content isolation warning appears 4+ times, the size requirement appears 5+ times. This noise drowns out the actual creative direction.
-
-Restructure to:
-- **One** content isolation block (5 lines, top of prompt)
-- **One** size requirement block (3 lines)
-- **Creative Directive** section with copy, colors, asset placements (from Adapt step)
-- **Design Direction** section: "Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors specified above. The reference shows the DESIGN APPROACH — use the same spatial relationships, visual weight distribution, and compositional style."
-- **Quality Rules** section: logo fidelity, 3D render preservation, text legibility, deduplication (kept as-is, these are good)
-- **Checklist** (condensed to 6 items, not 12)
-
-Total: ~80 lines instead of 110. Not shorter for the sake of shorter — shorter because redundancy is removed.
-
-### 3. Same treatment for `buildFallbackPrompt` (~lines 717-828)
-
-Apply identical labeling and deduplication. The fallback currently has even weaker image role identification.
-
-## What this does NOT change
-
-- No layout templates or zone percentages
-- No changes to the Adapt step (it already decides placements organically based on reference)
-- No changes to the Analyze step
-- No changes to model cascade or API parameters
-- The Adapt step's `placement` field (e.g., "top-left corner") still guides placement, but it's decided per-reference, not from a template
+The Adapt prompt says "Always include ONE logo if available" but doesn't enforce it strongly enough. Add:
+- If brand has a logo asset, the Adapt step MUST select it as index 0
+- Add a post-processing check: if no logo was selected but one exists in assets, force-add it
 
 ## File changed
 
 | File | Change |
 |---|---|
-| `supabase/functions/generate-creative/index.ts` | Add per-image role labels in user content array; deduplicate system prompt; simplify fallback prompt |
+| `supabase/functions/generate-creative/index.ts` | Add `sanitizeFramework()`, apply it before `buildDirectivePrompt` and `buildFallbackPrompt`; add logo force-inclusion in Adapt post-processing |
+
+## What this preserves
+
+- No layout templates or constraints
+- The AI still derives layouts organically from the reference
+- All design language (fonts, styles, composition) flows through from reference
+- The Adapt step still makes all creative decisions
 
