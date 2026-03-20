@@ -26,12 +26,13 @@ import { toast } from "sonner";
 
 type StudioState = "idle" | "generating" | "complete";
 
-type OutputFormat = "landscape" | "square" | "story";
+type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
   { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
   { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
-  { value: "story", label: "Story", description: "1080×1920 · Instagram & Facebook Stories, Reels", icon: Smartphone, aspect: "aspect-[9/16]" },
+  { value: "portrait", label: "Portrait", description: "1080×1350 · Instagram Post (4:5)", icon: Smartphone, aspect: "aspect-[4/5]" },
+  { value: "story", label: "Story", description: "1080×1920 · Stories & Reels (9:16)", icon: Smartphone, aspect: "aspect-[9/16]" },
 ];
 
 interface GenerationResult {
@@ -147,16 +148,23 @@ export default function Studio() {
       // Simulate progress during the long AI call
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
-          if (prev < 35) return prev + 1;
-          if (prev < 85) return prev + 0.5;
+          if (prev < 25) return prev + 1;
+          if (prev < 40) return prev + 0.8;
+          if (prev < 85) return prev + 0.4;
           return prev;
         });
       }, 1500);
 
-      // Phase transition after ~8 seconds (analysis should be done)
-      const phaseTimeout = setTimeout(() => {
-        setProgressPhase("Generating brand creative...");
+      // Phase transitions for the 3-step pipeline
+      const adaptTimeout = setTimeout(() => {
+        setProgress((prev) => Math.max(prev, 30));
+        setProgressPhase("Adapting concept to brand...");
       }, 8000);
+
+      const generateTimeout = setTimeout(() => {
+        setProgress((prev) => Math.max(prev, 45));
+        setProgressPhase("Generating brand creative...");
+      }, 16000);
 
       // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
@@ -210,7 +218,8 @@ export default function Studio() {
       }
 
       clearInterval(progressInterval);
-      clearTimeout(phaseTimeout);
+      clearTimeout(adaptTimeout);
+      clearTimeout(generateTimeout);
 
       if (invokeErrorMessage || fnError) {
         throw new Error(invokeErrorMessage || "Generation failed");
@@ -388,7 +397,7 @@ export default function Studio() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {FORMAT_OPTIONS.map((fmt) => (
                   <button
                     key={fmt.value}
