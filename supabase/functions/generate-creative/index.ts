@@ -604,15 +604,27 @@ GENERAL ASSET RULES:
 
   const negativePrompts = toCompactText(brand.negative_prompts, 1500);
 
-  return `You are an elite creative director producing a publication-ready advertisement.
+  return `══════════════════════════════════════════
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
+══════════════════════════════════════════
+You are an elite creative director producing a publication-ready advertisement.
+
+══════════════════════════════════════════
+CONTENT ISOLATION (NON-NEGOTIABLE)
+══════════════════════════════════════════
+The reference image is for LAYOUT and VISUAL STYLE only.
+NEVER copy ANY text, names, locations, prices, currencies, phone numbers, or written content from the reference image.
+ALL text in the output MUST come from the Creative Directive below.
+If the reference shows "Abu Dhabi", "AED", "Dubai", or any location/brand — IGNORE it completely.
 
 ══════════════════════════════════════════
 FORMAT REQUIREMENT (NON-NEGOTIABLE)
 ══════════════════════════════════════════
 Output: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
 ${spec.width === spec.height ? "MUST be perfectly SQUARE. Equal width and height." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation)." : ""}
-${spec.width > spec.height ? "MUST be WIDE (landscape orientation)." : ""}
+${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation). Height is GREATER than width." : ""}
+${spec.width > spec.height ? "MUST be WIDE (landscape orientation). Width is GREATER than height." : ""}
 
 ══════════════════════════════════════════
 CREATIVE DIRECTIVE — FOLLOW EXACTLY
