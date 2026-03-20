@@ -809,11 +809,14 @@ async function generateCreative(
     const validIndices = directive.selected_assets
       .map((sa) => sa.index)
       .filter((i) => i >= 0 && i < brandAssets.length);
-    selectedAssets = validIndices.map((i) => brandAssets[i]);
+    selectedAssets = validIndices.map((i) => {
+      const asset = { ...brandAssets[i], _originalIndex: i };
+      return asset;
+    });
 
     // If directive selected no valid assets, fall back to first few
     if (selectedAssets.length === 0 && brandAssets.length > 0) {
-      selectedAssets = brandAssets.slice(0, 3);
+      selectedAssets = brandAssets.slice(0, 3).map((a: any, i: number) => ({ ...a, _originalIndex: i }));
     }
 
     systemPrompt = buildDirectivePrompt(directive, framework, brand, selectedAssets, spec);
