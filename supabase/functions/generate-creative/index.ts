@@ -874,20 +874,27 @@ async function generateCreative(
   ];
 
   if (directive) {
-    for (const sa of directive.selected_assets) {
+    // Sort assets so logo comes first (IMAGE 2, right after reference) for maximum model attention
+    const sortedAssets = [...directive.selected_assets].sort((a, b) => {
+      const aIsLogo = a.role.toUpperCase() === "LOGO" ? 0 : 1;
+      const bIsLogo = b.role.toUpperCase() === "LOGO" ? 0 : 1;
+      return aIsLogo - bIsLogo;
+    });
+
+    for (const sa of sortedAssets) {
       const asset = selectedAssets.find((a: any) => (a._originalIndex ?? -1) === sa.index);
       if (!asset) continue;
       const roleLabel = sa.role.toUpperCase();
-      const mustAppear = roleLabel === "LOGO" ? " — must appear in final output, use exactly as-is" : "";
+      const imageNum = userContent.filter(c => c.type === "image_url").length + 1;
+      let labelText: string;
+      if (roleLabel === "LOGO") {
+        labelText = `IMAGE ${imageNum} — BRAND LOGO (study this carefully — reproduce its exact letterforms, colors, shapes, and proportions in the final output. This is the ONLY logo to use, ignore any logo in IMAGE 1):`;
+      } else {
+        labelText = `IMAGE ${imageNum} — ${roleLabel} (${sa.placement}):`;
+      }
       userContent.push(
-        {
-          type: "text",
-          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleLabel} (${sa.placement}${mustAppear}):`,
-        },
-        {
-          type: "image_url",
-          image_url: { url: asset.image_url },
-        }
+        { type: "text", text: labelText },
+        { type: "image_url", image_url: { url: asset.image_url } }
       );
     }
   } else {
