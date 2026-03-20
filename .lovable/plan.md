@@ -1,189 +1,61 @@
 
 
-# Refined Pipeline: Adapt Step + Smart Asset Selection + Focused Generation
+# Fix: Content Bleeding, Layout Quality, and Image Size Enforcement
 
-## What I found re-reading the full 799-line edge function
+## Three Issues Found
 
-Three concrete problems that directly hurt output quality:
+### 1. Reference content bleeding into output
+The image model sees the reference image and copies its text (Abu Dhabi, AED, etc.) instead of using brand content. The Adapt step pre-writes correct copy, but the generation prompt doesn't forcefully tell the model to IGNORE all text/content visible in the reference image. The model sees "Abu Dhabi" in the reference photo and renders it.
 
-1. **Blind asset selection** (line 310): `brandAssets.slice(0, 5)` — takes the first 5 assets regardless of relevance. If a brand has 2 logos, 3 architecture renders, 2 lifestyle photos, and 1 pattern, it just grabs the first 5. The image model then tries to use ALL of them, cluttering the creative. Real designers pick 2-3 assets per ad, not dump everything in.
+**Fix**: Add explicit "NEVER copy any text, names, locations, currencies, or content from the reference image" instructions in both the Adapt system prompt and the generation system prompt. Reinforce in the user message that the reference is ONLY for layout/style — all text must come from the Creative Directive.
 
-2. **Image model invents copy while rendering** — Gemini image models (3.1 Flash, 2.5 Flash, 3 Pro) are visual rendering engines. Asking them to simultaneously invent brand-aligned headlines, sub-copy, and CTAs while also composing a layout produces generic text. Pre-writing copy in a text model is the single highest-impact change.
+### 2. Broken asset role mapping + weak layout enforcement
+Line 550-555 in `buildDirectivePrompt` has a bug — the `.find()` callback always returns `true`, so asset role descriptions don't map correctly to actual assets. This means the image model gets vague placement instructions.
 
-3. **450-line system prompt** — not that long prompts are inherently bad, but this prompt contains DECISION-MAKING instructions ("figure out what copy to write", "decide which color for what", "determine if the logo needs light or dark version"). The image model should receive DECISIONS, not decision-making frameworks.
+Additionally, the prompt says "text must NEVER overlap critical imagery" but doesn't emphasize that text should be in CLEAR ZONES separate from hero visuals (not overlaid on buildings).
 
-## What this plan does differently from the previous version
+**Fix**: Fix the asset mapping logic and add stronger layout separation rules — text zones must be on solid/gradient backgrounds, never directly on 3D renders.
 
-**Previous concern**: "Making things smaller will make output worse."
+### 3. Image size not enforced
+Gemini image models don't reliably respect `size` or `image_size` API params. The system prompt mentions dimensions but the model often outputs the reference image's original dimensions instead. Need to make this unavoidable.
 
-The prompt doesn't get smaller for the sake of being smaller. It gets RESTRUCTURED: decision-making moves to the Adapt step (a text model that's good at decisions), and the image model receives a prompt that's ~200 lines of CLEAR INSTRUCTIONS (not 450 lines of "figure it out"). The instructions remain detailed — composition rules, typography standards, quality checklist — but every variable (copy, colors, assets) is pre-resolved.
+**Fix**: 
+- Repeat the exact dimensions in the user message (not just system prompt)
+- Add the dimensions to the very first line AND very last line of the system prompt
+- Add aspect ratio description more aggressively ("TALL vertical", "WIDE horizontal")
+- Repeat in the final checklist
 
-**Asset intelligence**: The Adapt step decides which 2-4 assets to use and WHY, based on the reference layout. A landscape ad with a big hero zone gets the architecture render + logo. A story ad gets a lifestyle photo + logo. Pattern textures only appear when the reference has a textured background. This mirrors how real designers work.
+## Changes (single file)
 
-## Changes
+**`supabase/functions/generate-creative/index.ts`**:
 
-### 1. New `adaptDirective()` function
+1. **Adapt prompt** (~line 335): Add to system prompt:
+   - "CRITICAL: The reference image is for LAYOUT and STYLE only. IGNORE all text, names, locations, prices, currencies, phone numbers visible in the reference. ALL copy must come from the brand data below."
 
-Text-only call to **Gemini 2.5 Flash** (strong reasoning, fast, cheap for text). Receives:
-- Reference image (to understand the ad's concept/energy/layout)
-- Framework JSON from Step 1
-- Full brand data (name, colors, voice, brief, negative prompts)
-- Complete asset list with labels
-- Output format/dimensions
+2. **`buildDirectivePrompt`** (~line 550): Fix broken asset mapping:
+   ```
+   // Current (broken): .find(() => true)
+   // Fixed: use the directive's index to map to the correct asset description
+   ```
 
-Outputs a `CreativeDirective` via tool calling:
+3. **`buildDirectivePrompt`** format section (~line 592): Strengthen size enforcement:
+   - First line: "MANDATORY OUTPUT SIZE: ${width}×${height} pixels. NO OTHER SIZE."
+   - Add: "Do NOT match the reference image dimensions. Output MUST be ${width}×${height}."
 
-```text
-{
-  // Pre-written copy (the #1 quality improvement)
-  headline: "Admissions Open 2026-27",        // exact text, ≤8 words
-  subcopy: "Future-ready CBSE education...",   // exact text, ≤20 words
-  cta_text: "Enquire Now",                    // exact CTA
+4. **`buildDirectivePrompt`** composition section (~line 626): Add layout separation rules:
+   - "Text MUST be placed on solid color zones or gradient overlays — NEVER directly on 3D renders or photos"
+   - "Create clear visual separation: hero imagery zone vs text zone"
+   - "If using a full-bleed hero image, text must sit on a color strip, gradient overlay, or dedicated panel"
 
-  // Asset selection (which assets to use AND why)
-  selected_assets: [
-    { index: 0, role: "logo", placement: "top-left, dark version", reason: "Brand mark" },
-    { index: 3, role: "hero", placement: "left 60% of canvas", reason: "Architecture render matches reference hero zone" }
-  ],
+5. **`buildDirectivePrompt`** user message text (~line 817): Add content isolation + size reminder:
+   - "IGNORE all text visible in the reference — use ONLY the text from the Creative Directive."
+   - "Output size MUST be exactly ${spec.width}×${spec.height}."
 
-  // Color decisions (not "figure it out" — specific hex values)
-  color_usage: {
-    background: "#F1F1EE",
-    headline_color: "#6366F1",
-    subcopy_color: "#57534E",
-    cta_background: "#FAB040",
-    cta_text: "#FFFFFF"
-  },
+6. **`buildDirectivePrompt`** checklist (~line 663): Add:
+   - "✅ NO text, location, currency, or content copied from reference"
+   - "✅ Text is on clear backgrounds, not overlaid on imagery"
 
-  // Concept mapping (how reference zones translate to this brand)
-  concept_adaptation: "Reference shows a car in dramatic lighting with price overlay. For this school brand: replace car with campus architecture in warm lighting, replace price with CTA, keep the dramatic composition energy.",
+7. **`buildFallbackPrompt`** (~line 738): Same content isolation + size fixes for the fallback path.
 
-  // Logo treatment
-  logo_treatment: "Dark logo on light background — sufficient contrast, no backing panel needed",
-
-  // Compliance check
-  compliance_notes: "No school crest per brand rules. CBSE mentioned only via affiliated logo."
-}
-```
-
-This takes ~5-8 seconds. The model does ONE job: translate reference + brand into specific creative decisions.
-
-**Why this won't make things worse**: The Adapt model receives the SAME information the image model currently receives (brand brief, assets, framework, reference). It just processes it as a text reasoning task, which text models excel at. The image model then receives pre-made decisions, which image models excel at executing.
-
-### 2. Smart asset selection logic
-
-The Adapt step's `selected_assets` field replaces the current `brandAssets.slice(0, 5)`. Rules the Adapt model follows:
-
-- **Always include**: One logo asset (if available)
-- **Hero visual**: Pick ONE hero/architecture/lifestyle asset that best matches the reference's hero zone
-- **Supporting**: Optionally one more asset if the reference layout has multiple visual zones
-- **Skip**: Assets that don't fit the layout (e.g., skip "Pattern/Texture" unless reference has a textured background, skip "Masterplan" in a story ad)
-- **Maximum 4 assets** passed to image model (reference image + up to 3 brand assets)
-
-This means the image model sees fewer, more relevant images — which directly improves output quality because the model isn't trying to force-fit irrelevant assets.
-
-### 3. Restructured generation prompt (~200 lines)
-
-The prompt keeps ALL quality standards but removes decision-making:
-
-```text
-Section 1: FORMAT (10 lines)
-  → Exact dimensions, aspect ratio enforcement (unchanged from current)
-
-Section 2: CREATIVE DIRECTIVE (40-50 lines)
-  → The pre-decided JSON: exact headline, subcopy, CTA, colors, asset placements
-  → "Render EXACTLY this text. Use EXACTLY these colors. Place assets as specified."
-
-Section 3: ASSET RULES (20-30 lines, conditional)
-  → Only include rules for asset types actually selected
-  → Logo present? Include logo contrast rules
-  → Architecture render present? Include 3D creative freedom rules
-  → No architecture? Skip those 15 lines entirely
-
-Section 4: COMPOSITION & TYPOGRAPHY (40 lines)
-  → Visual hierarchy, rule of thirds, negative space (kept from current)
-  → Typography standards (kept from current)
-  → Deduplication rules (kept from current)
-
-Section 5: FRAMEWORK (variable)
-  → The layout zones from analysis (kept from current)
-
-Section 6: QUALITY CHECKLIST (15 lines)
-  → Same checklist as current, but with resolved values
-```
-
-**Key difference from previous plan**: This is ~200 lines, not 120. The composition rules, typography standards, and quality checklist remain in full. What's removed is the "figure out what copy to write" and "decide which colors to use" sections — because those decisions are already made.
-
-### 4. Reference image stays in generation
-
-The user content array becomes:
-1. Text instruction referencing the directive
-2. Reference image (for style/layout/energy context)
-3. Only the SELECTED brand assets (2-3, not all 5)
-
-The reference image provides the visual "feel" that text alone can't convey. The directive provides the specific decisions.
-
-### 5. Fallback safety
-
-If `adaptDirective()` fails (timeout, model error), the function falls back to the current behavior — full 450-line prompt with all assets. This ensures the system can never produce WORSE results than today; the Adapt step is purely additive.
-
-### 6. Add Portrait 4:5 format (1080×1350)
-
-Add to `FORMAT_SPECS` in edge function and `FORMAT_OPTIONS` in Studio.tsx.
-
-## Edge cases handled
-
-| Scenario | How the Adapt step handles it |
-|---|---|
-| Brand has only a logo, no other assets | `selected_assets` returns just the logo; directive notes "text-prominent layout, use brand colors for visual impact" |
-| Brand has 10+ assets | Adapt picks the 2-3 most relevant to the reference layout; the rest are skipped |
-| Reference is a car ad, brand is a school | `concept_adaptation` maps: car → campus, price tag → CTA, dealer info → contact |
-| Reference has pricing, brand doesn't do pricing | Directive replaces price zone with CTA or tagline |
-| Story format (9:16) | Adapt adjusts: stacks elements vertically, hero gets 50-60% top, text zones below |
-| Brand brief says "never show school crest" | `compliance_notes` flags this; image model's negative prompt includes it |
-| Logo is dark but background is dark | `logo_treatment` specifies "use light version" or "add light backing panel" |
-| 3D architecture render as hero | Asset gets `role: "hero"` with note that creative enhancement of lighting/angle is allowed |
-
-## Pipeline flow
-
-```text
-Reference Image + Brand Data + All Assets
-        │
-        ▼
-┌──────────────┐
-│  1. ANALYZE   │  Gemini 2.5 Flash (vision + tool calling)
-│  ~8 seconds   │  → Framework JSON (layout zones, style, mood)
-│               │  (skipped on retry if cached)
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  2. ADAPT     │  Gemini 2.5 Flash (text + reference image)
-│  ~5-8 seconds │  → CreativeDirective:
-│               │    • Pre-written copy (headline, subcopy, CTA)
-│               │    • Selected assets (2-3 of N) with roles
-│               │    • Color decisions (specific hex values)
-│               │    • Concept adaptation notes
-│               │    • Logo treatment + compliance
-│               │  (fallback: skip and use current full prompt)
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  3. GENERATE  │  Image model cascade (3.1 Flash → 2.5 Flash → 3 Pro)
-│  ~25-35 sec   │  Input: reference image + 2-3 selected assets
-│               │  Prompt: ~200 lines (decisions resolved, rules kept)
-└──────────────┘
-
-Total: ~40-50 seconds
-```
-
-## Files modified
-
-| File | Change |
-|---|---|
-| `supabase/functions/generate-creative/index.ts` | Add `adaptDirective()` with tool calling schema; refactor `generateCreative()` to accept directive + selected assets; restructure system prompt; add fallback; add portrait 4:5 format |
-| `src/pages/Studio.tsx` | Add Portrait 4:5 format option; update progress phases to show "Adapting to brand..." between analyze and generate |
-
-No database changes needed. No BrandForm.tsx changes needed — the existing structured brand brief + asset tagging + multi-color system provides sufficient data.
+8. **Generation API call** (~line 858): Move `size` param to top-level to match Gemini API expectations more reliably.
 
