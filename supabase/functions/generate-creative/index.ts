@@ -667,7 +667,8 @@ LOGO RULES:
 
   assetRules += `
 GENERAL ASSET RULES:
-- For logos, product photos, mascots: NEVER redraw — place EXACTLY as provided, same proportions
+- For logos: faithfully reproduce exact letterforms, shapes, colors, and proportions from the provided logo image
+- For product photos, mascots: reproduce with high fidelity, preserving key visual details
 - Only adjust: size/scale to fit layout, contrast adaptation (light/dark)
 `;
 
