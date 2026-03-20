@@ -709,7 +709,7 @@ TYPOGRAPHY:
 DEDUPLICATION: If logo contains brand name, do NOT repeat as text. Each element appears ONCE.
 
 ═══ REFERENCE FRAMEWORK ═══
-${JSON.stringify(framework, null, 2)}
+${JSON.stringify(sanitizeFramework(framework), null, 2)}
 
 ${negativePrompts ? `⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
