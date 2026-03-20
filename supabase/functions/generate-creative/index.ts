@@ -714,60 +714,41 @@ function buildFallbackPrompt(
 
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  return `══════════════════════════════════════════
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
-══════════════════════════════════════════
-You are an elite creative director producing a publication-ready advertisement.
+  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
-CONTENT ISOLATION (NON-NEGOTIABLE):
-The reference image is for LAYOUT and VISUAL STYLE only.
-NEVER copy ANY text, names, locations, prices, currencies, phone numbers from the reference.
-ALL text must come from the brand data below.
+CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies from it. ALL text comes from brand data below.
 
-OUTPUT: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
-Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
-${spec.width === spec.height ? "MUST be perfectly SQUARE." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL." : ""}
-${spec.width > spec.height ? "MUST be WIDE." : ""}
+═══ DESIGN DIRECTION ═══
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content.
 
-LOGO RULES: Logo must be clearly visible against its background. On dark backgrounds use light version or add backing panel. Never redraw logos.
-
-3D RENDER RULES: Preserve exact architecture. May enhance lighting, angle, atmosphere. Never alter building structure.
-
+LOGO: Must be clearly visible. On dark backgrounds use light version or backing panel. Never redraw logos.
+3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
 ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
-
-TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER directly on 3D renders or photos.
-
-COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space. Clear separation between imagery zone and text zone.
-TYPOGRAPHY: Headline ≤8 words, bold. Subcopy ≤20 words. CTA clean. All text legible.
+TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER on photos/renders.
+COMPOSITION: Clear hierarchy. Hero visual prominent. Breathing room between elements.
+TYPOGRAPHY: Headline ≤8 words bold. Subcopy ≤20 words. CTA clean. All text legible.
 DEDUPLICATION: No repeated elements.
 
-BRAND GUIDELINES:
+═══ BRAND DATA ═══
 ${brandContext}
-${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data, not the reference.` : ""}
-${negativePrompts ? `\n⛔ NEVER include: ${negativePrompts}` : ""}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data.` : ""}
+${negativePrompts ? `\n⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
-DESIGN FRAMEWORK:
+═══ REFERENCE FRAMEWORK ═══
 ${frameworkJson}
 
-${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images):
-${assetRoleDescriptions}
-First image = reference (layout inspiration ONLY — ignore its text). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
+${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images provided after reference):
+${assetRoleDescriptions}` : `No assets. Use "${brand.name}" text with brand colors.`}
 
 CHECKLIST:
-✅ ${spec.width}×${spec.height} ${aspectRatioLabel} — NOT the reference image size
-✅ Hero 50-70%, unobscured
+✅ ${spec.width}×${spec.height} (${aspectRatioLabel})
 ✅ Logo visible, contrasted
-✅ Headline ≤8 words, subcopy ≤20 words
-✅ No duplicates
 ✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
-✅ All brand rules followed, exclusions respected
-✅ Negative space, professional quality
-✅ NO text/location/currency copied from reference
+✅ No text/content copied from reference
 ✅ Text on clean backgrounds, not on imagery
+✅ Professional quality
 
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
-Generate the creative now.`;
+Output: ${spec.width}×${spec.height} pixels. Generate now.`;
 }
 
 async function generateCreative(
