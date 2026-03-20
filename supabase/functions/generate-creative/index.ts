@@ -772,9 +772,18 @@ function buildFallbackPrompt(
 
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  return `You are an elite creative director producing a publication-ready advertisement.
+  return `══════════════════════════════════════════
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
+══════════════════════════════════════════
+You are an elite creative director producing a publication-ready advertisement.
+
+CONTENT ISOLATION (NON-NEGOTIABLE):
+The reference image is for LAYOUT and VISUAL STYLE only.
+NEVER copy ANY text, names, locations, prices, currencies, phone numbers from the reference.
+ALL text must come from the brand data below.
 
 OUTPUT: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
 ${spec.width === spec.height ? "MUST be perfectly SQUARE." : ""}
 ${spec.height > spec.width ? "MUST be TALL/VERTICAL." : ""}
 ${spec.width > spec.height ? "MUST be WIDE." : ""}
@@ -785,13 +794,15 @@ LOGO RULES: Logo must be clearly visible against its background. On dark backgro
 
 ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
 
-COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space.
+TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER directly on 3D renders or photos.
+
+COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space. Clear separation between imagery zone and text zone.
 TYPOGRAPHY: Headline ≤8 words, bold. Subcopy ≤20 words. CTA clean. All text legible.
 DEDUPLICATION: No repeated elements.
 
 BRAND GUIDELINES:
 ${brandContext}
-${brandBrief ? `\nBrand Brief instructions are MANDATORY. Example copy is for tone reference only.` : ""}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data, not the reference.` : ""}
 ${negativePrompts ? `\n⛔ NEVER include: ${negativePrompts}` : ""}
 
 DESIGN FRAMEWORK:
@@ -799,10 +810,10 @@ ${frameworkJson}
 
 ${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images):
 ${assetRoleDescriptions}
-First image = reference (layout inspiration). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
+First image = reference (layout inspiration ONLY — ignore its text). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
 
 CHECKLIST:
-✅ ${spec.width}×${spec.height} ${aspectRatioLabel}
+✅ ${spec.width}×${spec.height} ${aspectRatioLabel} — NOT the reference image size
 ✅ Hero 50-70%, unobscured
 ✅ Logo visible, contrasted
 ✅ Headline ≤8 words, subcopy ≤20 words
