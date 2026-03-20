@@ -11,13 +11,13 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
   landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
   square: { width: 1080, height: 1080, label: "square (1080×1080)" },
   story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
+  portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)" },
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function parseStoredFramework(value: unknown): Record<string, unknown> | null {
   if (!value) return null;
-
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
@@ -28,7 +28,6 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
       return null;
     }
   }
-
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
@@ -37,7 +36,6 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
 function extractStoredCaption(copywriting: unknown): string {
   if (typeof copywriting === "string") return copywriting.trim();
   if (!copywriting || typeof copywriting !== "object") return "";
-
   const caption = (copywriting as Record<string, unknown>).caption;
   return typeof caption === "string" ? caption.trim() : "";
 }
@@ -67,17 +65,17 @@ function extractImagePayload(aiData: any): string | null {
     aiData?.choices?.[0]?.message?.image_url?.url,
     aiData?.choices?.[0]?.message?.image_url,
   ];
-
   for (const candidate of candidates) {
     if (typeof candidate === "string" && candidate.length > 0) {
       return candidate;
     }
   }
-
   return null;
 }
 
-/** Step 1 — Analyze the reference image and extract a structured design framework */
+// ─────────────────────────────────────────────────────
+// Step 1 — Analyze reference image design framework
+// ─────────────────────────────────────────────────────
 async function analyzeFramework(
   referenceImageUrl: string,
   apiKey: string
@@ -278,18 +276,417 @@ async function analyzeFramework(
   return JSON.parse(toolCall.function.arguments);
 }
 
-/** Step 2 — Generate the brand creative using the framework */
-async function generateCreative(
+// ─────────────────────────────────────────────────────
+// Step 2 — Adapt: Map reference concept to brand
+// ─────────────────────────────────────────────────────
+interface CreativeDirective {
+  headline: string;
+  subcopy: string;
+  cta_text: string;
+  selected_assets: Array<{
+    index: number;
+    role: string;
+    placement: string;
+    reason: string;
+  }>;
+  color_usage: {
+    background: string;
+    headline_color: string;
+    subcopy_color: string;
+    cta_background: string;
+    cta_text: string;
+  };
+  concept_adaptation: string;
+  logo_treatment: string;
+  compliance_notes: string;
+}
+
+async function adaptDirective(
   framework: Record<string, unknown>,
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
   spec: { width: number; height: number; label: string },
   apiKey: string
-): Promise<{ imageBase64: string; captionText: string }> {
-  const extraColorsText = brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
-    ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
-    : "";
+): Promise<CreativeDirective> {
+  const extraColorsText =
+    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+      ? brand.extra_colors.map((c: any) => `${c.name || "Color"}: ${c.hex}`).join(", ")
+      : "";
+
+  const assetList = brandAssets
+    .map(
+      (a: any, i: number) =>
+        `[${i}] "${a.label || "Unlabeled asset"}" — ${a.image_url}`
+    )
+    .join("\n");
+
+  const brandContext = [
+    `Brand: ${brand.name}`,
+    `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
+    extraColorsText ? `Extra colors: ${extraColorsText}` : "",
+    brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1500)}` : "",
+    brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 2500)}` : "",
+    brand.negative_prompts ? `NEVER include: ${toCompactText(brand.negative_prompts, 1000)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
+
+You receive:
+1. A reference advertisement image (for concept/style/layout inspiration)
+2. The extracted design framework (structural analysis of the reference)
+3. Full brand data (name, colors, voice, brief, assets)
+4. The complete asset library with labels and indices
+5. The output format/dimensions
+
+Your task:
+- Write the EXACT headline (≤8 words), subcopy (≤20 words), and CTA text for this brand
+- Select which 2-4 assets (by index) to use and their roles/placements
+- Decide exact color hex values for each element
+- Explain how the reference concept adapts to this brand
+- Specify logo treatment (light/dark version, backing panel if needed)
+- Flag any compliance concerns from the brand brief
+
+ASSET SELECTION RULES:
+- Always include ONE logo if available
+- Pick ONE hero visual (architecture/lifestyle/product) that best matches the reference's main visual zone
+- Optionally add ONE supporting asset if the reference has multiple visual zones
+- Skip assets that don't fit this layout (e.g., skip masterplan in a story ad, skip patterns unless reference has textured backgrounds)
+- Maximum 4 assets total (fewer is better — less clutter = better design)
+- If the brand has no visual assets beyond a logo, note that the design should be text-prominent with strong color usage
+
+COPY RULES:
+- Headlines must be original, punchy, and aligned to brand voice
+- If the brand brief contains example copy, use it for TONE REFERENCE only — write original text
+- CTA should be actionable and brand-appropriate
+- If the brand brief specifies mandatory text (e.g., "RERA No.", "CBSE Affiliated"), include it in subcopy or as a separate element
+
+COLOR RULES:
+- Use brand primary color for dominant elements (headlines, accent strips, CTA backgrounds)
+- Use brand secondary color for supporting elements
+- Background should complement the hero imagery
+- Ensure text colors have sufficient contrast against their backgrounds
+
+FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
+
+  const userMessage = `DESIGN FRAMEWORK (from reference analysis):
+${JSON.stringify(framework, null, 2)}
+
+BRAND DATA:
+${brandContext}
+
+AVAILABLE ASSETS (select by index):
+${assetList || "No assets available — design must be text-prominent."}
+
+Look at the reference image and the framework above. Map every element to this brand. Pre-decide all copy, colors, and asset selections.`;
+
+  const response = await fetch(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userMessage },
+              { type: "image_url", image_url: { url: referenceImageUrl } },
+            ],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "creative_directive",
+              description:
+                "Output the complete creative directive mapping the reference concept to the brand.",
+              parameters: {
+                type: "object",
+                properties: {
+                  headline: {
+                    type: "string",
+                    description: "Exact headline text, ≤8 words, punchy and brand-aligned",
+                  },
+                  subcopy: {
+                    type: "string",
+                    description: "Exact subcopy text, ≤20 words, supporting the headline",
+                  },
+                  cta_text: {
+                    type: "string",
+                    description: "Exact CTA text, e.g. 'Enquire Now', 'Shop Now', 'Learn More'",
+                  },
+                  selected_assets: {
+                    type: "array",
+                    description: "Which assets to use (by index), their role, placement, and reason",
+                    items: {
+                      type: "object",
+                      properties: {
+                        index: { type: "number", description: "Asset index from the list" },
+                        role: {
+                          type: "string",
+                          description: "logo, hero, supporting, pattern, or background",
+                        },
+                        placement: {
+                          type: "string",
+                          description:
+                            "Where and how to place it, e.g. 'top-left corner, dark version', 'left 60% of canvas as hero'",
+                        },
+                        reason: {
+                          type: "string",
+                          description: "Why this asset was selected for this layout",
+                        },
+                      },
+                      required: ["index", "role", "placement", "reason"],
+                      additionalProperties: false,
+                    },
+                  },
+                  color_usage: {
+                    type: "object",
+                    description: "Exact hex color values for each design element",
+                    properties: {
+                      background: { type: "string", description: "Background hex color" },
+                      headline_color: { type: "string", description: "Headline text hex color" },
+                      subcopy_color: { type: "string", description: "Subcopy text hex color" },
+                      cta_background: { type: "string", description: "CTA button/strip background hex" },
+                      cta_text: { type: "string", description: "CTA text hex color" },
+                    },
+                    required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
+                    additionalProperties: false,
+                  },
+                  concept_adaptation: {
+                    type: "string",
+                    description:
+                      "How the reference concept translates to this brand — what replaces what, what energy to keep",
+                  },
+                  logo_treatment: {
+                    type: "string",
+                    description:
+                      "How to handle the logo: light/dark version, backing panel, size, contrast notes",
+                  },
+                  compliance_notes: {
+                    type: "string",
+                    description:
+                      "Any brand brief rules to enforce or negative prompts to respect",
+                  },
+                },
+                required: [
+                  "headline",
+                  "subcopy",
+                  "cta_text",
+                  "selected_assets",
+                  "color_usage",
+                  "concept_adaptation",
+                  "logo_treatment",
+                  "compliance_notes",
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
+        tool_choice: {
+          type: "function",
+          function: { name: "creative_directive" },
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Adapt directive error:", response.status, errText);
+    throw new Error(`Adapt directive failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall?.function?.arguments) {
+    throw new Error("No directive extracted from Adapt step");
+  }
+
+  const directive: CreativeDirective = JSON.parse(toolCall.function.arguments);
+  console.log("Adapt directive:", JSON.stringify({
+    headline: directive.headline,
+    subcopy: directive.subcopy,
+    cta: directive.cta_text,
+    assetsSelected: directive.selected_assets?.length ?? 0,
+  }));
+
+  return directive;
+}
+
+// ─────────────────────────────────────────────────────
+// Step 3 — Generate creative with directive
+// ─────────────────────────────────────────────────────
+function buildDirectivePrompt(
+  directive: CreativeDirective,
+  framework: Record<string, unknown>,
+  brand: any,
+  selectedAssets: any[],
+  spec: { width: number; height: number; label: string }
+): string {
+  const aspectRatioLabel =
+    spec.width === spec.height
+      ? "1:1 SQUARE"
+      : spec.width > spec.height
+        ? `${spec.width}:${spec.height} LANDSCAPE`
+        : `${spec.width}:${spec.height} PORTRAIT`;
+
+  // Categorize selected assets for conditional rules
+  const hasLogo = selectedAssets.some((a: any) => /logo/i.test(a.label || ""));
+  const hasArchitecture = selectedAssets.some((a: any) =>
+    /architect|3d|render|building|elevation|facade/i.test(a.label || "")
+  );
+
+  const assetRoleLines = directive.selected_assets
+    .map((sa) => {
+      const asset = selectedAssets.find((_: any, i: number) => {
+        // Map directive index back — we'll handle this in the caller
+        return true;
+      });
+      return `  • [${sa.role.toUpperCase()}] → ${sa.placement} (${sa.reason})`;
+    })
+    .join("\n");
+
+  // Build conditional asset rule sections
+  let assetRules = "";
+
+  if (hasLogo) {
+    assetRules += `
+LOGO RULES:
+- The logo MUST be clearly visible and readable against its background
+- ${directive.logo_treatment}
+- On dark backgrounds: use a white/light version or add a light backing panel
+- On light backgrounds: use the logo as-is in dark form
+- On busy imagery: place in a clear zone with padding or semi-transparent backing
+- NEVER redraw or reimagine the logo — use it EXACTLY as provided
+`;
+  }
+
+  if (hasArchitecture) {
+    assetRules += `
+3D RENDER RULES:
+- Preserve EXACT architecture: building shape, facade, rooflines, proportions, materials, windows
+- You MAY creatively enhance: lighting (golden hour, twilight), angle/perspective, atmosphere, cropping
+- Goal: make the architecture look aspirational and premium while keeping it architecturally accurate
+`;
+  }
+
+  assetRules += `
+GENERAL ASSET RULES:
+- For logos, product photos, mascots: NEVER redraw — place EXACTLY as provided, same proportions
+- Only adjust: size/scale to fit layout, contrast adaptation (light/dark)
+`;
+
+  const negativePrompts = toCompactText(brand.negative_prompts, 1500);
+
+  return `You are an elite creative director producing a publication-ready advertisement.
+
+══════════════════════════════════════════
+FORMAT REQUIREMENT (NON-NEGOTIABLE)
+══════════════════════════════════════════
+Output: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+${spec.width === spec.height ? "MUST be perfectly SQUARE. Equal width and height." : ""}
+${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation)." : ""}
+${spec.width > spec.height ? "MUST be WIDE (landscape orientation)." : ""}
+
+══════════════════════════════════════════
+CREATIVE DIRECTIVE — FOLLOW EXACTLY
+══════════════════════════════════════════
+HEADLINE (render this EXACT text, large and bold): "${directive.headline}"
+SUBCOPY (render this EXACT text, medium size): "${directive.subcopy}"
+CTA (render this EXACT text): "${directive.cta_text}"
+
+COLORS:
+- Background: ${directive.color_usage.background}
+- Headline: ${directive.color_usage.headline_color}
+- Subcopy: ${directive.color_usage.subcopy_color}
+- CTA background: ${directive.color_usage.cta_background}
+- CTA text: ${directive.color_usage.cta_text}
+
+CONCEPT: ${directive.concept_adaptation}
+
+ASSET PLACEMENTS:
+${assetRoleLines}
+
+${assetRules}
+
+══════════════════════════════════════════
+COMPOSITION & TYPOGRAPHY STANDARDS
+══════════════════════════════════════════
+COMPOSITION:
+- Clear visual hierarchy: hero → headline → supporting info → CTA
+- Hero visual should occupy 50-70% of the canvas
+- Important hero image parts must NEVER be obscured by text overlays
+- Use rule of thirds for element placement
+- Intentional negative space — breathing room between elements
+
+TYPOGRAPHY:
+- Headline: Large, bold, impossible to miss — render EXACTLY the text above
+- Subcopy: Medium size, supporting — render EXACTLY the text above
+- CTA: Clean, prominent — render EXACTLY the text above
+- ALL text must be LEGIBLE with proper size, contrast, and spacing
+- Never stack more than 3 text hierarchy levels
+- Text must NEVER overlap critical imagery (faces, architectural details)
+
+LAYOUT ZONES (each appears EXACTLY ONCE):
+1. HERO ZONE (50-70%): Dominant visual
+2. BRAND MARK: Logo — ONCE, clearly visible, properly contrasted
+3. HEADLINE: One powerful headline
+4. SUPPORTING COPY: Brief subcopy
+5. INFO/CTA BAR: CTA — compact, clear
+6. NEGATIVE SPACE: Breathing room
+
+DEDUPLICATION:
+- If logo contains brand name, do NOT repeat it as separate text
+- Each element (location, price, contact) appears ONCE only
+
+══════════════════════════════════════════
+DESIGN FRAMEWORK (reference layout guide)
+══════════════════════════════════════════
+${JSON.stringify(framework, null, 2)}
+
+${negativePrompts ? `══════════════════════════════════════════
+⛔ EXCLUSIONS — NEVER include:
+══════════════════════════════════════════
+${negativePrompts}` : ""}
+
+══════════════════════════════════════════
+FINAL CHECKLIST
+══════════════════════════════════════════
+✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Headline is EXACTLY: "${directive.headline}"
+✅ Subcopy is EXACTLY: "${directive.subcopy}"
+✅ CTA is EXACTLY: "${directive.cta_text}"
+✅ Colors match the directive above
+✅ Hero visual occupies 50-70%, unobscured
+✅ Logo visible with proper contrast
+✅ No duplicated elements
+✅ Intentional negative space
+✅ Professional, premium quality
+
+Generate the creative image now.`;
+}
+
+function buildFallbackPrompt(
+  framework: Record<string, unknown>,
+  brand: any,
+  brandAssets: any[],
+  spec: { width: number; height: number; label: string }
+): string {
+  const extraColorsText =
+    brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
+      ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
+      : "";
 
   const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
   const negativePrompts = toCompactText(brand.negative_prompts, 2000);
@@ -308,169 +705,119 @@ async function generateCreative(
     .join("\n");
 
   const selectedAssets = brandAssets.slice(0, 5);
-  const omittedAssetsCount = Math.max(brandAssets.length - selectedAssets.length, 0);
   const hasAssets = selectedAssets.length > 0;
-  const assetDescriptions = selectedAssets
-    .map((a: any, i: number) => `  - Image ${i + 1}: ${a.label || "Brand asset"}`)
-    .join("\n");
 
-  // Use full framework for higher fidelity
-  const frameworkJson = JSON.stringify(framework, null, 2);
-
-  // Determine aspect ratio label for strong enforcement
-  const aspectRatioLabel = spec.width === spec.height ? "1:1 SQUARE" 
-    : spec.width > spec.height ? `${spec.width}:${spec.height} LANDSCAPE` 
-    : `${spec.width}:${spec.height} PORTRAIT/STORY`;
-
-  // Categorize assets by label for intelligent placement
   const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
-  const architectureAssets = selectedAssets.filter((a: any) => /architect|3d|render|building|elevation|facade/i.test(a.label || ""));
-  const heroAssets = selectedAssets.filter((a: any) => /hero|lifestyle|product|mascot|master/i.test(a.label || ""));
-  const otherAssets = selectedAssets.filter((a: any) => 
-    !logoAssets.includes(a) && !architectureAssets.includes(a) && !heroAssets.includes(a)
+  const architectureAssets = selectedAssets.filter((a: any) =>
+    /architect|3d|render|building|elevation|facade/i.test(a.label || "")
+  );
+  const heroAssets = selectedAssets.filter((a: any) =>
+    /hero|lifestyle|product|mascot|master/i.test(a.label || "")
+  );
+  const otherAssets = selectedAssets.filter(
+    (a: any) =>
+      !logoAssets.includes(a) && !architectureAssets.includes(a) && !heroAssets.includes(a)
   );
 
   const assetRoleDescriptions = [
-    ...logoAssets.map((a: any, i: number) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone. Adjust contrast for readability (see LOGO CONTRAST rules).`),
-    ...architectureAssets.map((a: any, i: number) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Use as hero visual. You MAY creatively adjust lighting, angle, and atmosphere (see 3D RENDER rules).`),
-    ...heroAssets.map((a: any, i: number) => `  🖼️ HERO/LIFESTYLE: "${a.label || "Visual"}" — Use as primary or secondary visual in the layout.`),
-    ...otherAssets.map((a: any, i: number) => `  📎 ASSET: "${a.label || "Brand asset"}" — Use as provided in appropriate zone.`),
+    ...logoAssets.map((a: any) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone.`),
+    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Hero visual. May enhance lighting/angle.`),
+    ...heroAssets.map((a: any) => `  🖼️ HERO: "${a.label || "Visual"}" — Primary/secondary visual.`),
+    ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Asset"}" — Use in appropriate zone.`),
   ].join("\n");
 
-  const systemPrompt = `You are an elite creative director at a top-tier advertising agency. You produce award-winning, publication-ready advertisements that win Cannes Lions and D&AD Pencils.
+  const aspectRatioLabel =
+    spec.width === spec.height
+      ? "1:1 SQUARE"
+      : spec.width > spec.height
+        ? `${spec.width}:${spec.height} LANDSCAPE`
+        : `${spec.width}:${spec.height} PORTRAIT`;
 
-══════════════════════════════════════════
-ABSOLUTE OUTPUT FORMAT REQUIREMENT
-══════════════════════════════════════════
-The generated image MUST be exactly ${spec.width}×${spec.height} pixels — a ${aspectRatioLabel} format.
-${spec.width === spec.height ? "The image MUST be perfectly SQUARE. Equal width and height. NOT landscape, NOT portrait. SQUARE." : ""}
-${spec.height > spec.width ? "The image MUST be TALL/VERTICAL (portrait orientation). Height is greater than width." : ""}
-${spec.width > spec.height ? "The image MUST be WIDE (landscape orientation). Width is greater than height." : ""}
-DO NOT generate an image in any other aspect ratio. This is non-negotiable.
+  const frameworkJson = JSON.stringify(framework, null, 2);
 
-══════════════════════════════════════════
-🎨 LOGO CONTRAST & READABILITY — CRITICAL
-══════════════════════════════════════════
-The logo MUST always be clearly visible and readable against its background:
-- On DARK backgrounds (dark photos, dark gradients, dark colors): Use a WHITE or LIGHT version of the logo. If only a dark logo is provided, place it on a light panel/strip or add a subtle light backing.
-- On LIGHT backgrounds: Use the logo as-is or in dark form.
-- On BUSY/PHOTOGRAPHIC backgrounds: Place the logo in a clear zone with a semi-transparent backing panel, solid color strip, or adequate padding from complex imagery.
-- The logo must NEVER blend into or get lost against the background.
-- Ensure minimum contrast ratio for professional readability.
-- If the brand has both light and dark color variants, choose the one that contrasts best.
+  return `You are an elite creative director producing a publication-ready advertisement.
 
-══════════════════════════════════════════
-🏗️ 3D ARCHITECTURAL RENDERS — CREATIVE FREEDOM
-══════════════════════════════════════════
-3D renders (buildings, elevations, facades, interiors) are REFERENCE MATERIAL showing the project's design:
-- You MUST preserve the EXACT architecture: building shape, facade design, rooflines, structural proportions, materials, window patterns, floor counts.
-- You MAY and SHOULD creatively enhance:
-  • LIGHTING: Golden hour, dramatic twilight, night illumination, dawn light — choose what works best for the creative's mood
-  • ANGLE/PERSPECTIVE: Show from a different viewpoint if it creates a more compelling composition — aerial, street-level, 3/4 view, dramatic low angle
-  • ATMOSPHERE: Add environmental context — city streetscape, landscaping, sky drama, reflections, people/life
-  • CROPPING: Focus on the most visually striking portion of the building
-- The goal is to make the architecture look ASPIRATIONAL and PREMIUM while keeping it architecturally accurate
-- Think of it as a render artist re-rendering the same building with better art direction
+OUTPUT: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
+${spec.width === spec.height ? "MUST be perfectly SQUARE." : ""}
+${spec.height > spec.width ? "MUST be TALL/VERTICAL." : ""}
+${spec.width > spec.height ? "MUST be WIDE." : ""}
 
-══════════════════════════════════════════
-🔒 LOGO & PRODUCT ASSET FIDELITY
-══════════════════════════════════════════
-For LOGOS, PRODUCT PHOTOS, and MASCOTS (NOT 3D renders):
-- NEVER redraw, reimagine, recreate, or stylize these assets
-- Place them EXACTLY as provided — same proportions, same details
-- Only adjust: size/scale to fit layout, and contrast adaptation (light/dark version)
-- These are the literal brand marks — pixel-perfect fidelity required
+LOGO RULES: Logo must be clearly visible against its background. On dark backgrounds use light version or add backing panel. Never redraw logos.
 
-══════════════════════════════════════════
-📐 PROFESSIONAL DESIGN QUALITY STANDARDS
-══════════════════════════════════════════
-Every creative must meet these professional standards:
+3D RENDER RULES: Preserve exact architecture. May enhance lighting, angle, atmosphere. Never alter building structure.
 
-COMPOSITION:
-- Clear visual hierarchy: Eye should flow naturally from hero → headline → supporting info → CTA
-- The hero visual (3D render, product, lifestyle image) should occupy 50-70% of the canvas
-- Important parts of the hero image must NEVER be obscured by text overlays or other elements
-- Use the rule of thirds for element placement
-- Intentional negative space — white space is a design element, not wasted space
+ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
 
-TYPOGRAPHY & COPY:
-- Headline: Maximum 6-8 words. Punchy, memorable, benefit-driven. Large, bold, impossible to miss.
-- Sub-copy: Maximum 15-20 words. One supporting sentence. Medium size.
-- CTA/Contact: Small, clean, bottom zone. Phone, website, or action.
-- ALL text must be LEGIBLE — proper size, proper contrast, proper spacing
-- Never stack more than 3 levels of text hierarchy
-- Text should NEVER overlap with critical parts of imagery (faces, architectural details, product features)
+COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space.
+TYPOGRAPHY: Headline ≤8 words, bold. Subcopy ≤20 words. CTA clean. All text legible.
+DEDUPLICATION: No repeated elements.
 
-COLOR:
-- Use brand primary color for dominant elements (backgrounds, headlines, accent strips)
-- Use brand secondary color for supporting elements (sub-copy, borders, secondary panels)
-- Maintain professional color harmony — don't use ALL brand colors everywhere
-- Background color choices should complement the hero imagery
-
-LAYOUT ZONES (each appears EXACTLY ONCE):
-1. HERO ZONE (50-70%): One dominant visual — the 3D render, product shot, or lifestyle image
-2. BRAND MARK: Logo appears ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline, large and bold
-4. SUPPORTING COPY: Brief sub-copy or tagline
-5. INFO BAR: Contact/CTA/location — compact, bottom or side strip
-6. NEGATIVE SPACE: Breathing room between elements — do NOT fill every pixel
-
-DEDUPLICATION:
-- If the logo contains the brand name, do NOT repeat the brand name as separate text
-- Location appears ONCE (not in headline AND info bar)
-- Price/offer appears ONCE
-- Contact info appears ONCE
-
-══════════════════════════════════════════
-📋 BRAND GUIDELINES — MANDATORY RULES
-══════════════════════════════════════════
-The following brand guidelines are NOT suggestions — they are MANDATORY rules that MUST be followed in every creative without exception:
-
+BRAND GUIDELINES:
 ${brandContext}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY. Example copy is for tone reference only.` : ""}
+${negativePrompts ? `\n⛔ NEVER include: ${negativePrompts}` : ""}
 
-${brandBrief ? `\nThe Brand Brief above contains specific instructions about visual style, messaging, target audience, and mandatory/forbidden elements. Treat EVERY instruction in the brief as a hard requirement. Examples of copy in the brief are for TONE REFERENCE ONLY — generate original copy, never copy verbatim.` : ""}
-${negativePrompts ? `\n⛔ STRICT EXCLUSIONS — The following must NEVER appear in any creative:\n${negativePrompts}` : ""}
-
-══════════════════════════════════════════
-DESIGN FRAMEWORK (from reference analysis)
-══════════════════════════════════════════
-Follow this layout structure as a guide, adapting it to the brand:
+DESIGN FRAMEWORK:
 ${frameworkJson}
 
-${hasAssets ? `══════════════════════════════════════════
-BRAND ASSETS PROVIDED (${selectedAssets.length} images)
-══════════════════════════════════════════
-${assetRoleDescriptions}${omittedAssetsCount > 0 ? `\n(${omittedAssetsCount} additional asset(s) omitted)` : ""}
+${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images):
+${assetRoleDescriptions}
+First image = reference (layout inspiration). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
 
-The FIRST image is the REFERENCE advertisement (for layout/composition inspiration only).
-Images 2+ are OFFICIAL BRAND ASSETS — use them according to their role described above.` : `No brand assets provided. Use "${brand.name}" as prominent text with brand colors.`}
+CHECKLIST:
+✅ ${spec.width}×${spec.height} ${aspectRatioLabel}
+✅ Hero 50-70%, unobscured
+✅ Logo visible, contrasted
+✅ Headline ≤8 words, subcopy ≤20 words
+✅ No duplicates
+✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
+✅ All brand rules followed, exclusions respected
+✅ Negative space, professional quality
 
-══════════════════════════════════════════
-GENERATION CHECKLIST
-══════════════════════════════════════════
-Before generating, mentally verify:
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
-✅ Hero visual occupies 50-70% and its important features are fully visible
-✅ Logo is clearly visible with proper contrast against its background
-✅ Headline is ≤8 words, large, bold, original (not from brief examples)
-✅ Sub-copy is ≤20 words, supporting the headline
-✅ No element is duplicated (logo, brand name, location, price)
-✅ Text never obscures critical parts of imagery
-✅ Brand colors are applied: ${brand.primary_color} primary, ${brand.secondary_color} secondary
-✅ All brand brief mandatory rules are followed
-✅ All negative prompts / exclusions are respected
-✅ Intentional negative space exists — layout breathes
-✅ Professional, premium quality — worthy of a print magazine
+Generate the creative now.`;
+}
 
-Generate the brand-aligned creative image now.`;
+async function generateCreative(
+  framework: Record<string, unknown>,
+  brand: any,
+  brandAssets: any[],
+  referenceImageUrl: string,
+  spec: { width: number; height: number; label: string },
+  apiKey: string,
+  directive: CreativeDirective | null
+): Promise<{ imageBase64: string; captionText: string }> {
+  let systemPrompt: string;
+  let selectedAssets: any[];
 
-  // Build message content
+  if (directive) {
+    // Use directive-selected assets
+    const validIndices = directive.selected_assets
+      .map((sa) => sa.index)
+      .filter((i) => i >= 0 && i < brandAssets.length);
+    selectedAssets = validIndices.map((i) => brandAssets[i]);
+
+    // If directive selected no valid assets, fall back to first few
+    if (selectedAssets.length === 0 && brandAssets.length > 0) {
+      selectedAssets = brandAssets.slice(0, 3);
+    }
+
+    systemPrompt = buildDirectivePrompt(directive, framework, brand, selectedAssets, spec);
+  } else {
+    // Fallback: no directive available
+    selectedAssets = brandAssets.slice(0, 5);
+    systemPrompt = buildFallbackPrompt(framework, brand, brandAssets, spec);
+  }
+
+  const hasAssets = selectedAssets.length > 0;
+
   const userContent: any[] = [
     {
       type: "text",
-      text: hasAssets
-        ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them EXACTLY as provided in the generated creative. Follow the design framework precisely.`
-        : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
+      text: directive
+        ? `The FIRST image is the reference advertisement — match its composition feel, energy, and layout style. The following ${selectedAssets.length} image(s) are brand assets — use them as specified in the Creative Directive. Render the EXACT text specified in the directive.`
+        : hasAssets
+          ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. Follow the design framework.`
+          : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
     },
     {
       type: "image_url",
@@ -485,7 +832,6 @@ Generate the brand-aligned creative image now.`;
     });
   }
 
-  // Prefer one high-quality attempt per model to avoid cascading 429s under load.
   const modelPlan = [
     { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000 },
     { model: "google/gemini-2.5-flash-image", timeoutMs: 80000 },
@@ -500,7 +846,6 @@ Generate the brand-aligned creative image now.`;
 
   for (const { model, timeoutMs } of modelPlan) {
     console.log(`Using model: ${model}`);
-    console.log(`[${model}] image generation attempt 1/1...`);
 
     const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -537,17 +882,14 @@ Generate the brand-aligned creative image now.`;
       if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
 
       const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
-      if (isOverloaded) {
-        sawOverload = true;
-      }
+      if (isOverloaded) sawOverload = true;
 
       if (transientStatuses.has(aiResponse.status)) {
         const delay = isOverloaded ? 2500 : 1200;
-        console.warn(`[${model}] transient error (${aiResponse.status}), pausing ${delay}ms before fallback...`);
+        console.warn(`[${model}] transient error (${aiResponse.status}), pausing ${delay}ms...`);
         await sleep(delay);
         continue;
       }
-
       break;
     }
 
@@ -557,7 +899,7 @@ Generate the brand-aligned creative image now.`;
     } catch {
       sawAnyFailure = true;
       sawTruncated = true;
-      console.warn(`[${model}] attempt 1: Truncated response body`);
+      console.warn(`[${model}] Truncated response body`);
       await sleep(1000);
       continue;
     }
@@ -565,21 +907,15 @@ Generate the brand-aligned creative image now.`;
     const imageBase64 = extractImagePayload(aiData);
     const captionText = extractCaptionText(aiData);
 
-    console.log(`[${model}] attempt 1 response:`, JSON.stringify({
-      hasImage: !!imageBase64,
-    }));
+    console.log(`[${model}] response:`, JSON.stringify({ hasImage: !!imageBase64 }));
 
     if (imageBase64) {
       return { imageBase64, captionText };
     }
 
     sawAnyFailure = true;
-    console.warn(`[${model}] attempt 1: No image payload returned`);
+    console.warn(`[${model}] No image payload returned`);
     await sleep(800);
-
-    if (model !== modelPlan[modelPlan.length - 1].model) {
-      console.warn(`Switching to fallback model after empty response on ${model}`);
-    }
   }
 
   if (sawOverload) throw new Error("UPSTREAM_OVERLOADED");
@@ -589,12 +925,16 @@ Generate the brand-aligned creative image now.`;
   throw new Error("NO_IMAGE_GENERATED");
 }
 
+// ─────────────────────────────────────────────────────
+// Main handler
+// ─────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } = await req.json();
+    const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } =
+      await req.json();
     const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -636,11 +976,12 @@ serve(async (req) => {
     const existingGeneration = generationRes.data;
     const existingFramework = parseStoredFramework(existingGeneration?.layout_guide);
     const existingCaption = extractStoredCaption(existingGeneration?.copywriting);
-    const existingImageUrl = typeof existingGeneration?.output_image_url === "string"
-      ? existingGeneration.output_image_url
-      : "";
+    const existingImageUrl =
+      typeof existingGeneration?.output_image_url === "string"
+        ? existingGeneration.output_image_url
+        : "";
 
-    // Reuse already-computed framework so retries don't trigger an extra analysis call.
+    // ── Step 1: Analyze ──
     let framework: Record<string, unknown>;
     if (existingFramework) {
       framework = existingFramework;
@@ -664,16 +1005,44 @@ serve(async (req) => {
 
       await supabase
         .from("generations")
-        .update({ layout_guide: JSON.stringify(framework), status: "generating" })
+        .update({ layout_guide: JSON.stringify(framework), status: "adapting" })
         .eq("id", generationId);
     }
 
-    console.log("Step 2: Generating brand creative...");
+    // ── Step 2: Adapt ──
+    let directive: CreativeDirective | null = null;
+    console.log("Step 2: Adapting reference concept to brand...");
+    try {
+      await supabase.from("generations").update({ status: "adapting" }).eq("id", generationId);
+      directive = await adaptDirective(
+        framework,
+        brand,
+        brandAssets,
+        referenceImageUrl,
+        spec,
+        LOVABLE_API_KEY
+      );
+      console.log("Adapt directive created successfully");
+    } catch (err) {
+      console.warn("Adapt step failed, falling back to direct generation:", err);
+      // directive stays null — generateCreative will use fallback prompt
+    }
+
+    // ── Step 3: Generate ──
+    await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+    console.log("Step 3: Generating brand creative...");
+
     let imageBase64: string;
     let captionText: string;
     try {
       const result = await generateCreative(
-        framework, brand, brandAssets, referenceImageUrl, spec, LOVABLE_API_KEY
+        framework,
+        brand,
+        brandAssets,
+        referenceImageUrl,
+        spec,
+        LOVABLE_API_KEY,
+        directive
       );
       imageBase64 = result.imageBase64;
       captionText = result.captionText;
@@ -690,14 +1059,22 @@ serve(async (req) => {
       if (err.message === "UPSTREAM_OVERLOADED") {
         return new Response(
           JSON.stringify({
-            error: "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step and put less load on generation.",
+            error:
+              "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step.",
             retryable: true,
             retryAfterSeconds: 45,
             analysisReused: !!existingFramework,
             cachedPreview: existingImageUrl || undefined,
             cachedCaption: existingCaption || undefined,
           }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "45" } }
+          {
+            status: 503,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "Retry-After": "45",
+            },
+          }
         );
       }
       if (err.message === "AI_TRUNCATED_RESPONSE") {
@@ -718,7 +1095,10 @@ serve(async (req) => {
         const statusCode = Number(statusMatch[1]);
         return new Response(
           JSON.stringify({ error: `AI generation failed (${statusCode})` }),
-          { status: Number.isFinite(statusCode) ? statusCode : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: Number.isFinite(statusCode) ? statusCode : 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
         );
       }
 
@@ -748,25 +1128,31 @@ serve(async (req) => {
 
     const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
 
+    // Use directive caption if the image model didn't provide one
+    const finalCaption =
+      captionText ||
+      (directive
+        ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
+        : "");
+
     const { error: updateError } = await supabase
       .from("generations")
       .update({
         output_image_url: publicUrlData.publicUrl,
         layout_guide: JSON.stringify(framework),
-        copywriting: { caption: captionText },
+        copywriting: { caption: finalCaption },
         status: "completed",
       })
       .eq("id", generationId);
 
     if (updateError) {
       console.error("CRITICAL: Final DB update failed!", updateError);
-      // Still return the image to the client even if DB update fails
     }
 
     return new Response(
       JSON.stringify({
         imageUrl: publicUrlData.publicUrl,
-        caption: captionText,
+        caption: finalCaption,
         framework,
         generationId,
       }),
@@ -775,7 +1161,6 @@ serve(async (req) => {
   } catch (e) {
     console.error("generate-creative OUTER error:", e);
 
-    // Try to mark the generation as failed if we have a generationId
     try {
       const body = await req.clone().json().catch(() => ({}));
       const gId = body?.generationId;
