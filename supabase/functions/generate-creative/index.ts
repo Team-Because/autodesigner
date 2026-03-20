@@ -791,9 +791,9 @@ CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE 
 ═══ DESIGN DIRECTION ═══
 Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content.
 
-LOGO: Must be clearly visible. On dark backgrounds use light version or backing panel. Never redraw logos.
+LOGO: The brand logo is provided as a separate labeled image. Study it carefully and reproduce its EXACT letterforms, icon shapes, colors, and proportions. On dark backgrounds add a light backing panel. The logo in the REFERENCE image is NOT the brand's logo — ignore it. NEVER write the word "LOGO" as text.
 3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
-ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
+ASSET FIDELITY: Faithfully reproduce logos and product photos with high fidelity. Only adjust scale and contrast.
 TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER on photos/renders.
 COMPOSITION: Clear hierarchy. Hero visual prominent. Breathing room between elements.
 TYPOGRAPHY: Headline ≤8 words bold. Subcopy ≤20 words. CTA clean. All text legible.
