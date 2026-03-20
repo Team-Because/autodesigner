@@ -604,114 +604,56 @@ GENERAL ASSET RULES:
 
   const negativePrompts = toCompactText(brand.negative_prompts, 1500);
 
-  return `══════════════════════════════════════════
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
-══════════════════════════════════════════
-You are an elite creative director producing a publication-ready advertisement.
+  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
-══════════════════════════════════════════
-CONTENT ISOLATION (NON-NEGOTIABLE)
-══════════════════════════════════════════
-The reference image is for LAYOUT and VISUAL STYLE only.
-NEVER copy ANY text, names, locations, prices, currencies, phone numbers, or written content from the reference image.
-ALL text in the output MUST come from the Creative Directive below.
-If the reference shows "Abu Dhabi", "AED", "Dubai", or any location/brand — IGNORE it completely.
+CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies, or content from it. ALL text comes from the Creative Directive below.
 
-══════════════════════════════════════════
-FORMAT REQUIREMENT (NON-NEGOTIABLE)
-══════════════════════════════════════════
-Output: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
-Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
-${spec.width === spec.height ? "MUST be perfectly SQUARE. Equal width and height." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation). Height is GREATER than width." : ""}
-${spec.width > spec.height ? "MUST be WIDE (landscape orientation). Width is GREATER than height." : ""}
-
-══════════════════════════════════════════
-CREATIVE DIRECTIVE — FOLLOW EXACTLY
-══════════════════════════════════════════
-HEADLINE (render this EXACT text, large and bold): "${directive.headline}"
-SUBCOPY (render this EXACT text, medium size): "${directive.subcopy}"
-CTA (render this EXACT text): "${directive.cta_text}"
+═══ CREATIVE DIRECTIVE ═══
+HEADLINE (render EXACTLY): "${directive.headline}"
+SUBCOPY (render EXACTLY): "${directive.subcopy}"
+CTA (render EXACTLY): "${directive.cta_text}"
 
 COLORS:
-- Background: ${directive.color_usage.background}
-- Headline: ${directive.color_usage.headline_color}
-- Subcopy: ${directive.color_usage.subcopy_color}
-- CTA background: ${directive.color_usage.cta_background}
-- CTA text: ${directive.color_usage.cta_text}
+  Background: ${directive.color_usage.background} | Headline: ${directive.color_usage.headline_color}
+  Subcopy: ${directive.color_usage.subcopy_color} | CTA bg: ${directive.color_usage.cta_background} | CTA text: ${directive.color_usage.cta_text}
 
 CONCEPT: ${directive.concept_adaptation}
 
 ASSET PLACEMENTS:
 ${assetRoleLines}
 
+═══ DESIGN DIRECTION ═══
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors above. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content and assets.
+
 ${assetRules}
 
-══════════════════════════════════════════
-COMPOSITION & TYPOGRAPHY STANDARDS
-══════════════════════════════════════════
-COMPOSITION:
-- Clear visual hierarchy: hero → headline → supporting info → CTA
-- Hero visual should occupy 50-70% of the canvas
-- Important hero image parts must NEVER be obscured by text overlays
-- Use rule of thirds for element placement
-- Intentional negative space — breathing room between elements
-
-TEXT PLACEMENT (CRITICAL):
-- Text MUST be placed on SOLID COLOR ZONES, gradient overlays, or dedicated text panels
-- NEVER place text directly on top of 3D renders, buildings, photos, or busy imagery
-- Create CLEAR VISUAL SEPARATION between hero imagery zone and text information zone
-- If using a full-bleed hero image, text MUST sit on a color strip, semi-transparent panel, or dedicated sidebar/footer area
-- Text zones should have a clean, uncluttered background for maximum readability
+TEXT PLACEMENT:
+- Text MUST be placed on solid color zones, gradient overlays, or dedicated text panels — NEVER directly on photos, renders, or busy imagery
+- Create clear separation between hero imagery and text zones
+- All text must be legible with proper contrast
 
 TYPOGRAPHY:
-- Headline: Large, bold, impossible to miss — render EXACTLY the text above
-- Subcopy: Medium size, supporting — render EXACTLY the text above
-- CTA: Clean, prominent — render EXACTLY the text above
-- ALL text must be LEGIBLE with proper size, contrast, and spacing
-- Never stack more than 3 text hierarchy levels
+- Headline: Large, bold, prominent
+- Subcopy: Medium, supporting
+- CTA: Clean, clear
+- Never stack more than 3 hierarchy levels
 
-LAYOUT ZONES (each appears EXACTLY ONCE):
-1. HERO ZONE (50-70%): Dominant visual
-2. BRAND MARK: Logo — ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline — on clean background
-4. SUPPORTING COPY: Brief subcopy — on clean background
-5. INFO/CTA BAR: CTA — compact, clear — on clean background
-6. NEGATIVE SPACE: Breathing room
+DEDUPLICATION: If logo contains brand name, do NOT repeat as text. Each element appears ONCE.
 
-DEDUPLICATION:
-- If logo contains brand name, do NOT repeat it as separate text
-- Each element (location, price, contact) appears ONCE only
-
-══════════════════════════════════════════
-DESIGN FRAMEWORK (reference layout guide)
-══════════════════════════════════════════
+═══ REFERENCE FRAMEWORK ═══
 ${JSON.stringify(framework, null, 2)}
 
-${negativePrompts ? `══════════════════════════════════════════
-⛔ EXCLUSIONS — NEVER include:
-══════════════════════════════════════════
-${negativePrompts}` : ""}
+${negativePrompts ? `⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
-══════════════════════════════════════════
-FINAL CHECKLIST (every item MUST be true)
-══════════════════════════════════════════
-✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${aspectRatioLabel}) — NOT the reference image size
-✅ Headline is EXACTLY: "${directive.headline}"
-✅ Subcopy is EXACTLY: "${directive.subcopy}"
-✅ CTA is EXACTLY: "${directive.cta_text}"
-✅ Colors match the directive above
-✅ Hero visual occupies 50-70%, unobscured
-✅ Logo visible with proper contrast
-✅ No duplicated elements
-✅ Intentional negative space
-✅ Professional, premium quality
-✅ NO text, location, currency, or content copied from reference image
-✅ Text is on clear solid/gradient backgrounds, NOT overlaid on imagery
-✅ ALL content comes from Creative Directive, NOTHING from reference
+CHECKLIST:
+✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Headline: "${directive.headline}" | Subcopy: "${directive.subcopy}" | CTA: "${directive.cta_text}"
+✅ Logo visible, properly contrasted
+✅ No content copied from reference
+✅ Text on clean backgrounds, not on imagery
+✅ Professional quality
 
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
-Generate the creative image now.`;
+Output: ${spec.width}×${spec.height} pixels. Generate now.`;
 }
 
 function buildFallbackPrompt(
