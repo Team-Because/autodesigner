@@ -646,12 +646,13 @@ function buildDirectivePrompt(
   if (hasLogo) {
     assetRules += `
 LOGO RULES:
-- The logo MUST be clearly visible and readable against its background
+- The brand logo is provided as a separate labeled image (marked BRAND LOGO). Study it carefully.
+- Reproduce the logo's EXACT letterforms, icon shapes, colors, and proportions — do NOT approximate or simplify
 - ${directive.logo_treatment}
-- On dark backgrounds: use a white/light version or add a light backing panel
-- On light backgrounds: use the logo as-is in dark form
-- On busy imagery: place in a clear zone with padding or semi-transparent backing
-- NEVER redraw or reimagine the logo — use it EXACTLY as provided
+- Place it at the specified location with appropriate sizing (not too small, not dominant)
+- Ensure contrast: on dark backgrounds add a light backing panel or reserved space; on light backgrounds use as-is
+- The logo visible in the REFERENCE image (IMAGE 1) is NOT your brand's logo — ignore it completely
+- NEVER write the word "LOGO" as text — always render the actual logo image
 `;
   }
 
