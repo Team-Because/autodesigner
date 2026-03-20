@@ -868,10 +868,10 @@ async function generateCreative(
     {
       type: "text",
       text: directive
-        ? `The FIRST image is the reference advertisement — match its composition feel, energy, and layout style. The following ${selectedAssets.length} image(s) are brand assets — use them as specified in the Creative Directive. Render the EXACT text specified in the directive.`
+        ? `IMPORTANT: The FIRST image is the reference advertisement — use it ONLY for composition, layout energy, and visual style. IGNORE ALL TEXT visible in the reference (locations, currencies, names, phone numbers — ignore everything). ALL text in the output must come EXCLUSIVELY from the Creative Directive in the system prompt. The following ${selectedAssets.length} image(s) are brand assets — use them as specified. Output size MUST be exactly ${spec.width}×${spec.height} pixels — do NOT use the reference image dimensions.`
         : hasAssets
-          ? `The FIRST image is the reference advertisement for visual style context. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. Follow the design framework.`
-          : "Use the reference image for visual style context and follow the design framework to generate the brand creative.",
+          ? `IMPORTANT: The FIRST image is the reference advertisement for visual style context ONLY — IGNORE all text, locations, and content visible in it. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. ALL text must come from the brand brief. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`
+          : `Use the reference image for visual style context ONLY — IGNORE all text visible in it. Follow the design framework. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`,
     },
     {
       type: "image_url",
