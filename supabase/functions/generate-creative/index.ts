@@ -604,114 +604,56 @@ GENERAL ASSET RULES:
 
   const negativePrompts = toCompactText(brand.negative_prompts, 1500);
 
-  return `══════════════════════════════════════════
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
-══════════════════════════════════════════
-You are an elite creative director producing a publication-ready advertisement.
+  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
-══════════════════════════════════════════
-CONTENT ISOLATION (NON-NEGOTIABLE)
-══════════════════════════════════════════
-The reference image is for LAYOUT and VISUAL STYLE only.
-NEVER copy ANY text, names, locations, prices, currencies, phone numbers, or written content from the reference image.
-ALL text in the output MUST come from the Creative Directive below.
-If the reference shows "Abu Dhabi", "AED", "Dubai", or any location/brand — IGNORE it completely.
+CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies, or content from it. ALL text comes from the Creative Directive below.
 
-══════════════════════════════════════════
-FORMAT REQUIREMENT (NON-NEGOTIABLE)
-══════════════════════════════════════════
-Output: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
-Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
-${spec.width === spec.height ? "MUST be perfectly SQUARE. Equal width and height." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL (portrait orientation). Height is GREATER than width." : ""}
-${spec.width > spec.height ? "MUST be WIDE (landscape orientation). Width is GREATER than height." : ""}
-
-══════════════════════════════════════════
-CREATIVE DIRECTIVE — FOLLOW EXACTLY
-══════════════════════════════════════════
-HEADLINE (render this EXACT text, large and bold): "${directive.headline}"
-SUBCOPY (render this EXACT text, medium size): "${directive.subcopy}"
-CTA (render this EXACT text): "${directive.cta_text}"
+═══ CREATIVE DIRECTIVE ═══
+HEADLINE (render EXACTLY): "${directive.headline}"
+SUBCOPY (render EXACTLY): "${directive.subcopy}"
+CTA (render EXACTLY): "${directive.cta_text}"
 
 COLORS:
-- Background: ${directive.color_usage.background}
-- Headline: ${directive.color_usage.headline_color}
-- Subcopy: ${directive.color_usage.subcopy_color}
-- CTA background: ${directive.color_usage.cta_background}
-- CTA text: ${directive.color_usage.cta_text}
+  Background: ${directive.color_usage.background} | Headline: ${directive.color_usage.headline_color}
+  Subcopy: ${directive.color_usage.subcopy_color} | CTA bg: ${directive.color_usage.cta_background} | CTA text: ${directive.color_usage.cta_text}
 
 CONCEPT: ${directive.concept_adaptation}
 
 ASSET PLACEMENTS:
 ${assetRoleLines}
 
+═══ DESIGN DIRECTION ═══
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors above. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content and assets.
+
 ${assetRules}
 
-══════════════════════════════════════════
-COMPOSITION & TYPOGRAPHY STANDARDS
-══════════════════════════════════════════
-COMPOSITION:
-- Clear visual hierarchy: hero → headline → supporting info → CTA
-- Hero visual should occupy 50-70% of the canvas
-- Important hero image parts must NEVER be obscured by text overlays
-- Use rule of thirds for element placement
-- Intentional negative space — breathing room between elements
-
-TEXT PLACEMENT (CRITICAL):
-- Text MUST be placed on SOLID COLOR ZONES, gradient overlays, or dedicated text panels
-- NEVER place text directly on top of 3D renders, buildings, photos, or busy imagery
-- Create CLEAR VISUAL SEPARATION between hero imagery zone and text information zone
-- If using a full-bleed hero image, text MUST sit on a color strip, semi-transparent panel, or dedicated sidebar/footer area
-- Text zones should have a clean, uncluttered background for maximum readability
+TEXT PLACEMENT:
+- Text MUST be placed on solid color zones, gradient overlays, or dedicated text panels — NEVER directly on photos, renders, or busy imagery
+- Create clear separation between hero imagery and text zones
+- All text must be legible with proper contrast
 
 TYPOGRAPHY:
-- Headline: Large, bold, impossible to miss — render EXACTLY the text above
-- Subcopy: Medium size, supporting — render EXACTLY the text above
-- CTA: Clean, prominent — render EXACTLY the text above
-- ALL text must be LEGIBLE with proper size, contrast, and spacing
-- Never stack more than 3 text hierarchy levels
+- Headline: Large, bold, prominent
+- Subcopy: Medium, supporting
+- CTA: Clean, clear
+- Never stack more than 3 hierarchy levels
 
-LAYOUT ZONES (each appears EXACTLY ONCE):
-1. HERO ZONE (50-70%): Dominant visual
-2. BRAND MARK: Logo — ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline — on clean background
-4. SUPPORTING COPY: Brief subcopy — on clean background
-5. INFO/CTA BAR: CTA — compact, clear — on clean background
-6. NEGATIVE SPACE: Breathing room
+DEDUPLICATION: If logo contains brand name, do NOT repeat as text. Each element appears ONCE.
 
-DEDUPLICATION:
-- If logo contains brand name, do NOT repeat it as separate text
-- Each element (location, price, contact) appears ONCE only
-
-══════════════════════════════════════════
-DESIGN FRAMEWORK (reference layout guide)
-══════════════════════════════════════════
+═══ REFERENCE FRAMEWORK ═══
 ${JSON.stringify(framework, null, 2)}
 
-${negativePrompts ? `══════════════════════════════════════════
-⛔ EXCLUSIONS — NEVER include:
-══════════════════════════════════════════
-${negativePrompts}` : ""}
+${negativePrompts ? `⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
-══════════════════════════════════════════
-FINAL CHECKLIST (every item MUST be true)
-══════════════════════════════════════════
-✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${aspectRatioLabel}) — NOT the reference image size
-✅ Headline is EXACTLY: "${directive.headline}"
-✅ Subcopy is EXACTLY: "${directive.subcopy}"
-✅ CTA is EXACTLY: "${directive.cta_text}"
-✅ Colors match the directive above
-✅ Hero visual occupies 50-70%, unobscured
-✅ Logo visible with proper contrast
-✅ No duplicated elements
-✅ Intentional negative space
-✅ Professional, premium quality
-✅ NO text, location, currency, or content copied from reference image
-✅ Text is on clear solid/gradient backgrounds, NOT overlaid on imagery
-✅ ALL content comes from Creative Directive, NOTHING from reference
+CHECKLIST:
+✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Headline: "${directive.headline}" | Subcopy: "${directive.subcopy}" | CTA: "${directive.cta_text}"
+✅ Logo visible, properly contrasted
+✅ No content copied from reference
+✅ Text on clean backgrounds, not on imagery
+✅ Professional quality
 
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
-Generate the creative image now.`;
+Output: ${spec.width}×${spec.height} pixels. Generate now.`;
 }
 
 function buildFallbackPrompt(
@@ -772,60 +714,41 @@ function buildFallbackPrompt(
 
   const frameworkJson = JSON.stringify(framework, null, 2);
 
-  return `══════════════════════════════════════════
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels. NO OTHER SIZE ACCEPTED.
-══════════════════════════════════════════
-You are an elite creative director producing a publication-ready advertisement.
+  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
-CONTENT ISOLATION (NON-NEGOTIABLE):
-The reference image is for LAYOUT and VISUAL STYLE only.
-NEVER copy ANY text, names, locations, prices, currencies, phone numbers from the reference.
-ALL text must come from the brand data below.
+CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies from it. ALL text comes from brand data below.
 
-OUTPUT: EXACTLY ${spec.width}×${spec.height} pixels — ${aspectRatioLabel}.
-Do NOT match the reference image dimensions. Output MUST be ${spec.width}×${spec.height}.
-${spec.width === spec.height ? "MUST be perfectly SQUARE." : ""}
-${spec.height > spec.width ? "MUST be TALL/VERTICAL." : ""}
-${spec.width > spec.height ? "MUST be WIDE." : ""}
+═══ DESIGN DIRECTION ═══
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content.
 
-LOGO RULES: Logo must be clearly visible against its background. On dark backgrounds use light version or add backing panel. Never redraw logos.
-
-3D RENDER RULES: Preserve exact architecture. May enhance lighting, angle, atmosphere. Never alter building structure.
-
+LOGO: Must be clearly visible. On dark backgrounds use light version or backing panel. Never redraw logos.
+3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
 ASSET FIDELITY: Logos and product photos placed EXACTLY as provided. Only adjust scale and contrast.
-
-TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER directly on 3D renders or photos.
-
-COMPOSITION: Hero 50-70% of canvas. Clear hierarchy. Rule of thirds. Negative space. Clear separation between imagery zone and text zone.
-TYPOGRAPHY: Headline ≤8 words, bold. Subcopy ≤20 words. CTA clean. All text legible.
+TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER on photos/renders.
+COMPOSITION: Clear hierarchy. Hero visual prominent. Breathing room between elements.
+TYPOGRAPHY: Headline ≤8 words bold. Subcopy ≤20 words. CTA clean. All text legible.
 DEDUPLICATION: No repeated elements.
 
-BRAND GUIDELINES:
+═══ BRAND DATA ═══
 ${brandContext}
-${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data, not the reference.` : ""}
-${negativePrompts ? `\n⛔ NEVER include: ${negativePrompts}` : ""}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data.` : ""}
+${negativePrompts ? `\n⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
-DESIGN FRAMEWORK:
+═══ REFERENCE FRAMEWORK ═══
 ${frameworkJson}
 
-${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images):
-${assetRoleDescriptions}
-First image = reference (layout inspiration ONLY — ignore its text). Images 2+ = brand assets.` : `No assets. Use "${brand.name}" text with brand colors.`}
+${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images provided after reference):
+${assetRoleDescriptions}` : `No assets. Use "${brand.name}" text with brand colors.`}
 
 CHECKLIST:
-✅ ${spec.width}×${spec.height} ${aspectRatioLabel} — NOT the reference image size
-✅ Hero 50-70%, unobscured
+✅ ${spec.width}×${spec.height} (${aspectRatioLabel})
 ✅ Logo visible, contrasted
-✅ Headline ≤8 words, subcopy ≤20 words
-✅ No duplicates
 ✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
-✅ All brand rules followed, exclusions respected
-✅ Negative space, professional quality
-✅ NO text/location/currency copied from reference
+✅ No text/content copied from reference
 ✅ Text on clean backgrounds, not on imagery
+✅ Professional quality
 
-MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
-Generate the creative now.`;
+Output: ${spec.width}×${spec.height} pixels. Generate now.`;
 }
 
 async function generateCreative(
@@ -864,14 +787,15 @@ async function generateCreative(
 
   const hasAssets = selectedAssets.length > 0;
 
+  // Build user content with explicit role labels for each image
   const userContent: any[] = [
     {
       type: "text",
-      text: directive
-        ? `IMPORTANT: The FIRST image is the reference advertisement — use it ONLY for composition, layout energy, and visual style. IGNORE ALL TEXT visible in the reference (locations, currencies, names, phone numbers — ignore everything). ALL text in the output must come EXCLUSIVELY from the Creative Directive in the system prompt. The following ${selectedAssets.length} image(s) are brand assets — use them as specified. Output size MUST be exactly ${spec.width}×${spec.height} pixels — do NOT use the reference image dimensions.`
-        : hasAssets
-          ? `IMPORTANT: The FIRST image is the reference advertisement for visual style context ONLY — IGNORE all text, locations, and content visible in it. The following ${selectedAssets.length} image(s) are official brand assets — use them in the creative. ALL text must come from the brand brief. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`
-          : `Use the reference image for visual style context ONLY — IGNORE all text visible in it. Follow the design framework. Output size MUST be exactly ${spec.width}×${spec.height} pixels.`,
+      text: `Output MUST be ${spec.width}×${spec.height} pixels. All text from Creative Directive only.`,
+    },
+    {
+      type: "text",
+      text: "IMAGE 1 — REFERENCE (composition/layout/style only — IGNORE all text, logos, names, locations visible in it):",
     },
     {
       type: "image_url",
@@ -879,11 +803,39 @@ async function generateCreative(
     },
   ];
 
-  for (const asset of selectedAssets) {
-    userContent.push({
-      type: "image_url",
-      image_url: { url: (asset as any).image_url },
-    });
+  if (directive) {
+    for (const sa of directive.selected_assets) {
+      const asset = selectedAssets.find((a: any) => (a._originalIndex ?? -1) === sa.index);
+      if (!asset) continue;
+      const roleLabel = sa.role.toUpperCase();
+      const mustAppear = roleLabel === "LOGO" ? " — must appear in final output, use exactly as-is" : "";
+      userContent.push(
+        {
+          type: "text",
+          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleLabel} (${sa.placement}${mustAppear}):`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: asset.image_url },
+        }
+      );
+    }
+  } else {
+    for (const asset of selectedAssets) {
+      const label = (asset.label || "Asset").toUpperCase();
+      const isLogo = /logo/i.test(asset.label || "");
+      const roleHint = isLogo ? "BRAND LOGO — must appear in output" : `BRAND ASSET (${label})`;
+      userContent.push(
+        {
+          type: "text",
+          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleHint}:`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: asset.image_url },
+        }
+      );
+    }
   }
 
   const modelPlan = [
