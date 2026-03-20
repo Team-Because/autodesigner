@@ -53,6 +53,7 @@ export type Database = {
         Row: {
           brand_brief: string | null
           brand_voice_rules: string | null
+          campaign_id: string | null
           created_at: string
           extra_colors: Json | null
           id: string
@@ -67,6 +68,7 @@ export type Database = {
         Insert: {
           brand_brief?: string | null
           brand_voice_rules?: string | null
+          campaign_id?: string | null
           created_at?: string
           extra_colors?: Json | null
           id?: string
@@ -81,6 +83,7 @@ export type Database = {
         Update: {
           brand_brief?: string | null
           brand_voice_rules?: string | null
+          campaign_id?: string | null
           created_at?: string
           extra_colors?: Json | null
           id?: string
@@ -92,11 +95,44 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "brands_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
         Relationships: []
       }
       generations: {
         Row: {
           brand_id: string
+          campaign_id: string | null
           campaign_message: string | null
           copywriting: Json | null
           created_at: string
@@ -110,6 +146,7 @@ export type Database = {
         }
         Insert: {
           brand_id: string
+          campaign_id?: string | null
           campaign_message?: string | null
           copywriting?: Json | null
           created_at?: string
@@ -123,6 +160,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string
+          campaign_id?: string | null
           campaign_message?: string | null
           copywriting?: Json | null
           created_at?: string
@@ -142,6 +180,13 @@ export type Database = {
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -152,6 +197,7 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -160,6 +206,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -167,6 +214,49 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          credits_remaining: number
+          credits_used: number
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          credits_remaining?: number
+          credits_used?: number
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          credits_remaining?: number
+          credits_used?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
@@ -176,10 +266,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -306,6 +402,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
