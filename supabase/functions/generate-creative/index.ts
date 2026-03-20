@@ -560,13 +560,15 @@ function buildDirectivePrompt(
     /architect|3d|render|building|elevation|facade/i.test(a.label || "")
   );
 
+  // We need access to the full brandAssets array to map directive indices back
+  // The selectedAssets are already filtered by directive indices in generateCreative()
   const assetRoleLines = directive.selected_assets
     .map((sa) => {
-      const asset = selectedAssets.find((_: any, i: number) => {
-        // Map directive index back — we'll handle this in the caller
-        return true;
-      });
-      return `  • [${sa.role.toUpperCase()}] → ${sa.placement} (${sa.reason})`;
+      const matchedAsset = selectedAssets.find((a: any) =>
+        (a._originalIndex ?? -1) === sa.index
+      );
+      const assetLabel = matchedAsset ? (matchedAsset.label || "Asset") : `Asset #${sa.index}`;
+      return `  • [${sa.role.toUpperCase()}] "${assetLabel}" → ${sa.placement} (${sa.reason})`;
     })
     .join("\n");
 
