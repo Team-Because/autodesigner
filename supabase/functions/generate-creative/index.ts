@@ -33,6 +33,59 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+// Strip reference-specific content from framework while preserving structural/design info
+function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown> {
+  const clean = JSON.parse(JSON.stringify(fw));
+
+  // Sanitize zone descriptions — keep name/position/size, replace description with generic role
+  if (clean.layout?.zones && Array.isArray(clean.layout.zones)) {
+    for (const zone of clean.layout.zones) {
+      if (zone.description) {
+        // Replace content description with generic role based on zone name
+        const name = (zone.name || "").toLowerCase();
+        if (/logo/.test(name)) zone.description = "brand logo zone";
+        else if (/hero|main|product|image/.test(name)) zone.description = "hero visual zone";
+        else if (/headline|title/.test(name)) zone.description = "headline text zone";
+        else if (/sub|body|copy/.test(name)) zone.description = "supporting text zone";
+        else if (/cta|button|action/.test(name)) zone.description = "call-to-action zone";
+        else if (/background|bg/.test(name)) zone.description = "background zone";
+        else if (/tag/.test(name)) zone.description = "tagline zone";
+        else if (/price|offer/.test(name)) zone.description = "promotional detail zone";
+        else if (/disclaim|legal|footer/.test(name)) zone.description = "footer/legal zone";
+        else zone.description = "design element zone";
+      }
+    }
+  }
+
+  // Sanitize text_elements — keep type/position/font_style/approximate_size, replace content_description
+  if (clean.text_elements && Array.isArray(clean.text_elements)) {
+    for (const te of clean.text_elements) {
+      if (te.content_description) {
+        const type = (te.type || "").toLowerCase();
+        if (/headline|title/.test(type)) te.content_description = "headline text";
+        else if (/sub/.test(type)) te.content_description = "subcopy text";
+        else if (/cta|button/.test(type)) te.content_description = "CTA text";
+        else if (/tag/.test(type)) te.content_description = "tagline text";
+        else if (/price|offer/.test(type)) te.content_description = "promotional detail";
+        else if (/disclaim|legal/.test(type)) te.content_description = "legal/disclaimer text";
+        else te.content_description = "text element";
+      }
+    }
+  }
+
+  // Strip any composition_notes that reference specific content
+  // Keep it but remove brand-specific mentions
+  if (typeof clean.composition_notes === "string") {
+    // Remove quoted text fragments, specific brand/location names, prices, currencies
+    clean.composition_notes = clean.composition_notes
+      .replace(/"[^"]*"/g, '"[text]"')
+      .replace(/\b[A-Z]{3}\s*[\d,.]+[MKBmkb]?\b/g, "[price]")
+      .replace(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|yds?|m)|acres?)\b/gi, "[size]");
+  }
+
+  return clean;
+}
+
 function extractStoredCaption(copywriting: unknown): string {
   if (typeof copywriting === "string") return copywriting.trim();
   if (!copywriting || typeof copywriting !== "object") return "";
