@@ -780,7 +780,7 @@ function buildFallbackPrompt(
         ? `${spec.width}:${spec.height} LANDSCAPE`
         : `${spec.width}:${spec.height} PORTRAIT`;
 
-  const frameworkJson = JSON.stringify(framework, null, 2);
+  const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
   return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
 
