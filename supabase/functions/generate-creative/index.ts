@@ -657,20 +657,26 @@ COMPOSITION:
 - Use rule of thirds for element placement
 - Intentional negative space — breathing room between elements
 
+TEXT PLACEMENT (CRITICAL):
+- Text MUST be placed on SOLID COLOR ZONES, gradient overlays, or dedicated text panels
+- NEVER place text directly on top of 3D renders, buildings, photos, or busy imagery
+- Create CLEAR VISUAL SEPARATION between hero imagery zone and text information zone
+- If using a full-bleed hero image, text MUST sit on a color strip, semi-transparent panel, or dedicated sidebar/footer area
+- Text zones should have a clean, uncluttered background for maximum readability
+
 TYPOGRAPHY:
 - Headline: Large, bold, impossible to miss — render EXACTLY the text above
 - Subcopy: Medium size, supporting — render EXACTLY the text above
 - CTA: Clean, prominent — render EXACTLY the text above
 - ALL text must be LEGIBLE with proper size, contrast, and spacing
 - Never stack more than 3 text hierarchy levels
-- Text must NEVER overlap critical imagery (faces, architectural details)
 
 LAYOUT ZONES (each appears EXACTLY ONCE):
 1. HERO ZONE (50-70%): Dominant visual
 2. BRAND MARK: Logo — ONCE, clearly visible, properly contrasted
-3. HEADLINE: One powerful headline
-4. SUPPORTING COPY: Brief subcopy
-5. INFO/CTA BAR: CTA — compact, clear
+3. HEADLINE: One powerful headline — on clean background
+4. SUPPORTING COPY: Brief subcopy — on clean background
+5. INFO/CTA BAR: CTA — compact, clear — on clean background
 6. NEGATIVE SPACE: Breathing room
 
 DEDUPLICATION:
@@ -688,9 +694,9 @@ ${negativePrompts ? `═══════════════════�
 ${negativePrompts}` : ""}
 
 ══════════════════════════════════════════
-FINAL CHECKLIST
+FINAL CHECKLIST (every item MUST be true)
 ══════════════════════════════════════════
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
+✅ Output is EXACTLY ${spec.width}×${spec.height} pixels (${aspectRatioLabel}) — NOT the reference image size
 ✅ Headline is EXACTLY: "${directive.headline}"
 ✅ Subcopy is EXACTLY: "${directive.subcopy}"
 ✅ CTA is EXACTLY: "${directive.cta_text}"
@@ -700,7 +706,11 @@ FINAL CHECKLIST
 ✅ No duplicated elements
 ✅ Intentional negative space
 ✅ Professional, premium quality
+✅ NO text, location, currency, or content copied from reference image
+✅ Text is on clear solid/gradient backgrounds, NOT overlaid on imagery
+✅ ALL content comes from Creative Directive, NOTHING from reference
 
+MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels.
 Generate the creative image now.`;
 }
 
