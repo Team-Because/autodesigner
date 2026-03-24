@@ -56,9 +56,7 @@ export default function Login() {
       <Card className="w-full max-w-sm glass border-border/50 shadow-xl relative z-10">
         <CardContent className="pt-10 pb-10 px-8 space-y-7">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="h-11 w-11 rounded-2xl gradient-accent flex items-center justify-center shadow-sm">
-              <Sparkles className="h-5 w-5 text-secondary-foreground" />
-            </div>
+            <img src="/logo-icon.png" alt="MakeMyAd" className="h-11 w-11 rounded-2xl object-contain" />
             <span className="font-display font-bold text-2xl text-foreground tracking-tight">
               MakeMyAd
             </span>
