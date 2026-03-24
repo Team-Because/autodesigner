@@ -592,7 +592,7 @@ Look at the reference image and the framework above. Map every element to this b
     (sa) => sa.role.toLowerCase() === "logo"
   );
   if (!hasLogoSelected) {
-    const logoIndex = brandAssets.findIndex((a: any) => /logo/i.test(a.label || ""));
+    const logoIndex = brandAssets.findIndex((a: any) => /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(a.label || ""));
     if (logoIndex >= 0) {
       console.log(`Force-adding logo asset at index ${logoIndex} (Adapt step missed it)`);
       directive.selected_assets = [
@@ -623,7 +623,7 @@ function buildDirectivePrompt(
         : `${spec.width}:${spec.height} PORTRAIT`;
 
   // Categorize selected assets for conditional rules
-  const hasLogo = selectedAssets.some((a: any) => /logo/i.test(a.label || ""));
+  const hasLogo = selectedAssets.some((a: any) => /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(a.label || ""));
   const hasArchitecture = selectedAssets.some((a: any) =>
     /architect|3d|render|building|elevation|facade/i.test(a.label || "")
   );
@@ -900,7 +900,7 @@ async function generateCreative(
   } else {
     for (const asset of selectedAssets) {
       const label = (asset.label || "Asset").toUpperCase();
-      const isLogo = /logo/i.test(asset.label || "");
+      const isLogo = /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(asset.label || "");
       const roleHint = isLogo ? "BRAND LOGO — must appear in output" : `BRAND ASSET (${label})`;
       userContent.push(
         {
@@ -1027,6 +1027,35 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // ── Credit check ──
+    // Get user_id from the generation record
+    let generationUserId: string | null = null;
+    if (generationId) {
+      const { data: genRec } = await supabase
+        .from("generations")
+        .select("user_id")
+        .eq("id", generationId)
+        .single();
+      generationUserId = genRec?.user_id ?? null;
+    }
+
+    if (generationUserId) {
+      const { data: creditData } = await supabase
+        .from("user_credits")
+        .select("credits_remaining")
+        .eq("user_id", generationUserId)
+        .single();
+
+      if (creditData && creditData.credits_remaining <= 0) {
+        console.log("User has no credits remaining, rejecting generation");
+        await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+        return new Response(
+          JSON.stringify({ error: "No credits remaining" }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Fetch brand + assets in parallel
     const [brandRes, assetsRes] = await Promise.all([
@@ -1230,6 +1259,16 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("CRITICAL: Final DB update failed!", updateError);
+    }
+
+    // ── Deduct 1 credit on success ──
+    if (generationUserId) {
+      const { error: creditErr } = await supabase.rpc("deduct_credit", { _user_id: generationUserId });
+      if (creditErr) {
+        console.error("Credit deduction failed (non-blocking):", creditErr);
+      } else {
+        console.log("Deducted 1 credit for user", generationUserId);
+      }
     }
 
     return new Response(
