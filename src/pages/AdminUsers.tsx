@@ -46,6 +46,11 @@ export default function AdminUsers() {
   const [creditMode, setCreditMode] = useState<"add" | "set" | "reset">("add");
   const [updatingCredits, setUpdatingCredits] = useState(false);
 
+  // Password reset state
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
+
   // Fetch all profiles (admin can see all)
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ["admin-profiles"],
