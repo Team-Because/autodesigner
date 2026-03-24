@@ -540,6 +540,29 @@ export default function AdminUsers() {
           })()}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Credits?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will set credits remaining to 0 and reset all usage history to 0. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setResetConfirmOpen(false);
+                handleCreditUpdate();
+              }}
+            >
+              Reset Credits
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
