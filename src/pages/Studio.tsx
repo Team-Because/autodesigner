@@ -269,7 +269,13 @@ export default function Studio() {
       setProgress(0);
       setProgressPhase("");
       queryClient.invalidateQueries({ queryKey: ["generations"] });
-      toast.error(err.message || "Generation failed. Please try again.");
+      queryClient.invalidateQueries({ queryKey: ["my-credits"] });
+      const msg = err.message || "Generation failed. Please try again.";
+      if (msg.includes("No credits remaining")) {
+        toast.error("No credits remaining. Contact your admin to add more credits.");
+      } else {
+        toast.error(msg);
+      }
     }
   };
 
