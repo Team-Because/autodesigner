@@ -63,10 +63,58 @@ export default function BrandForm() {
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
-  const [brandBrief, setBrandBrief] = useState("");
+  // Structured brief sections
+  const [briefIdentity, setBriefIdentity] = useState("");
+  const [briefMandatory, setBriefMandatory] = useState("");
+  const [briefVisual, setBriefVisual] = useState("");
+  const [briefCopy, setBriefCopy] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+
+  // Parse existing brand_brief into structured sections
+  const parseBrief = (raw: string) => {
+    const sections: Record<string, string> = { identity: "", mandatory: "", visual: "", copy: "" };
+    const sectionMap: Record<string, keyof typeof sections> = {
+      "brand identity": "identity",
+      "must-include elements": "mandatory",
+      "mandatory elements": "mandatory",
+      "visual direction": "visual",
+      "example copy": "copy",
+      "copy examples": "copy",
+    };
+    let currentKey: keyof typeof sections | null = null;
+    for (const line of raw.split("\n")) {
+      const headerMatch = line.match(/^##\s+(.+)/);
+      if (headerMatch) {
+        const title = headerMatch[1].trim().toLowerCase();
+        currentKey = sectionMap[title] || null;
+        continue;
+      }
+      if (currentKey) {
+        sections[currentKey] += (sections[currentKey] ? "\n" : "") + line;
+      } else {
+        // Lines before any header go to identity
+        sections.identity += (sections.identity ? "\n" : "") + line;
+      }
+    }
+    return {
+      identity: sections.identity.trim(),
+      mandatory: sections.mandatory.trim(),
+      visual: sections.visual.trim(),
+      copy: sections.copy.trim(),
+    };
+  };
+
+  // Combine structured sections into a single brand_brief string
+  const combineBrief = () => {
+    const parts: string[] = [];
+    if (briefIdentity.trim()) parts.push(`## Brand Identity\n${briefIdentity.trim()}`);
+    if (briefMandatory.trim()) parts.push(`## Must-Include Elements\n${briefMandatory.trim()}`);
+    if (briefVisual.trim()) parts.push(`## Visual Direction\n${briefVisual.trim()}`);
+    if (briefCopy.trim()) parts.push(`## Example Copy\n${briefCopy.trim()}`);
+    return parts.join("\n\n");
+  };
 
   useEffect(() => {
     if (isEditing) {

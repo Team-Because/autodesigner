@@ -354,6 +354,24 @@ interface CreativeDirective {
   compliance_notes: string;
 }
 
+// Role-specific instructions for each asset category
+const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
+  "Logo": "Place as brand mark — exact fidelity required. Top-left or top-right with contrast backing.",
+  "Hero Image": "Use as the primary hero visual. Feature prominently in the main visual zone.",
+  "Architecture": "Use as hero visual. Preserve exact geometry, materials, proportions. May adjust lighting/angle for mood.",
+  "Lifestyle": "Use as atmospheric background or lifestyle context. Can crop/blend into layout.",
+  "Masterplan": "Include in a dedicated zone. Maintain readability and detail.",
+  "Product": "Feature prominently with high detail preservation. Center of visual attention.",
+  "Mascot": "Place as character element. Preserve exact design, colors, proportions.",
+  "Pattern/Texture": "Use as background texture, border accent, or subtle overlay pattern.",
+  "Icon": "Small supporting element. Use at specified position, maintain clarity.",
+  "Other": "Use in appropriate zone based on visual content.",
+};
+
+function getAssetRoleInstruction(label: string): string {
+  return ASSET_ROLE_INSTRUCTIONS[label] || ASSET_ROLE_INSTRUCTIONS["Other"];
+}
+
 async function adaptDirective(
   framework: Record<string, unknown>,
   brand: any,
@@ -367,10 +385,11 @@ async function adaptDirective(
       ? brand.extra_colors.map((c: any) => `${c.name || "Color"}: ${c.hex}`).join(", ")
       : "";
 
+  // Build asset list with role hints
   const assetList = brandAssets
     .map(
       (a: any, i: number) =>
-        `[${i}] "${a.label || "Unlabeled asset"}" — ${a.image_url}`
+        `[${i}] "${a.label || "Unlabeled"}" — Role: ${getAssetRoleInstruction(a.label || "")}`
     )
     .join("\n");
 
@@ -391,18 +410,17 @@ CRITICAL — CONTENT ISOLATION:
 The reference image is for LAYOUT, COMPOSITION, and VISUAL STYLE only.
 IGNORE ALL text, names, locations, prices, currencies, phone numbers, addresses, URLs, and any written content visible in the reference image.
 ALL copy (headline, subcopy, CTA) must come EXCLUSIVELY from the brand data below.
-If the reference shows "Abu Dhabi" or "AED" or any location/currency — DO NOT use those. Use ONLY the brand's own location, currency, and details from the brand brief.
 
 You receive:
-1. A reference advertisement image (for concept/style/layout inspiration ONLY — ignore its text content)
+1. A reference advertisement image (for concept/style/layout inspiration ONLY)
 2. The extracted design framework (structural analysis of the reference)
-3. Full brand data (name, colors, voice, brief, assets)
-4. The complete asset library with labels and indices
+3. Full brand data (name, colors, voice, brief)
+4. The actual brand asset images — you can SEE each one to evaluate visual fit
 5. The output format/dimensions
 
 Your task:
-- Write the EXACT headline (≤8 words), subcopy (≤20 words), and CTA text for this brand — sourced ONLY from brand data
-- Select which 2-4 assets (by index) to use and their roles/placements
+- Write the EXACT headline (≤8 words), subcopy (≤20 words), and CTA text — sourced ONLY from brand data
+- Select which 2-4 assets (by index) to use, evaluating visual fit with the reference layout
 - Decide exact color hex values for each element
 - Explain how the reference concept adapts to this brand
 - Specify logo treatment (light/dark version, backing panel if needed)
@@ -410,30 +428,36 @@ Your task:
 
 ASSET SELECTION RULES:
 - Always include ONE logo if available
-- Pick ONE hero visual (architecture/lifestyle/product) that best matches the reference's main visual zone
+- Pick ONE hero visual that best matches the reference's main visual zone — USE YOUR VISUAL JUDGEMENT
 - Optionally add ONE supporting asset if the reference has multiple visual zones
-- Skip assets that don't fit this layout (e.g., skip masterplan in a story ad, skip patterns unless reference has textured backgrounds)
-- Maximum 4 assets total (fewer is better — less clutter = better design)
-- If the brand has no visual assets beyond a logo, note that the design should be text-prominent with strong color usage
+- Skip assets that don't fit this layout
+- Maximum 4 assets total (fewer = better design)
+- For each asset, consider: does its composition, orientation, and content match the reference zone it would fill?
+
+ASSET ROLE MAPPING:
+- Logo → Brand mark, exact fidelity
+- Architecture/Hero Image → Primary visual, preserve details
+- Lifestyle → Atmospheric/background element
+- Product → Feature prominently
+- Masterplan → Dedicated zone, maintain readability
+- Mascot → Character element, preserve design
+- Pattern/Texture → Background texture or accent
+- Icon → Small supporting element
 
 COPY RULES:
 - Headlines must be original, punchy, and aligned to brand voice
-- ALL text MUST come from the brand brief and brand data — NEVER from the reference image
-- If the brand brief contains mandatory text (e.g., RERA No., contact number, location), include it
-- If the brand brief contains example headlines, you may use them directly or adapt them
+- ALL text MUST come from the brand brief and brand data
+- If the brand brief contains mandatory text (RERA, contact, location), include it
 - CTA should be actionable and brand-appropriate
 
 COLOR RULES:
-- Use brand primary color for dominant elements (headlines, accent strips, CTA backgrounds)
-- Use brand secondary color for supporting elements
-- Background should complement the hero imagery
-- Ensure text colors have sufficient contrast against their backgrounds
+- Use brand primary for dominant elements (headlines, accent strips, CTA)
+- Use secondary for supporting elements
+- Ensure sufficient contrast for text readability
 
-LAYOUT & TEXT PLACEMENT RULES:
-- Text MUST be placed on solid color zones, gradient overlays, or dedicated text panels
-- NEVER place text directly on top of 3D renders, photos, or busy imagery
-- Create clear visual separation: hero imagery zone vs text information zone
-- If using a full-bleed hero image, text must sit on a color strip, semi-transparent panel, or dedicated sidebar
+TEXT PLACEMENT:
+- Text MUST be on solid color zones, gradient overlays, or panels — NEVER on photos/renders
+- Create clear visual separation between imagery and text zones
 
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
@@ -443,10 +467,26 @@ ${JSON.stringify(sanitizeFramework(framework), null, 2)}
 BRAND DATA:
 ${brandContext}
 
-AVAILABLE ASSETS (select by index):
+AVAILABLE ASSETS (select by index — you can see each one below):
 ${assetList || "No assets available — design must be text-prominent."}
 
-Look at the reference image and the framework above. Map every element to this brand. Pre-decide all copy, colors, and asset selections.`;
+Look at the reference image AND each brand asset image. Visually evaluate which assets best fit the reference layout zones. Pre-decide all copy, colors, and asset selections.`;
+
+  // Build multimodal content: reference image + all brand asset images
+  const userContent: any[] = [
+    { type: "text", text: userMessage },
+    { type: "text", text: "REFERENCE IMAGE (layout/style inspiration only — ignore all text/content in it):" },
+    { type: "image_url", image_url: { url: referenceImageUrl } },
+  ];
+
+  // Send actual brand asset images so the Adapt step can SEE them
+  for (let i = 0; i < brandAssets.length && i < 8; i++) {
+    const asset = brandAssets[i];
+    userContent.push(
+      { type: "text", text: `BRAND ASSET [${i}] "${asset.label || "Unlabeled"}":` },
+      { type: "image_url", image_url: { url: asset.image_url } }
+    );
+  }
 
   const response = await fetch(
     "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -460,13 +500,7 @@ Look at the reference image and the framework above. Map every element to this b
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userMessage },
-              { type: "image_url", image_url: { url: referenceImageUrl } },
-            ],
-          },
+          { role: "user", content: userContent },
         ],
         tools: [
           {
@@ -622,108 +656,48 @@ function buildDirectivePrompt(
         ? `${spec.width}:${spec.height} LANDSCAPE`
         : `${spec.width}:${spec.height} PORTRAIT`;
 
-  // Categorize selected assets for conditional rules
-  const hasLogo = selectedAssets.some((a: any) => /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(a.label || ""));
-  const hasArchitecture = selectedAssets.some((a: any) =>
-    /architect|3d|render|building|elevation|facade/i.test(a.label || "")
-  );
-
-  // We need access to the full brandAssets array to map directive indices back
-  // The selectedAssets are already filtered by directive indices in generateCreative()
+  // Build concise asset placement lines with role-specific hints
   const assetRoleLines = directive.selected_assets
     .map((sa) => {
       const matchedAsset = selectedAssets.find((a: any) =>
         (a._originalIndex ?? -1) === sa.index
       );
       const assetLabel = matchedAsset ? (matchedAsset.label || "Asset") : `Asset #${sa.index}`;
-      return `  • [${sa.role.toUpperCase()}] "${assetLabel}" → ${sa.placement} (${sa.reason})`;
+      const roleHint = getAssetRoleInstruction(assetLabel);
+      return `  • [${sa.role.toUpperCase()}] "${assetLabel}" → ${sa.placement} | ${roleHint}`;
     })
     .join("\n");
 
-  // Build conditional asset rule sections
-  let assetRules = "";
+  const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
-  if (hasLogo) {
-    assetRules += `
-LOGO RULES:
-- The brand logo is provided as a separate labeled image (marked BRAND LOGO). Study it carefully.
-- Reproduce the logo's EXACT letterforms, icon shapes, colors, and proportions — do NOT approximate or simplify
-- ${directive.logo_treatment}
-- Place it at the specified location with appropriate sizing (not too small, not dominant)
-- Ensure contrast: on dark backgrounds add a light backing panel or reserved space; on light backgrounds use as-is
-- The logo visible in the REFERENCE image (IMAGE 1) is NOT your brand's logo — ignore it completely
-- NEVER write the word "LOGO" as text — always render the actual logo image
-`;
-  }
+  // SIMPLIFIED prompt — ~30 lines of core instructions
+  return `OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}).
 
-  if (hasArchitecture) {
-    assetRules += `
-3D RENDER RULES:
-- Preserve EXACT architecture: building shape, facade, rooflines, proportions, materials, windows
-- You MAY creatively enhance: lighting (golden hour, twilight), angle/perspective, atmosphere, cropping
-- Goal: make the architecture look aspirational and premium while keeping it architecturally accurate
-`;
-  }
-
-  assetRules += `
-GENERAL ASSET RULES:
-- For logos: faithfully reproduce exact letterforms, shapes, colors, and proportions from the provided logo image
-- For product photos, mascots: reproduce with high fidelity, preserving key visual details
-- Only adjust: size/scale to fit layout, contrast adaptation (light/dark)
-`;
-
-  const negativePrompts = toCompactText(brand.negative_prompts, 1500);
-
-  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
-
-CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies, or content from it. ALL text comes from the Creative Directive below.
+CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
 ═══ CREATIVE DIRECTIVE ═══
-HEADLINE (render EXACTLY): "${directive.headline}"
-SUBCOPY (render EXACTLY): "${directive.subcopy}"
-CTA (render EXACTLY): "${directive.cta_text}"
+HEADLINE: "${directive.headline}"
+SUBCOPY: "${directive.subcopy}"
+CTA: "${directive.cta_text}"
 
-COLORS:
-  Background: ${directive.color_usage.background} | Headline: ${directive.color_usage.headline_color}
-  Subcopy: ${directive.color_usage.subcopy_color} | CTA bg: ${directive.color_usage.cta_background} | CTA text: ${directive.color_usage.cta_text}
+COLORS: bg ${directive.color_usage.background} | headline ${directive.color_usage.headline_color} | subcopy ${directive.color_usage.subcopy_color} | CTA bg ${directive.color_usage.cta_background} text ${directive.color_usage.cta_text}
 
-CONCEPT: ${directive.concept_adaptation}
-
-ASSET PLACEMENTS:
+ASSETS:
 ${assetRoleLines}
 
-═══ DESIGN DIRECTION ═══
-Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors above. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content and assets.
+CONCEPT: ${directive.concept_adaptation}
+LOGO: ${directive.logo_treatment}
 
-${assetRules}
+═══ RULES ═══
+• Follow reference layout/composition/energy — adapt with brand assets + colors
+• Logo: reproduce EXACT letterforms, shapes, colors from the provided logo image. NEVER write "LOGO" as text
+• Architecture/3D: preserve exact building geometry. May enhance lighting/angle
+• Text on solid zones or panels only — NEVER on photos/renders
+• Headline bold + large, subcopy medium, CTA clean. Max 3 hierarchy levels
+• If logo contains brand name, do NOT repeat as text
+${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-TEXT PLACEMENT:
-- Text MUST be placed on solid color zones, gradient overlays, or dedicated text panels — NEVER directly on photos, renders, or busy imagery
-- Create clear separation between hero imagery and text zones
-- All text must be legible with proper contrast
-
-TYPOGRAPHY:
-- Headline: Large, bold, prominent
-- Subcopy: Medium, supporting
-- CTA: Clean, clear
-- Never stack more than 3 hierarchy levels
-
-DEDUPLICATION: If logo contains brand name, do NOT repeat as text. Each element appears ONCE.
-
-═══ REFERENCE FRAMEWORK ═══
-${JSON.stringify(sanitizeFramework(framework), null, 2)}
-
-${negativePrompts ? `⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
-
-CHECKLIST:
-✅ Output is ${spec.width}×${spec.height} (${aspectRatioLabel})
-✅ Headline: "${directive.headline}" | Subcopy: "${directive.subcopy}" | CTA: "${directive.cta_text}"
-✅ Logo visible, properly contrasted
-✅ No content copied from reference
-✅ Text on clean backgrounds, not on imagery
-✅ Professional quality
-
-Output: ${spec.width}×${spec.height} pixels. Generate now.`;
+Generate ${spec.width}×${spec.height} now.`;
 }
 
 function buildFallbackPrompt(
