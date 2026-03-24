@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, ArrowRightLeft, Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -24,7 +24,10 @@ const navItems = [
 ];
 
 const adminItems = [
+  { title: "Overview", url: "/admin", icon: BarChart3 },
   { title: "Accounts", url: "/admin/users", icon: Users },
+  { title: "All Brands", url: "/admin/brands", icon: ArrowRightLeft },
+  { title: "Activity Logs", url: "/admin/logs", icon: Activity },
 ];
 
 export function AppSidebar() {

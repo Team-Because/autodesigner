@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAuth } from "@/hooks/useAuth";
+import { useActivityLog } from "@/hooks/useActivityLog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,13 +23,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Loader2, Shield, User, Users } from "lucide-react";
+import { UserPlus, Loader2, Shield, User, Users, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 
 export default function AdminUsers() {
   const { user } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
+  const { log } = useActivityLog();
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -37,6 +39,11 @@ export default function AdminUsers() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("user");
+
+  // Credit management state
+  const [creditUserId, setCreditUserId] = useState<string | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [updatingCredits, setUpdatingCredits] = useState(false);
 
   // Fetch all profiles (admin can see all)
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
@@ -279,13 +286,27 @@ export default function AdminUsers() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {userCredits.credits_remaining} credits
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {userCredits.credits_used} used
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">
+                          {userCredits.credits_remaining} credits
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {userCredits.credits_used} used
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCreditUserId(profile.user_id);
+                          setCreditAmount("");
+                        }}
+                      >
+                        <CreditCard className="h-3.5 w-3.5" /> Credits
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -294,6 +315,74 @@ export default function AdminUsers() {
           })}
         </div>
       )}
+
+      {/* Credit management dialog */}
+      <Dialog open={!!creditUserId} onOpenChange={(open) => !open && setCreditUserId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Manage Credits</DialogTitle>
+          </DialogHeader>
+          {creditUserId && (() => {
+            const p = profiles.find((p) => p.user_id === creditUserId);
+            const c = getCreditsForUser(creditUserId);
+            return (
+              <div className="space-y-4 mt-2">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm font-medium">{p?.display_name || p?.username || "User"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Current: {c.credits_remaining} remaining · {c.credits_used} used
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Add Credits</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(e.target.value)}
+                    placeholder="e.g., 50"
+                  />
+                </div>
+                <Button
+                  className="w-full gradient-primary hover:gradient-primary-hover text-primary-foreground"
+                  disabled={!creditAmount || Number(creditAmount) <= 0 || updatingCredits}
+                  onClick={async () => {
+                    const amount = Number(creditAmount);
+                    if (!amount || amount <= 0) return;
+                    setUpdatingCredits(true);
+                    try {
+                      const newRemaining = c.credits_remaining + amount;
+                      const { error } = await supabase
+                        .from("user_credits")
+                        .update({ credits_remaining: newRemaining })
+                        .eq("user_id", creditUserId);
+                      if (error) throw error;
+                      log("credit.assigned", "credit", undefined, {
+                        target_user: creditUserId,
+                        amount,
+                        new_balance: newRemaining,
+                      });
+                      toast.success(`Added ${amount} credits.`);
+                      setCreditUserId(null);
+                      queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to update credits.");
+                    } finally {
+                      setUpdatingCredits(false);
+                    }
+                  }}
+                >
+                  {updatingCredits ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
+                  ) : (
+                    `Add ${creditAmount || "0"} Credits`
+                  )}
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
