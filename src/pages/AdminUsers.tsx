@@ -315,6 +315,74 @@ export default function AdminUsers() {
           })}
         </div>
       )}
+
+      {/* Credit management dialog */}
+      <Dialog open={!!creditUserId} onOpenChange={(open) => !open && setCreditUserId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Manage Credits</DialogTitle>
+          </DialogHeader>
+          {creditUserId && (() => {
+            const p = profiles.find((p) => p.user_id === creditUserId);
+            const c = getCreditsForUser(creditUserId);
+            return (
+              <div className="space-y-4 mt-2">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm font-medium">{p?.display_name || p?.username || "User"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Current: {c.credits_remaining} remaining · {c.credits_used} used
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Add Credits</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(e.target.value)}
+                    placeholder="e.g., 50"
+                  />
+                </div>
+                <Button
+                  className="w-full gradient-primary hover:gradient-primary-hover text-primary-foreground"
+                  disabled={!creditAmount || Number(creditAmount) <= 0 || updatingCredits}
+                  onClick={async () => {
+                    const amount = Number(creditAmount);
+                    if (!amount || amount <= 0) return;
+                    setUpdatingCredits(true);
+                    try {
+                      const newRemaining = c.credits_remaining + amount;
+                      const { error } = await supabase
+                        .from("user_credits")
+                        .update({ credits_remaining: newRemaining })
+                        .eq("user_id", creditUserId);
+                      if (error) throw error;
+                      log("credit.assigned", "credit", undefined, {
+                        target_user: creditUserId,
+                        amount,
+                        new_balance: newRemaining,
+                      });
+                      toast.success(`Added ${amount} credits.`);
+                      setCreditUserId(null);
+                      queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to update credits.");
+                    } finally {
+                      setUpdatingCredits(false);
+                    }
+                  }}
+                >
+                  {updatingCredits ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
+                  ) : (
+                    `Add ${creditAmount || "0"} Credits`
+                  )}
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
