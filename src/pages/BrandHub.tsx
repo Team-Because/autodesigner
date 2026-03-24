@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -42,6 +52,7 @@ export default function BrandHub() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "brand" | "group" } | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands"],
@@ -244,7 +255,7 @@ export default function BrandHub() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={() => handleDelete(brand.id, brand.name)} className="text-destructive focus:text-destructive gap-2">
+              <DropdownMenuItem onClick={() => setDeleteConfirm({ id: brand.id, name: brand.name, type: "brand" })} className="text-destructive focus:text-destructive gap-2">
                 <Trash2 className="h-3.5 w-3.5" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -261,6 +272,7 @@ export default function BrandHub() {
   );
 
   return (
+    <>
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -380,7 +392,7 @@ export default function BrandHub() {
                       <DropdownMenuItem onClick={() => { setRenameId(group.id); setRenameValue(group.name); }}>
                         <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteGroup(group.id, group.name)} className="text-destructive focus:text-destructive">
+                      <DropdownMenuItem onClick={() => setDeleteConfirm({ id: group.id, name: group.name, type: "group" })} className="text-destructive focus:text-destructive">
                         <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Group
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -425,5 +437,37 @@ export default function BrandHub() {
         </>
       )}
     </div>
+
+    <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Delete {deleteConfirm?.type === "brand" ? "Brand" : "Group"}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {deleteConfirm?.type === "brand"
+              ? `This will permanently delete "${deleteConfirm?.name}" and all its assets. This action cannot be undone.`
+              : `This will delete the group "${deleteConfirm?.name}". Brands inside will be ungrouped but not deleted.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              if (deleteConfirm?.type === "brand") {
+                handleDelete(deleteConfirm.id, deleteConfirm.name);
+              } else if (deleteConfirm) {
+                handleDeleteGroup(deleteConfirm.id, deleteConfirm.name);
+              }
+              setDeleteConfirm(null);
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

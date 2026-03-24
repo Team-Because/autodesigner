@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -23,6 +23,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { UserPlus, Loader2, Shield, User, Users, CreditCard, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
@@ -45,6 +55,7 @@ export default function AdminUsers() {
   const [creditAmount, setCreditAmount] = useState("");
   const [creditMode, setCreditMode] = useState<"add" | "set" | "reset">("add");
   const [updatingCredits, setUpdatingCredits] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Password reset state
   const [resetUserId, setResetUserId] = useState<string | null>(null);
@@ -100,6 +111,52 @@ export default function AdminUsers() {
     const c = credits.find((c) => c.user_id === userId);
     return c || { credits_remaining: 0, credits_used: 0 };
   };
+
+  const handleCreditUpdate = useCallback(async () => {
+    if (!creditUserId) return;
+    const c = getCreditsForUser(creditUserId);
+    setUpdatingCredits(true);
+    try {
+      let newRemaining: number;
+      if (creditMode === "add") {
+        newRemaining = c.credits_remaining + Number(creditAmount);
+      } else if (creditMode === "set") {
+        newRemaining = Number(creditAmount);
+      } else {
+        newRemaining = 0;
+      }
+      const updatePayload: Record<string, number> = { credits_remaining: newRemaining };
+      if (creditMode === "reset") updatePayload.credits_used = 0;
+
+      const { error } = await supabase
+        .from("user_credits")
+        .update(updatePayload)
+        .eq("user_id", creditUserId);
+      if (error) throw error;
+
+      const actionLabel = creditMode === "add" ? "credit.assigned" : creditMode === "set" ? "credit.set" : "credit.reset";
+      log(actionLabel, "credit", undefined, {
+        target_user: creditUserId,
+        mode: creditMode,
+        amount: creditMode === "reset" ? 0 : Number(creditAmount),
+        new_balance: newRemaining,
+      });
+      toast.success(
+        creditMode === "add"
+          ? `Added ${creditAmount} credits.`
+          : creditMode === "set"
+          ? `Credits set to ${creditAmount}.`
+          : "Credits reset to zero."
+      );
+      setCreditUserId(null);
+      setCreditMode("add");
+      queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update credits.");
+    } finally {
+      setUpdatingCredits(false);
+    }
+  }, [creditUserId, creditMode, creditAmount, credits, log, queryClient]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,49 +446,11 @@ export default function AdminUsers() {
                     (creditMode === "set" && (creditAmount === "" || Number(creditAmount) < 0))
                   }
                   onClick={async () => {
-                    setUpdatingCredits(true);
-                    try {
-                      let newRemaining: number;
-                      let newUsed = c.credits_used;
-                      if (creditMode === "add") {
-                        newRemaining = c.credits_remaining + Number(creditAmount);
-                      } else if (creditMode === "set") {
-                        newRemaining = Number(creditAmount);
-                      } else {
-                        newRemaining = 0;
-                        newUsed = 0;
-                      }
-                      const updatePayload: Record<string, number> = { credits_remaining: newRemaining };
-                      if (creditMode === "reset") updatePayload.credits_used = 0;
-
-                      const { error } = await supabase
-                        .from("user_credits")
-                        .update(updatePayload)
-                        .eq("user_id", creditUserId);
-                      if (error) throw error;
-
-                      const actionLabel = creditMode === "add" ? "credit.assigned" : creditMode === "set" ? "credit.set" : "credit.reset";
-                      log(actionLabel, "credit", undefined, {
-                        target_user: creditUserId,
-                        mode: creditMode,
-                        amount: creditMode === "reset" ? 0 : Number(creditAmount),
-                        new_balance: newRemaining,
-                      });
-                      toast.success(
-                        creditMode === "add"
-                          ? `Added ${creditAmount} credits.`
-                          : creditMode === "set"
-                          ? `Credits set to ${creditAmount}.`
-                          : "Credits reset to zero."
-                      );
-                      setCreditUserId(null);
-                      setCreditMode("add");
-                      queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
-                    } catch (err: any) {
-                      toast.error(err.message || "Failed to update credits.");
-                    } finally {
-                      setUpdatingCredits(false);
+                    if (creditMode === "reset") {
+                      setResetConfirmOpen(true);
+                      return;
                     }
+                    await handleCreditUpdate();
                   }}
                 >
                   {updatingCredits ? (
@@ -521,6 +540,29 @@ export default function AdminUsers() {
           })()}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Credits?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will set credits remaining to 0 and reset all usage history to 0. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setResetConfirmOpen(false);
+                handleCreditUpdate();
+              }}
+            >
+              Reset Credits
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
