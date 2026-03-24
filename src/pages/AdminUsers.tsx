@@ -286,13 +286,27 @@ export default function AdminUsers() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {userCredits.credits_remaining} credits
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {userCredits.credits_used} used
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">
+                          {userCredits.credits_remaining} credits
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {userCredits.credits_used} used
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCreditUserId(profile.user_id);
+                          setCreditAmount("");
+                        }}
+                      >
+                        <CreditCard className="h-3.5 w-3.5" /> Credits
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
