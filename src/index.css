@@ -2,53 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 220 30% 14%;
+    --background: 0 0% 98%;
+    --foreground: 220 20% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 14%;
+    --card-foreground: 220 20% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 14%;
+    --popover-foreground: 220 20% 14%;
 
     --primary: 220 72% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 45 96% 53%;
-    --secondary-foreground: 220 30% 14%;
+    --secondary: 45 96% 50%;
+    --secondary-foreground: 220 20% 14%;
 
     --muted: 220 14% 95%;
     --muted-foreground: 220 10% 46%;
 
-    --accent: 45 96% 92%;
+    --accent: 45 96% 94%;
     --accent-foreground: 220 72% 42%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 90%;
-    --input: 220 14% 90%;
+    --border: 220 14% 91%;
+    --input: 220 14% 91%;
     --ring: 220 72% 50%;
 
-    --radius: 0.625rem;
+    --radius: 1rem;
 
-    --sidebar-background: 220 30% 10%;
-    --sidebar-foreground: 220 14% 75%;
-    --sidebar-primary: 45 96% 53%;
-    --sidebar-primary-foreground: 220 30% 10%;
-    --sidebar-accent: 220 25% 16%;
-    --sidebar-accent-foreground: 220 14% 90%;
-    --sidebar-border: 220 20% 18%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 10% 40%;
+    --sidebar-primary: 220 72% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 60% 96%;
+    --sidebar-accent-foreground: 220 72% 42%;
+    --sidebar-border: 220 14% 93%;
     --sidebar-ring: 220 72% 50%;
 
     --success: 152 60% 42%;
     --success-foreground: 0 0% 100%;
-    --warning: 45 96% 53%;
-    --warning-foreground: 220 30% 14%;
+    --warning: 45 96% 50%;
+    --warning-foreground: 220 20% 14%;
   }
 
   .dark {
@@ -82,8 +82,8 @@
 
     --sidebar-background: 220 30% 5%;
     --sidebar-foreground: 220 14% 70%;
-    --sidebar-primary: 45 96% 53%;
-    --sidebar-primary-foreground: 220 30% 10%;
+    --sidebar-primary: 220 72% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 25% 12%;
     --sidebar-accent-foreground: 220 14% 90%;
     --sidebar-border: 220 20% 14%;
@@ -92,7 +92,7 @@
     --success: 152 60% 42%;
     --success-foreground: 0 0% 100%;
     --warning: 45 96% 53%;
-    --warning-foreground: 220 30% 14%;
+    --warning-foreground: 220 20% 14%;
   }
 }
 
@@ -103,19 +103,47 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'DM Sans', sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Outfit', sans-serif;
   }
 }
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(220 72% 50%), hsl(220 72% 42%));
+    background: linear-gradient(135deg, hsl(220 72% 50%), hsl(220 72% 40%));
   }
   .gradient-primary-hover {
-    background: linear-gradient(135deg, hsl(220 72% 44%), hsl(220 72% 36%));
+    background: linear-gradient(135deg, hsl(220 72% 44%), hsl(220 72% 34%));
+  }
+  .gradient-accent {
+    background: linear-gradient(135deg, hsl(45 96% 50%), hsl(45 96% 42%));
+  }
+  .glass {
+    background: hsl(0 0% 100% / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .glass-subtle {
+    background: hsl(0 0% 100% / 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .card-yellow {
+    background: hsl(45 96% 97%);
+    border-color: hsl(45 80% 88%);
+  }
+  .card-blue {
+    background: hsl(220 80% 97%);
+    border-color: hsl(220 60% 90%);
+  }
+  .card-green {
+    background: hsl(152 50% 96%);
+    border-color: hsl(152 40% 86%);
+  }
+  .card-rose {
+    background: hsl(0 60% 97%);
+    border-color: hsl(0 50% 90%);
   }
 }
