@@ -17,12 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivityLog } from "@/hooks/useActivityLog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function BrandHub() {
   const { user } = useAuth();
@@ -34,6 +34,7 @@ export default function BrandHub() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: brands = [] } = useQuery({
     queryKey: ["brands"],
@@ -178,10 +179,16 @@ export default function BrandHub() {
     }
   };
 
-  const ungroupedBrands = brands.filter((b) => !b.campaign_id);
+  const filteredBrands = useMemo(() => {
+    if (!searchQuery.trim()) return brands;
+    const q = searchQuery.toLowerCase();
+    return brands.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, searchQuery]);
+
+  const ungroupedBrands = filteredBrands.filter((b) => !b.campaign_id);
   const groupedBrands = groups.map((g) => ({
     ...g,
-    brands: brands.filter((b) => b.campaign_id === g.id),
+    brands: filteredBrands.filter((b) => b.campaign_id === g.id),
   }));
 
   const BrandCard = ({ brand }: { brand: typeof brands[0] }) => (
@@ -263,12 +270,21 @@ export default function BrandHub() {
 
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Brand Hub</h1>
           <p className="text-muted-foreground mt-1">Manage your brand profiles and visual identities.</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search brands..."
+              className="pl-8 h-9 w-48 rounded-xl text-sm"
+            />
+          </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">

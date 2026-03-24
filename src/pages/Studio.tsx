@@ -502,7 +502,22 @@ export default function Studio() {
                   )}
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => window.open(result.imageUrl, "_blank")}
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(result.imageUrl);
+                          const blob = await response.blob();
+                          const blobUrl = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = blobUrl;
+                          a.download = `creative-${Date.now()}.png`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(blobUrl);
+                        } catch {
+                          window.open(result.imageUrl, "_blank");
+                        }
+                      }}
                       className="flex-1"
                     >
                       <Download className="h-4 w-4 mr-2" /> Download

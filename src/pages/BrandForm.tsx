@@ -180,7 +180,7 @@ export default function BrandForm() {
     setLoading(true);
     const payload: any = {
       name,
-      logo_url: assets.length > 0 ? assets[0].image_url : "",
+      logo_url: assets.find((a) => a.label === "Logo")?.image_url || (assets.length > 0 ? assets[0].image_url : ""),
       primary_color: primaryColor,
       secondary_color: secondaryColor,
       extra_colors: extraColors,

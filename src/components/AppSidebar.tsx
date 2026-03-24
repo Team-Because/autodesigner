@@ -1,7 +1,10 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, ArrowRightLeft, Activity } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, ArrowRightLeft, Activity, Shield } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -35,6 +38,17 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
   const { isAdmin } = useIsAdmin();
+
+  const { data: profile } = useQuery({
+    queryKey: ["my-profile"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("display_name, username").eq("user_id", user!.id).single();
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const displayName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "";
 
   return (
     <Sidebar collapsible="icon">
@@ -103,8 +117,18 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         {!collapsed && user && (
-          <div className="text-xs text-muted-foreground truncate mb-2 px-1">
-            {user.email}
+          <div className="mb-2 px-1">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+              {isAdmin && (
+                <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4">
+                  <Shield className="h-2.5 w-2.5 mr-0.5" /> Admin
+                </Badge>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+              {user.email}
+            </p>
           </div>
         )}
         <Button
