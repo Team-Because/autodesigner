@@ -17,20 +17,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useActivityLog } from "@/hooks/useActivityLog";
 import { useState } from "react";
 
 export default function BrandHub() {
   const { user } = useAuth();
+  const { log } = useActivityLog();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [newGroupName, setNewGroupName] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const { data: brands = [] } = useQuery({
     queryKey: ["brands"],
@@ -58,17 +61,88 @@ export default function BrandHub() {
       toast.error("Failed to delete brand.");
     } else {
       toast.success(`"${name}" has been deleted.`);
+      log("brand.deleted", "brand", id, { name });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
+    }
+  };
+
+  const handleDuplicate = async (brandId: string) => {
+    if (!user) return;
+    setDuplicatingId(brandId);
+    try {
+      // Fetch the brand
+      const { data: original, error: fetchErr } = await supabase
+        .from("brands")
+        .select("*")
+        .eq("id", brandId)
+        .single();
+      if (fetchErr || !original) throw new Error("Failed to fetch brand");
+
+      // Fetch its assets
+      const { data: originalAssets = [] } = await supabase
+        .from("brand_assets")
+        .select("*")
+        .eq("brand_id", brandId);
+
+      // Insert duplicated brand
+      const { data: newBrand, error: insertErr } = await supabase
+        .from("brands")
+        .insert({
+          name: `${original.name} (Copy)`,
+          user_id: user.id,
+          logo_url: original.logo_url,
+          primary_color: original.primary_color,
+          secondary_color: original.secondary_color,
+          extra_colors: original.extra_colors,
+          brand_voice_rules: original.brand_voice_rules,
+          negative_prompts: original.negative_prompts,
+          brand_brief: original.brand_brief,
+          campaign_id: original.campaign_id,
+        })
+        .select()
+        .single();
+      if (insertErr || !newBrand) throw new Error("Failed to duplicate brand");
+
+      // Copy assets
+      if (originalAssets && originalAssets.length > 0) {
+        const assetCopies = originalAssets.map((a: any) => ({
+          brand_id: newBrand.id,
+          user_id: user.id,
+          image_url: a.image_url,
+          label: a.label,
+        }));
+        await supabase.from("brand_assets").insert(assetCopies);
+      }
+
+      log("brand.duplicated", "brand", newBrand.id, {
+        source_brand_id: brandId,
+        source_name: original.name,
+      });
+
+      toast.success(`"${original.name}" duplicated successfully.`);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+
+      // Navigate to edit the new brand so user can rename
+      navigate(`/brands/${newBrand.id}/edit`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to duplicate brand.");
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;
-    const { error } = await supabase.from("campaigns").insert({ name: newGroupName.trim(), user_id: user.id });
+    const { data, error } = await supabase
+      .from("campaigns")
+      .insert({ name: newGroupName.trim(), user_id: user.id })
+      .select()
+      .single();
     if (error) {
       toast.error("Failed to create group.");
     } else {
       toast.success(`Group "${newGroupName.trim()}" created.`);
+      log("group.created", "group", data?.id, { name: newGroupName.trim() });
       setNewGroupName("");
       setCreateDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
@@ -76,13 +150,13 @@ export default function BrandHub() {
   };
 
   const handleDeleteGroup = async (groupId: string, groupName: string) => {
-    // Unassign brands first
     await supabase.from("brands").update({ campaign_id: null }).eq("campaign_id", groupId);
     const { error } = await supabase.from("campaigns").delete().eq("id", groupId);
     if (error) {
       toast.error("Failed to delete group.");
     } else {
       toast.success(`Group "${groupName}" deleted.`);
+      log("group.deleted", "group", groupId, { name: groupName });
       queryClient.invalidateQueries({ queryKey: ["campaigns", "brands"] });
     }
   };
@@ -94,6 +168,7 @@ export default function BrandHub() {
       toast.error("Failed to rename group.");
     } else {
       toast.success("Group renamed.");
+      log("group.renamed", "group", renameId, { new_name: renameValue.trim() });
       setRenameId(null);
       setRenameValue("");
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
@@ -153,6 +228,19 @@ export default function BrandHub() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => handleDuplicate(brand.id)}
+                disabled={duplicatingId === brand.id}
+                className="gap-2"
+              >
+                {duplicatingId === brand.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {groups.length > 0 && (
                 <>
                   {groups.map((g) => (
