@@ -17,12 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivityLog } from "@/hooks/useActivityLog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function BrandHub() {
   const { user } = useAuth();
