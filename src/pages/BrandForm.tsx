@@ -520,7 +520,7 @@ export default function BrandForm() {
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={loading} className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8">
+          <Button type="submit" disabled={loading} className="gradient-primary hover:gradient-primary-hover text-primary-foreground px-8 rounded-xl">
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             {isEditing ? "Save Changes" : "Create Brand"}
           </Button>

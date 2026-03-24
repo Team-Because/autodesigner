@@ -171,7 +171,7 @@ export default function AdminUsers() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-primary hover:gradient-primary-hover text-primary-foreground gap-2">
+            <Button className="gradient-primary hover:gradient-primary-hover text-primary-foreground gap-2 rounded-xl">
               <UserPlus className="h-4 w-4" /> Create Account
             </Button>
           </DialogTrigger>

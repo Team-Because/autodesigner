@@ -424,7 +424,7 @@ export default function Studio() {
           </Card>
 
           <Button
-            className="w-full h-12 text-base gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
+            className="w-full h-12 text-base rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
             onClick={handleGenerate}
             disabled={isGenerating || !selectedBrandId || !referenceFile}
           >
