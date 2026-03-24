@@ -130,6 +130,34 @@ export default function Studio() {
       return;
     }
 
+    // Pre-flight: check credits
+    try {
+      const { data: creditData } = await supabase
+        .from("user_credits")
+        .select("credits_remaining")
+        .eq("user_id", user.id)
+        .single();
+      if (creditData && creditData.credits_remaining <= 0) {
+        toast.error("No credits remaining. Contact your admin to add more credits.");
+        return;
+      }
+    } catch {}
+
+    // Pre-flight: check brand data quality (warn only, don't block)
+    try {
+      const selectedBrandData = brands.find((b) => b.id === selectedBrandId);
+      const { count: assetCount } = await supabase
+        .from("brand_assets")
+        .select("id", { count: "exact", head: true })
+        .eq("brand_id", selectedBrandId);
+      if (assetCount === 0) {
+        toast.warning("This brand has no assets uploaded — results may be limited.");
+      }
+      if (!selectedBrandData?.brand_brief) {
+        toast.warning("This brand has no brief — adding one improves results significantly.");
+      }
+    } catch {}
+
     setStudioState("generating");
     setProgress(5);
     setProgressPhase("Uploading reference image...");
