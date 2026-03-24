@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, ArrowRightLeft, Activity, Shield } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, Activity, Shield, ChevronDown, UserCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -18,26 +18,52 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
-const navItems = [
+const userItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Brand Hub", url: "/brands", icon: Palette },
-  { title: "The Studio", url: "/studio", icon: Sparkles },
+  { title: "Brands", url: "/brands", icon: Palette },
+  { title: "The Magic", url: "/studio", icon: Sparkles },
   { title: "History", url: "/history", icon: Clock },
 ];
 
 const adminItems = [
-  { title: "Overview", url: "/admin", icon: BarChart3 },
+  { title: "Dashboard", url: "/admin", icon: BarChart3 },
+  { title: "All Brands", url: "/admin/brands", icon: Palette },
+  { title: "All History", url: "/admin/history", icon: Clock },
   { title: "Accounts", url: "/admin/users", icon: Users },
-  { title: "All Brands", url: "/admin/brands", icon: ArrowRightLeft },
   { title: "Activity Logs", url: "/admin/logs", icon: Activity },
 ];
+
+function getRecentUsernames(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem("mma-recent-usernames") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function addRecentUsername(username: string) {
+  const list = getRecentUsernames().filter((u) => u !== username);
+  list.unshift(username);
+  localStorage.setItem("mma-recent-usernames", JSON.stringify(list.slice(0, 5)));
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
   const { isAdmin } = useIsAdmin();
+  const navigate = useNavigate();
+  const [recentUsernames, setRecentUsernames] = useState<string[]>([]);
 
   const { data: profile } = useQuery({
     queryKey: ["my-profile"],
@@ -49,6 +75,21 @@ export function AppSidebar() {
   });
 
   const displayName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "";
+  const currentUsername = profile?.username || user?.email?.split("@")[0] || "";
+
+  useEffect(() => {
+    if (currentUsername) {
+      addRecentUsername(currentUsername);
+      setRecentUsernames(getRecentUsernames());
+    }
+  }, [currentUsername]);
+
+  const handleSwitchAccount = async (username: string) => {
+    await signOut();
+    navigate(`/login?username=${encodeURIComponent(username)}`);
+  };
+
+  const otherAccounts = recentUsernames.filter((u) => u !== currentUsername);
 
   return (
     <Sidebar collapsible="icon">
@@ -67,7 +108,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {navItems.map((item) => (
+              {userItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -117,29 +158,75 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         {!collapsed && user && (
-          <div className="mb-2 px-1">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
-              {isAdmin && (
-                <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4">
-                  <Shield className="h-2.5 w-2.5 mr-0.5" /> Admin
-                </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-muted/50 transition-colors text-left">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <UserCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                    {isAdmin && (
+                      <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4">
+                        <Shield className="h-2.5 w-2.5 mr-0.5" /> Admin
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {currentUsername}
+                  </p>
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {otherAccounts.length > 0 && (
+                <>
+                  <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Switch Account
+                  </p>
+                  {otherAccounts.map((username) => (
+                    <DropdownMenuItem
+                      key={username}
+                      onClick={() => handleSwitchAccount(username)}
+                      className="gap-2"
+                    >
+                      <UserCircle className="h-3.5 w-3.5" />
+                      {username}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
               )}
-            </div>
-            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-              {user.email}
-            </p>
-          </div>
+              <DropdownMenuItem
+                onClick={() => { signOut(); navigate("/login"); }}
+                className="gap-2"
+              >
+                <UserCircle className="h-3.5 w-3.5" />
+                Sign in as different account
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={signOut}
+                className="gap-2 text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={signOut}
-          className="w-full justify-start rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span className="ml-2">Sign Out</span>}
-        </Button>
+        {collapsed && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="w-full justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -15,6 +15,7 @@ import AdminUsers from "@/pages/AdminUsers";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminBrands from "@/pages/AdminBrands";
 import AdminLogs from "@/pages/AdminLogs";
+import AdminHistory from "@/pages/AdminHistory";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/brands" element={<AdminBrands />} />
               <Route path="/admin/logs" element={<AdminLogs />} />
+              <Route path="/admin/history" element={<AdminHistory />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -8,13 +8,14 @@ import { CreditCard } from "lucide-react";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard",
-  "/brands": "Brand Hub",
-  "/studio": "The Studio",
+  "/brands": "Brands",
+  "/studio": "The Magic",
   "/history": "History",
-  "/admin": "Admin Overview",
+  "/admin": "Admin Dashboard",
   "/admin/users": "Accounts",
   "/admin/brands": "All Brands",
   "/admin/logs": "Activity Logs",
+  "/admin/history": "All History",
 };
 
 function getPageTitle(pathname: string): string {
@@ -42,21 +43,6 @@ export function DashboardLayout() {
     enabled: !!user,
   });
 
-  const { data: profile } = useQuery({
-    queryKey: ["my-profile"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name, username")
-        .eq("user_id", user!.id)
-        .single();
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const displayName = profile?.display_name || profile?.username || "";
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -78,11 +64,6 @@ export function DashboardLayout() {
                   <span className="text-foreground font-semibold">{credits.credits_remaining}</span>
                   <span className="hidden sm:inline">credits</span>
                 </div>
-              )}
-              {displayName && (
-                <span className="text-xs text-muted-foreground hidden md:block">
-                  {displayName}
-                </span>
               )}
             </div>
           </header>

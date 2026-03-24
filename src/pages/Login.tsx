@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,16 @@ import { toast } from "sonner";
 
 export default function Login() {
   const { session, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill username from URL param (for account switching)
+  useEffect(() => {
+    const username = searchParams.get("username");
+    if (username) setEmail(username);
+  }, [searchParams]);
 
   if (!authLoading && session) {
     return <Navigate to="/" replace />;
@@ -47,7 +54,6 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
       style={{ background: "linear-gradient(135deg, hsl(220 80% 97%), hsl(45 96% 97%), hsl(220 72% 95%))" }}
     >
-      {/* Decorative blobs */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full opacity-30"
         style={{ background: "radial-gradient(circle, hsl(45 96% 80%), transparent 70%)" }} />
       <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-20"
@@ -57,13 +63,9 @@ export default function Login() {
         <CardContent className="pt-10 pb-10 px-8 space-y-7">
           <div className="flex items-center justify-center gap-3 mb-2">
             <img src="/logo-icon.png" alt="MakeMyAd" className="h-11 w-11 rounded-2xl object-contain" />
-            <span className="font-display font-bold text-2xl text-foreground tracking-tight">
-              MakeMyAd
-            </span>
+            <span className="font-display font-bold text-2xl text-foreground tracking-tight">MakeMyAd</span>
           </div>
-          <p className="text-sm text-muted-foreground text-center">
-            Sign in with your account credentials.
-          </p>
+          <p className="text-sm text-muted-foreground text-center">Sign in with your account credentials.</p>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
@@ -97,13 +99,7 @@ export default function Login() {
               className="w-full h-11 text-sm font-semibold rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground"
               disabled={loading}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...
-                </>
-              ) : (
-                "Sign In"
-              )}
+              {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...</> : "Sign In"}
             </Button>
           </form>
 
