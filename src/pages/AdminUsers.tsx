@@ -43,6 +43,7 @@ export default function AdminUsers() {
   // Credit management state
   const [creditUserId, setCreditUserId] = useState<string | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
+  const [creditMode, setCreditMode] = useState<"add" | "set" | "reset">("add");
   const [updatingCredits, setUpdatingCredits] = useState(false);
 
   // Fetch all profiles (admin can see all)
