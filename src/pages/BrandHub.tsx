@@ -270,12 +270,21 @@ export default function BrandHub() {
 
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Brand Hub</h1>
           <p className="text-muted-foreground mt-1">Manage your brand profiles and visual identities.</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search brands..."
+              className="pl-8 h-9 w-48 rounded-xl text-sm"
+            />
+          </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
