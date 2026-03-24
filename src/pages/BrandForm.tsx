@@ -129,7 +129,12 @@ export default function BrandForm() {
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
           setNegativePrompts(data.negative_prompts || "");
-          setBrandBrief((data as any).brand_brief || "");
+          const briefRaw = (data as any).brand_brief || "";
+          const parsed = parseBrief(briefRaw);
+          setBriefIdentity(parsed.identity);
+          setBriefMandatory(parsed.mandatory);
+          setBriefVisual(parsed.visual);
+          setBriefCopy(parsed.copy);
           // Load extra colors
           const ec = (data as any).extra_colors;
           if (ec && Array.isArray(ec)) {
@@ -234,7 +239,7 @@ export default function BrandForm() {
       extra_colors: extraColors,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
-      brand_brief: brandBrief,
+      brand_brief: combineBrief(),
       user_id: user.id,
     };
 
@@ -521,21 +526,65 @@ export default function BrandForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-display">Brand Brief / Guidelines</CardTitle>
+            <CardTitle className="text-base font-display">Brand Brief</CardTitle>
+            <CardDescription>Structured sections help the AI use your brand data accurately. Fill in what applies.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="brief">Paste your full brand brief, guidelines, or system prompt here</Label>
-            <Textarea
-              id="brief"
-              value={brandBrief}
-              onChange={(e) => setBrandBrief(e.target.value)}
-              placeholder="Paste your complete brand guidelines, tone of voice, visual style, target audience, campaign details, typography rules, key messages, and any other brand information here..."
-              rows={10}
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              Include everything the AI needs to know about your brand. Use markdown headers (## SECTION) for structure.
-            </p>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="brief-identity">Brand Identity</Label>
+              <Textarea
+                id="brief-identity"
+                value={briefIdentity}
+                onChange={(e) => setBriefIdentity(e.target.value)}
+                placeholder="Project name, location, developer, USP, key differentiators..."
+                rows={4}
+                className="text-sm"
+                maxLength={800}
+              />
+              <p className="text-xs text-muted-foreground">{briefIdentity.length}/800 — Project name, location, developer, USP</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-mandatory">Must-Include Elements</Label>
+              <Textarea
+                id="brief-mandatory"
+                value={briefMandatory}
+                onChange={(e) => setBriefMandatory(e.target.value)}
+                placeholder="RERA number, contact info, tagline, legal text, website URL..."
+                rows={3}
+                className="text-sm"
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">{briefMandatory.length}/500 — RERA, contact, tagline, legal text</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-visual">Visual Direction</Label>
+              <Textarea
+                id="brief-visual"
+                value={briefVisual}
+                onChange={(e) => setBriefVisual(e.target.value)}
+                placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
+                rows={3}
+                className="text-sm"
+                maxLength={600}
+              />
+              <p className="text-xs text-muted-foreground">{briefVisual.length}/600 — Mood, lighting, photography style, layout preferences</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-copy">Example Copy</Label>
+              <Textarea
+                id="brief-copy"
+                value={briefCopy}
+                onChange={(e) => setBriefCopy(e.target.value)}
+                placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
+                rows={3}
+                className="text-sm"
+                maxLength={600}
+              />
+              <p className="text-xs text-muted-foreground">{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+            </div>
           </CardContent>
         </Card>
 
