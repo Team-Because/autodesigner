@@ -318,7 +318,7 @@ export default function AdminUsers() {
       )}
 
       {/* Credit management dialog */}
-      <Dialog open={!!creditUserId} onOpenChange={(open) => !open && setCreditUserId(null)}>
+      <Dialog open={!!creditUserId} onOpenChange={(open) => { if (!open) { setCreditUserId(null); setCreditMode("add"); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Manage Credits</DialogTitle>
@@ -335,36 +335,80 @@ export default function AdminUsers() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Add Credits</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={creditAmount}
-                    onChange={(e) => setCreditAmount(e.target.value)}
-                    placeholder="e.g., 50"
-                  />
+                  <Label>Action</Label>
+                  <Select value={creditMode} onValueChange={(v) => { setCreditMode(v as "add" | "set" | "reset"); setCreditAmount(""); }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="add">Add Credits</SelectItem>
+                      <SelectItem value="set">Set to Exact Amount</SelectItem>
+                      <SelectItem value="reset">Reset to Zero</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {creditMode !== "reset" && (
+                  <div className="space-y-2">
+                    <Label>{creditMode === "add" ? "Credits to Add" : "Set Credits To"}</Label>
+                    <Input
+                      type="number"
+                      min={creditMode === "add" ? "1" : "0"}
+                      value={creditAmount}
+                      onChange={(e) => setCreditAmount(e.target.value)}
+                      placeholder={creditMode === "add" ? "e.g., 50" : "e.g., 100"}
+                    />
+                  </div>
+                )}
+                {creditMode === "reset" && (
+                  <p className="text-sm text-destructive">
+                    This will set credits remaining to 0 and reset credits used to 0.
+                  </p>
+                )}
                 <Button
                   className="w-full gradient-primary hover:gradient-primary-hover text-primary-foreground"
-                  disabled={!creditAmount || Number(creditAmount) <= 0 || updatingCredits}
+                  disabled={
+                    updatingCredits ||
+                    (creditMode === "add" && (!creditAmount || Number(creditAmount) <= 0)) ||
+                    (creditMode === "set" && (creditAmount === "" || Number(creditAmount) < 0))
+                  }
                   onClick={async () => {
-                    const amount = Number(creditAmount);
-                    if (!amount || amount <= 0) return;
                     setUpdatingCredits(true);
                     try {
-                      const newRemaining = c.credits_remaining + amount;
+                      let newRemaining: number;
+                      let newUsed = c.credits_used;
+                      if (creditMode === "add") {
+                        newRemaining = c.credits_remaining + Number(creditAmount);
+                      } else if (creditMode === "set") {
+                        newRemaining = Number(creditAmount);
+                      } else {
+                        newRemaining = 0;
+                        newUsed = 0;
+                      }
+                      const updatePayload: Record<string, number> = { credits_remaining: newRemaining };
+                      if (creditMode === "reset") updatePayload.credits_used = 0;
+
                       const { error } = await supabase
                         .from("user_credits")
-                        .update({ credits_remaining: newRemaining })
+                        .update(updatePayload)
                         .eq("user_id", creditUserId);
                       if (error) throw error;
-                      log("credit.assigned", "credit", undefined, {
+
+                      const actionLabel = creditMode === "add" ? "credit.assigned" : creditMode === "set" ? "credit.set" : "credit.reset";
+                      log(actionLabel, "credit", undefined, {
                         target_user: creditUserId,
-                        amount,
+                        mode: creditMode,
+                        amount: creditMode === "reset" ? 0 : Number(creditAmount),
                         new_balance: newRemaining,
                       });
-                      toast.success(`Added ${amount} credits.`);
+                      toast.success(
+                        creditMode === "add"
+                          ? `Added ${creditAmount} credits.`
+                          : creditMode === "set"
+                          ? `Credits set to ${creditAmount}.`
+                          : "Credits reset to zero."
+                      );
                       setCreditUserId(null);
+                      setCreditMode("add");
                       queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
                     } catch (err: any) {
                       toast.error(err.message || "Failed to update credits.");
@@ -375,8 +419,12 @@ export default function AdminUsers() {
                 >
                   {updatingCredits ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
-                  ) : (
+                  ) : creditMode === "add" ? (
                     `Add ${creditAmount || "0"} Credits`
+                  ) : creditMode === "set" ? (
+                    `Set to ${creditAmount || "0"} Credits`
+                  ) : (
+                    "Reset Credits"
                   )}
                 </Button>
               </div>
