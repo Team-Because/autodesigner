@@ -158,6 +158,7 @@ export default function AdminUsers() {
     }
   }, [creditUserId, creditMode, creditAmount, credits, log, queryClient]);
 
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       toast.error("Email and password are required.");
