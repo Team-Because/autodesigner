@@ -12,6 +12,9 @@ import BrandForm from "@/pages/BrandForm";
 import Studio from "@/pages/Studio";
 import History from "@/pages/History";
 import AdminUsers from "@/pages/AdminUsers";
+import AdminDashboard from "@/pages/AdminDashboard";
+import AdminBrands from "@/pages/AdminBrands";
+import AdminLogs from "@/pages/AdminLogs";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
