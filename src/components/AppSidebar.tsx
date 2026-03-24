@@ -40,9 +40,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-5">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center shrink-0 shadow-sm">
-            <Sparkles className="h-4 w-4 text-secondary-foreground" />
-          </div>
+          <img src="/logo-icon.png" alt="MakeMyAd" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
           {!collapsed && (
             <span className="font-display font-bold text-lg text-foreground tracking-tight">
               MakeMyAd
