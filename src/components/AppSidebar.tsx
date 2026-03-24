@@ -38,34 +38,34 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
+      <SidebarHeader className="p-5">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center shrink-0 shadow-sm">
+            <Sparkles className="h-4 w-4 text-secondary-foreground" />
           </div>
           {!collapsed && (
-            <span className="font-display font-bold text-base text-sidebar-accent-foreground tracking-tight">
-              BrandTonic Studio
+            <span className="font-display font-bold text-lg text-foreground tracking-tight">
+              MakeMyAd
             </span>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold"
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="text-sm">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -78,21 +78,21 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               {!collapsed && (
-                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
                   Admin
                 </p>
               )}
-              <SidebarMenu>
+              <SidebarMenu className="space-y-1">
                 {adminItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
                         to={item.url}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        activeClassName="bg-primary/10 text-primary font-semibold"
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span>{item.title}</span>}
+                        {!collapsed && <span className="text-sm">{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -103,9 +103,9 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
+      <SidebarFooter className="p-4 border-t border-sidebar-border">
         {!collapsed && user && (
-          <div className="text-xs text-sidebar-foreground truncate mb-2 px-1">
+          <div className="text-xs text-muted-foreground truncate mb-2 px-1">
             {user.email}
           </div>
         )}
@@ -113,7 +113,7 @@ export function AppSidebar() {
           variant="ghost"
           size="sm"
           onClick={signOut}
-          className="w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent"
+          className="w-full justify-start rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="ml-2">Sign Out</span>}
