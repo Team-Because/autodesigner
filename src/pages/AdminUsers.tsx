@@ -55,6 +55,7 @@ export default function AdminUsers() {
   const [creditAmount, setCreditAmount] = useState("");
   const [creditMode, setCreditMode] = useState<"add" | "set" | "reset">("add");
   const [updatingCredits, setUpdatingCredits] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Password reset state
   const [resetUserId, setResetUserId] = useState<string | null>(null);
