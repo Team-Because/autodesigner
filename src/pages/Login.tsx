@@ -10,9 +10,15 @@ import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Login() {
+  const { session, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  if (!authLoading && session) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
