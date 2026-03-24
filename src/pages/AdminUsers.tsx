@@ -23,6 +23,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { UserPlus, Loader2, Shield, User, Users, CreditCard, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
