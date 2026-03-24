@@ -30,6 +30,7 @@ import { Navigate } from "react-router-dom";
 export default function AdminUsers() {
   const { user } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
+  const { log } = useActivityLog();
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -38,6 +39,11 @@ export default function AdminUsers() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("user");
+
+  // Credit management state
+  const [creditUserId, setCreditUserId] = useState<string | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [updatingCredits, setUpdatingCredits] = useState(false);
 
   // Fetch all profiles (admin can see all)
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
