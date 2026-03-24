@@ -400,10 +400,12 @@ export default function AdminUsers() {
                     (creditMode === "set" && (creditAmount === "" || Number(creditAmount) < 0))
                   }
                   onClick={async () => {
-                    setUpdatingCredits(true);
-                    try {
-                      let newRemaining: number;
-                      let newUsed = c.credits_used;
+                    if (creditMode === "reset") {
+                      setResetConfirmOpen(true);
+                      return;
+                    }
+                    await handleCreditUpdate();
+                  }}
                       if (creditMode === "add") {
                         newRemaining = c.credits_remaining + Number(creditAmount);
                       } else if (creditMode === "set") {
