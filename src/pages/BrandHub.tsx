@@ -34,6 +34,7 @@ export default function BrandHub() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: brands = [] } = useQuery({
     queryKey: ["brands"],
