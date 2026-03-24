@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, ArrowRightLeft, Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
