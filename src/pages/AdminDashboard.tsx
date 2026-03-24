@@ -153,20 +153,20 @@ export default function AdminDashboard() {
       {/* Global Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Accounts", value: profiles.length, icon: Users, color: "text-primary" },
-          { label: "Total Brands", value: brands.length, icon: Palette, color: "text-primary" },
-          { label: "Groups", value: groups.length, icon: Palette, color: "text-muted-foreground" },
-          { label: "Credits Available", value: totalCreditsRemaining, icon: CreditCard, color: "text-primary" },
-          { label: "Credits Used (All)", value: totalCreditsUsed, icon: TrendingUp, color: "text-muted-foreground" },
+          { label: "Total Accounts", value: profiles.length, icon: Users, tint: "card-blue" },
+          { label: "Total Brands", value: brands.length, icon: Palette, tint: "card-yellow" },
+          { label: "Groups", value: groups.length, icon: Palette, tint: "" },
+          { label: "Credits Available", value: totalCreditsRemaining, icon: CreditCard, tint: "card-green" },
+          { label: "Credits Used (All)", value: totalCreditsUsed, icon: TrendingUp, tint: "card-rose" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-5">
+          <Card key={s.label} className={`${s.tint} border`}>
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className="text-2xl font-display font-bold mt-1">{s.value}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
+                  <p className="text-2xl font-display font-bold mt-2">{s.value}</p>
                 </div>
-                <s.icon className={`h-7 w-7 ${s.color} opacity-60`} />
+                <s.icon className="h-7 w-7 text-muted-foreground/40" />
               </div>
             </CardContent>
           </Card>
@@ -184,7 +184,7 @@ export default function AdminDashboard() {
         <Card>
           <CardContent className="p-5">
             <p className="text-xs text-muted-foreground">Completed</p>
-            <p className="text-2xl font-display font-bold mt-1 text-green-600">{completedThisMonth}</p>
+            <p className="text-2xl font-display font-bold mt-1 text-success">{completedThisMonth}</p>
           </CardContent>
         </Card>
         <Card>

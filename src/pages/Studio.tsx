@@ -368,7 +368,7 @@ export default function Studio() {
                 </div>
               ) : (
                 <label
-                  className="border-2 border-dashed border-border rounded-lg p-10 flex flex-col items-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-colors"
+                  className="border-2 border-dashed border-border rounded-2xl p-10 flex flex-col items-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleFileDrop}
                 >
@@ -424,7 +424,7 @@ export default function Studio() {
           </Card>
 
           <Button
-            className="w-full h-12 text-base gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
+            className="w-full h-12 text-base rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground font-semibold"
             onClick={handleGenerate}
             disabled={isGenerating || !selectedBrandId || !referenceFile}
           >

@@ -15,7 +15,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
   if (!authLoading && session) {
     return <Navigate to="/" replace />;
   }
@@ -27,7 +26,6 @@ export default function Login() {
       return;
     }
 
-    // Auto-append domain if user enters just the username
     let loginEmail = email.trim();
     if (!loginEmail.includes("@")) {
       loginEmail = `${loginEmail}@internal.brandtonic`;
@@ -46,22 +44,30 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
-        <CardContent className="pt-8 pb-8 px-8 space-y-6">
-          <div className="flex items-center justify-center gap-2.5 mb-2">
-            <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, hsl(220 80% 97%), hsl(45 96% 97%), hsl(220 72% 95%))" }}
+    >
+      {/* Decorative blobs */}
+      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full opacity-30"
+        style={{ background: "radial-gradient(circle, hsl(45 96% 80%), transparent 70%)" }} />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-20"
+        style={{ background: "radial-gradient(circle, hsl(220 72% 80%), transparent 70%)" }} />
+
+      <Card className="w-full max-w-sm glass border-border/50 shadow-xl relative z-10">
+        <CardContent className="pt-10 pb-10 px-8 space-y-7">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="h-11 w-11 rounded-2xl gradient-accent flex items-center justify-center shadow-sm">
+              <Sparkles className="h-5 w-5 text-secondary-foreground" />
             </div>
-            <span className="font-display font-bold text-xl text-foreground tracking-tight">
-              BrandTonic Studio
+            <span className="font-display font-bold text-2xl text-foreground tracking-tight">
+              MakeMyAd
             </span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
             Sign in with your account credentials.
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">Username or Email</Label>
               <Input
@@ -72,6 +78,7 @@ export default function Login() {
                 placeholder="admin"
                 autoComplete="username"
                 disabled={loading}
+                className="h-11 rounded-xl"
               />
             </div>
             <div className="space-y-2">
@@ -84,11 +91,12 @@ export default function Login() {
                 placeholder="••••••••"
                 autoComplete="current-password"
                 disabled={loading}
+                className="h-11 rounded-xl"
               />
             </div>
             <Button
               type="submit"
-              className="w-full h-11 text-sm font-medium gradient-primary hover:gradient-primary-hover text-primary-foreground"
+              className="w-full h-11 text-sm font-semibold rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground"
               disabled={loading}
             >
               {loading ? (

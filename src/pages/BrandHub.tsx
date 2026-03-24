@@ -70,7 +70,6 @@ export default function BrandHub() {
     if (!user) return;
     setDuplicatingId(brandId);
     try {
-      // Fetch the brand
       const { data: original, error: fetchErr } = await supabase
         .from("brands")
         .select("*")
@@ -78,13 +77,11 @@ export default function BrandHub() {
         .single();
       if (fetchErr || !original) throw new Error("Failed to fetch brand");
 
-      // Fetch its assets
       const { data: originalAssets = [] } = await supabase
         .from("brand_assets")
         .select("*")
         .eq("brand_id", brandId);
 
-      // Insert duplicated brand
       const { data: newBrand, error: insertErr } = await supabase
         .from("brands")
         .insert({
@@ -103,7 +100,6 @@ export default function BrandHub() {
         .single();
       if (insertErr || !newBrand) throw new Error("Failed to duplicate brand");
 
-      // Copy assets
       if (originalAssets && originalAssets.length > 0) {
         const assetCopies = originalAssets.map((a: any) => ({
           brand_id: newBrand.id,
@@ -121,8 +117,6 @@ export default function BrandHub() {
 
       toast.success(`"${original.name}" duplicated successfully.`);
       queryClient.invalidateQueries({ queryKey: ["brands"] });
-
-      // Navigate to edit the new brand so user can rename
       navigate(`/brands/${newBrand.id}/edit`);
     } catch (err: any) {
       toast.error(err.message || "Failed to duplicate brand.");
@@ -184,7 +178,6 @@ export default function BrandHub() {
     }
   };
 
-  // Organize brands by group
   const ungroupedBrands = brands.filter((b) => !b.campaign_id);
   const groupedBrands = groups.map((g) => ({
     ...g,
@@ -192,38 +185,37 @@ export default function BrandHub() {
   }));
 
   const BrandCard = ({ brand }: { brand: typeof brands[0] }) => (
-    <Card className="overflow-hidden hover:shadow-lg transition-all group">
-      <CardContent className="p-5">
+    <Card className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+      <CardContent className="p-6">
         <div className="flex items-start gap-4">
           {brand.logo_url ? (
-            <div className="h-12 w-12 rounded-lg overflow-hidden bg-muted shrink-0">
+            <div className="h-12 w-12 rounded-xl overflow-hidden bg-muted shrink-0 shadow-sm">
               <img src={brand.logo_url} alt={brand.name} className="h-full w-full object-cover" />
             </div>
           ) : (
-            <div className="h-12 w-12 rounded-lg bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-lg font-bold">
+            <div className="h-12 w-12 rounded-xl bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-lg font-bold">
               {brand.name[0]}
             </div>
           )}
           <div className="flex-1 min-w-0">
             <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
             <div className="flex items-center gap-2 mt-2">
-              <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.primary_color }} />
-              <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brand.secondary_color }} />
-              <span className="text-xs text-muted-foreground ml-1">{brand.primary_color} / {brand.secondary_color}</span>
+              <div className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.primary_color }} />
+              <div className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.secondary_color }} />
             </div>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground mt-4 line-clamp-2">{brand.brand_voice_rules}</p>
 
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
+        <div className="flex items-center gap-2 mt-5 pt-4 border-t border-border">
+          <Button variant="outline" size="sm" className="flex-1 rounded-xl" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="px-2">
+              <Button variant="ghost" size="sm" className="px-2 rounded-xl">
                 <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
@@ -279,7 +271,7 @@ export default function BrandHub() {
         <div className="flex items-center gap-2">
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
                 <FolderPlus className="h-4 w-4" /> New Group
               </Button>
             </DialogTrigger>
@@ -293,15 +285,16 @@ export default function BrandHub() {
                   onChange={(e) => setNewGroupName(e.target.value)}
                   placeholder="e.g., Kalrav Projects"
                   onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()}
+                  className="rounded-xl"
                 />
-                <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
+                <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()} className="rounded-xl">
                   Create
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
 
-          <Button onClick={() => navigate("/brands/new")} className="gradient-primary hover:gradient-primary-hover text-primary-foreground">
+          <Button onClick={() => navigate("/brands/new")} className="gradient-primary hover:gradient-primary-hover text-primary-foreground rounded-xl">
             <Plus className="h-4 w-4 mr-2" /> Add Brand
           </Button>
         </div>
@@ -309,7 +302,7 @@ export default function BrandHub() {
 
       {/* Grouped brands */}
       {groupedBrands.filter((g) => g.brands.length > 0).map((group) => (
-        <div key={group.id} className="space-y-3">
+        <div key={group.id} className="space-y-4">
           <div className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4 text-muted-foreground" />
             {renameId === group.id ? (
@@ -317,7 +310,7 @@ export default function BrandHub() {
                 <Input
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
-                  className="h-7 text-sm w-48"
+                  className="h-7 text-sm w-48 rounded-lg"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleRenameGroup();
@@ -364,7 +357,7 @@ export default function BrandHub() {
 
       {/* Ungrouped brands */}
       {ungroupedBrands.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {groupedBrands.some((g) => g.brands.length > 0) && (
             <div className="flex items-center gap-2">
               <Folder className="h-4 w-4 text-muted-foreground" />
@@ -381,7 +374,7 @@ export default function BrandHub() {
       )}
 
       {brands.length === 0 && (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="p-12 text-center text-muted-foreground">
             No brands yet. Add your first brand profile to get started.
           </CardContent>
