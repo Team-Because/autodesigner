@@ -1,17 +1,25 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Upload,
   Sparkles,
@@ -21,18 +29,21 @@ import {
   RectangleHorizontal,
   Square,
   Smartphone,
+  ChevronsUpDown,
+  Check,
+  Folder,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type StudioState = "idle" | "generating" | "complete";
-
 type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
-  { value: "landscape", label: "Landscape", description: "1920×1080 · Facebook, LinkedIn, Twitter", icon: RectangleHorizontal, aspect: "aspect-video" },
-  { value: "square", label: "Square", description: "1080×1080 · Instagram Feed, Facebook", icon: Square, aspect: "aspect-square" },
-  { value: "portrait", label: "Portrait", description: "1080×1350 · Instagram Post (4:5)", icon: Smartphone, aspect: "aspect-[4/5]" },
-  { value: "story", label: "Story", description: "1080×1920 · Stories & Reels (9:16)", icon: Smartphone, aspect: "aspect-[9/16]" },
+  { value: "landscape", label: "Landscape", description: "1920×1080", icon: RectangleHorizontal, aspect: "aspect-video" },
+  { value: "square", label: "Square", description: "1080×1080", icon: Square, aspect: "aspect-square" },
+  { value: "portrait", label: "Portrait", description: "1080×1350", icon: Smartphone, aspect: "aspect-[4/5]" },
+  { value: "story", label: "Story", description: "1080×1920", icon: Smartphone, aspect: "aspect-[9/16]" },
 ];
 
 interface GenerationResult {
@@ -47,10 +58,17 @@ export default function Studio() {
   const { data: brands = [] } = useQuery({
     queryKey: ["brands"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("brands")
-        .select("*")
-        .order("name");
+      const { data, error } = await supabase.from("brands").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: groups = [] } = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns").select("*").order("name");
       if (error) throw error;
       return data;
     },
@@ -58,6 +76,7 @@ export default function Studio() {
   });
 
   const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [brandPickerOpen, setBrandPickerOpen] = useState(false);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState("");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("landscape");
@@ -65,6 +84,18 @@ export default function Studio() {
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
+
+  // Organize brands by group
+  const groupedBrandsForPicker = useMemo(() => {
+    const grouped: { groupName: string; groupId: string | null; brands: typeof brands }[] = [];
+    for (const g of groups) {
+      const gb = brands.filter((b) => b.campaign_id === g.id);
+      if (gb.length > 0) grouped.push({ groupName: g.name, groupId: g.id, brands: gb });
+    }
+    const ungrouped = brands.filter((b) => !b.campaign_id);
+    if (ungrouped.length > 0) grouped.push({ groupName: "Ungrouped", groupId: null, brands: ungrouped });
+    return grouped;
+  }, [brands, groups]);
 
   const setImageFile = useCallback((file: File) => {
     setReferenceFile(file);
@@ -74,9 +105,7 @@ export default function Studio() {
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith("image/")) {
-      setImageFile(file);
-    }
+    if (file?.type.startsWith("image/")) setImageFile(file);
   }, [setImageFile]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -85,20 +114,14 @@ export default function Studio() {
     for (const item of Array.from(items)) {
       if (item.type.startsWith("image/")) {
         const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          setImageFile(file);
-          return;
-        }
+        if (file) { e.preventDefault(); setImageFile(file); return; }
       }
     }
   }, [setImageFile]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-    }
+    if (file) setImageFile(file);
   };
 
   const handleGenerate = async () => {
@@ -112,40 +135,27 @@ export default function Studio() {
     setProgressPhase("Uploading reference image...");
 
     try {
-      // Upload reference image
       const ext = referenceFile.name.split(".").pop();
       const refPath = `${user.id}/ref-${crypto.randomUUID()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("brand-assets")
-        .upload(refPath, referenceFile);
+      const { error: uploadErr } = await supabase.storage.from("brand-assets").upload(refPath, referenceFile);
       if (uploadErr) throw new Error("Failed to upload reference image");
 
-      const { data: refUrlData } = supabase.storage
-        .from("brand-assets")
-        .getPublicUrl(refPath);
+      const { data: refUrlData } = supabase.storage.from("brand-assets").getPublicUrl(refPath);
 
       setProgress(10);
       setProgressPhase("Creating generation record...");
 
-      // Create generation record
       const { data: gen, error: insertError } = await supabase
         .from("generations")
-        .insert({
-          user_id: user.id,
-          brand_id: selectedBrandId,
-          reference_image_url: refUrlData.publicUrl,
-          status: "processing",
-        })
+        .insert({ user_id: user.id, brand_id: selectedBrandId, reference_image_url: refUrlData.publicUrl, status: "processing" })
         .select()
         .single();
 
       if (insertError || !gen) throw new Error("Failed to create generation record");
 
-      // Phase 1: Analyzing reference layout
       setProgress(15);
       setProgressPhase("Analyzing reference layout...");
 
-      // Simulate progress during the long AI call
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
           if (prev < 25) return prev + 1;
@@ -155,7 +165,6 @@ export default function Studio() {
         });
       }, 1500);
 
-      // Phase transitions for the 3-step pipeline
       const adaptTimeout = setTimeout(() => {
         setProgress((prev) => Math.max(prev, 30));
         setProgressPhase("Adapting concept to brand...");
@@ -166,7 +175,6 @@ export default function Studio() {
         setProgressPhase("Generating brand creative...");
       }, 16000);
 
-      // Call the backend function with controlled retry only for retryable overloads
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
@@ -174,17 +182,10 @@ export default function Studio() {
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
         const response = await supabase.functions.invoke("generate-creative", {
-          body: {
-            brandId: selectedBrandId,
-            referenceImageUrl: refUrlData.publicUrl,
-            generationId: gen.id,
-            outputFormat,
-          },
+          body: { brandId: selectedBrandId, referenceImageUrl: refUrlData.publicUrl, generationId: gen.id, outputFormat },
         });
-
         fnData = response.data;
         fnError = response.error;
-
         if (!fnError) break;
 
         let errorMessage = fnError.message || "Generation failed";
@@ -198,21 +199,16 @@ export default function Studio() {
             if (payload?.error) errorMessage = payload.error;
             retryable = !!payload?.retryable;
             retryAfterSeconds = Number(payload?.retryAfterSeconds || 0);
-          } catch {
-            // ignore JSON parse failure
-          }
+          } catch {}
         }
 
-        const isRetryableOverload =
-          (context?.status === 503 || context?.status === 429) && retryable;
-
+        const isRetryableOverload = (context?.status === 503 || context?.status === 429) && retryable;
         if (isRetryableOverload && invokeAttempt < maxInvokeAttempts) {
           const waitMs = Math.max(retryAfterSeconds * 1000, 45000);
           setProgressPhase(`AI providers are busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
           continue;
         }
-
         invokeErrorMessage = errorMessage;
         break;
       }
@@ -221,32 +217,20 @@ export default function Studio() {
       clearTimeout(adaptTimeout);
       clearTimeout(generateTimeout);
 
-      if (invokeErrorMessage || fnError) {
-        throw new Error(invokeErrorMessage || "Generation failed");
-      }
-
-      if (fnData?.error) {
-        throw new Error(fnData.error);
-      }
+      if (invokeErrorMessage || fnError) throw new Error(invokeErrorMessage || "Generation failed");
+      if (fnData?.error) throw new Error(fnData.error);
 
       setProgress(100);
       setProgressPhase("Complete!");
-      setResult({
-        imageUrl: fnData.imageUrl,
-        caption: fnData.caption,
-      });
+      setResult({ imageUrl: fnData.imageUrl, caption: fnData.caption });
       setStudioState("complete");
 
-      // Safety net: update generation record from client side in case edge function DB update failed
       if (fnData.imageUrl && gen.id) {
-        await supabase
-          .from("generations")
-          .update({
-            output_image_url: fnData.imageUrl,
-            copywriting: fnData.caption ? { caption: fnData.caption } : undefined,
-            status: "completed",
-          })
-          .eq("id", gen.id);
+        await supabase.from("generations").update({
+          output_image_url: fnData.imageUrl,
+          copywriting: fnData.caption ? { caption: fnData.caption } : undefined,
+          status: "completed",
+        }).eq("id", gen.id);
       }
 
       queryClient.invalidateQueries({ queryKey: ["generations"] });
@@ -276,64 +260,98 @@ export default function Studio() {
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto" onPaste={handlePaste} tabIndex={-1}>
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground">
-          The Studio
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Select a brand, upload a reference ad, and get a brand-aligned
-          creative instantly.
-        </p>
+        <h1 className="text-2xl font-display font-bold text-foreground">The Magic</h1>
+        <p className="text-muted-foreground mt-1">Select a brand, upload a reference ad, and get a brand-aligned creative instantly.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* ─── INPUT SECTION ─── */}
+        {/* INPUT */}
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-display">
-                1. Select Brand
-              </CardTitle>
+              <CardTitle className="text-base font-display">1. Select Brand</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select
-                value={selectedBrandId}
-                onValueChange={setSelectedBrandId}
-                disabled={isGenerating}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a brand profile..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
+              <Popover open={brandPickerOpen} onOpenChange={setBrandPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={brandPickerOpen}
+                    className="w-full justify-between rounded-xl h-10"
+                    disabled={isGenerating}
+                  >
+                    {selectedBrand ? (
                       <div className="flex items-center gap-2">
-                        {b.logo_url ? (
-                          <img
-                            src={b.logo_url}
-                            alt=""
-                            className="h-5 w-5 rounded object-cover"
-                          />
-                        ) : null}
-                        <span>{b.name}</span>
+                        {selectedBrand.logo_url && (
+                          <img src={selectedBrand.logo_url} alt="" className="h-5 w-5 rounded object-cover" />
+                        )}
+                        <span>{selectedBrand.name}</span>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    ) : (
+                      <span className="text-muted-foreground">Choose a brand...</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search brands..." />
+                    <CommandList>
+                      <CommandEmpty>No brands found.</CommandEmpty>
+                      {groupedBrandsForPicker.map((group) => (
+                        <CommandGroup key={group.groupId || "ungrouped"} heading={group.groupName}>
+                          {group.brands.map((b) => (
+                            <CommandItem
+                              key={b.id}
+                              value={b.name}
+                              onSelect={() => {
+                                setSelectedBrandId(b.id);
+                                setBrandPickerOpen(false);
+                              }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", selectedBrandId === b.id ? "opacity-100" : "opacity-0")} />
+                              <div className="flex items-center gap-2">
+                                {b.logo_url ? (
+                                  <img src={b.logo_url} alt="" className="h-5 w-5 rounded object-cover" />
+                                ) : (
+                                  <div className="h-5 w-5 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                                    {b.name[0]}
+                                  </div>
+                                )}
+                                <span>{b.name}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {/* Brand preview */}
               {selectedBrand && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: selectedBrand.primary_color }}
-                  />
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: selectedBrand.secondary_color }}
-                  />
-                  <span>
-                    {selectedBrand.primary_color} /{" "}
-                    {selectedBrand.secondary_color}
-                  </span>
+                <div className="mt-3 p-3 rounded-xl bg-muted/50 border border-border">
+                  <div className="flex items-center gap-3">
+                    {selectedBrand.logo_url ? (
+                      <img src={selectedBrand.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center font-bold text-muted-foreground">
+                        {selectedBrand.name[0]}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{selectedBrand.name}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className="h-3 w-3 rounded-full border" style={{ backgroundColor: selectedBrand.primary_color }} />
+                        <div className="h-3 w-3 rounded-full border" style={{ backgroundColor: selectedBrand.secondary_color }} />
+                        <span className="text-[10px] text-muted-foreground ml-1">
+                          {selectedBrand.primary_color} / {selectedBrand.secondary_color}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -341,28 +359,13 @@ export default function Studio() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-display">
-                2. Upload Reference Ad
-              </CardTitle>
+              <CardTitle className="text-base font-display">2. Upload Reference Ad</CardTitle>
             </CardHeader>
             <CardContent>
               {referencePreview ? (
                 <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img
-                    src={referencePreview}
-                    alt="Reference"
-                    className="w-full aspect-video object-cover"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setReferenceFile(null);
-                      setReferencePreview("");
-                    }}
-                    disabled={isGenerating}
-                  >
+                  <img src={referencePreview} alt="Reference" className="w-full aspect-video object-cover" />
+                  <Button variant="secondary" size="sm" className="absolute top-2 right-2" onClick={() => { setReferenceFile(null); setReferencePreview(""); }} disabled={isGenerating}>
                     Change
                   </Button>
                 </div>
@@ -373,18 +376,9 @@ export default function Studio() {
                   onDrop={handleFileDrop}
                 >
                   <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-sm font-medium text-foreground">
-                    Drop or paste your reference advertisement here
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    or click to browse — PNG, JPG, WebP
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+                  <p className="text-sm font-medium text-foreground">Drop or paste your reference advertisement here</p>
+                  <p className="text-xs text-muted-foreground mt-1">or click to browse — PNG, JPG, WebP</p>
+                  <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                 </label>
               )}
             </CardContent>
@@ -392,31 +386,27 @@ export default function Studio() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-display">
-                3. Output Format
-              </CardTitle>
+              <CardTitle className="text-base font-display">3. Output Format</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {FORMAT_OPTIONS.map((fmt) => (
                   <button
                     key={fmt.value}
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setOutputFormat(fmt.value)}
-                    className={`relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all text-center ${
+                    className={`relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 transition-all text-center ${
                       outputFormat === fmt.value
                         ? "border-primary bg-primary/5 shadow-sm"
                         : "border-border hover:border-primary/30 hover:bg-accent/30"
                     } ${isGenerating ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    <fmt.icon className={`h-6 w-6 ${outputFormat === fmt.value ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className={`text-sm font-medium ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
+                    <fmt.icon className={`h-5 w-5 ${outputFormat === fmt.value ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`text-xs font-medium ${outputFormat === fmt.value ? "text-primary" : "text-foreground"}`}>
                       {fmt.label}
                     </span>
-                    <span className="text-[10px] text-muted-foreground leading-tight">
-                      {fmt.description}
-                    </span>
+                    <span className="text-[10px] text-muted-foreground">{fmt.description}</span>
                   </button>
                 ))}
               </div>
@@ -429,18 +419,14 @@ export default function Studio() {
             disabled={isGenerating || !selectedBrandId || !referenceFile}
           >
             {isGenerating ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generating...
-              </>
+              <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generating...</>
             ) : (
-              <>
-                <Sparkles className="h-5 w-5 mr-2" /> Generate Creative
-              </>
+              <><Sparkles className="h-5 w-5 mr-2" /> Generate Creative</>
             )}
           </Button>
         </div>
 
-        {/* ─── OUTPUT SECTION ─── */}
+        {/* OUTPUT */}
         <div className="space-y-5">
           <Card className="min-h-[400px] flex flex-col">
             <CardHeader>
@@ -450,9 +436,7 @@ export default function Studio() {
               {studioState === "idle" && (
                 <div className="text-center text-muted-foreground py-16">
                   <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p className="text-sm">
-                    Select a brand and upload a reference to begin.
-                  </p>
+                  <p className="text-sm">Select a brand and upload a reference to begin.</p>
                 </div>
               )}
               {studioState === "generating" && (
@@ -465,38 +449,26 @@ export default function Studio() {
                         <p className="text-sm font-medium text-foreground animate-pulse-glow">
                           {progressPhase || "Generating your brand creative..."}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          This may take 30–60 seconds
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">This may take 30–60 seconds</p>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Progress value={progress} className="h-2" />
-                    <p className="text-xs text-muted-foreground text-right">
-                      {progress}%
-                    </p>
+                    <p className="text-xs text-muted-foreground text-right">{Math.round(progress)}%</p>
                   </div>
                 </div>
               )}
               {studioState === "complete" && result && (
                 <div className="w-full space-y-4">
                   <div className="rounded-lg overflow-hidden border border-border">
-                    <img
-                      src={result.imageUrl}
-                      alt="Generated creative"
-                      className="w-full"
-                    />
+                    <img src={result.imageUrl} alt="Generated creative" className="w-full" />
                   </div>
                   {result.caption && (
                     <Card>
                       <CardContent className="pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                          AI Caption / Copy
-                        </p>
-                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                          {result.caption}
-                        </p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">AI Caption / Copy</p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{result.caption}</p>
                       </CardContent>
                     </Card>
                   )}
@@ -522,11 +494,7 @@ export default function Studio() {
                     >
                       <Download className="h-4 w-4 mr-2" /> Download
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleReset}
-                      className="flex-1"
-                    >
+                    <Button variant="outline" onClick={handleReset} className="flex-1">
                       <RotateCcw className="h-4 w-4 mr-2" /> New Creative
                     </Button>
                   </div>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, FolderOpen, X, Copy, Loader2, Search } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,8 +41,9 @@ export default function BrandHub() {
   const [renameValue, setRenameValue] = useState("");
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  const { data: brands = [] } = useQuery({
+  const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands"],
     queryFn: async () => {
       const { data, error } = await supabase.from("brands").select("*").order("created_at", { ascending: false });
@@ -46,7 +53,7 @@ export default function BrandHub() {
     enabled: !!user,
   });
 
-  const { data: groups = [] } = useQuery({
+  const { data: groups = [], isLoading: groupsLoading } = useQuery({
     queryKey: ["campaigns"],
     queryFn: async () => {
       const { data, error } = await supabase.from("campaigns").select("*").order("name", { ascending: true });
@@ -55,6 +62,19 @@ export default function BrandHub() {
     },
     enabled: !!user,
   });
+
+  // Initialize expanded state for groups
+  useMemo(() => {
+    if (groups.length > 0 && Object.keys(expandedGroups).length === 0) {
+      const initial: Record<string, boolean> = {};
+      groups.forEach((g) => { initial[g.id] = true; });
+      setExpandedGroups(initial);
+    }
+  }, [groups]);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
 
   const handleDelete = async (id: string, name: string) => {
     const { error } = await supabase.from("brands").delete().eq("id", id);
@@ -71,17 +91,10 @@ export default function BrandHub() {
     if (!user) return;
     setDuplicatingId(brandId);
     try {
-      const { data: original, error: fetchErr } = await supabase
-        .from("brands")
-        .select("*")
-        .eq("id", brandId)
-        .single();
+      const { data: original, error: fetchErr } = await supabase.from("brands").select("*").eq("id", brandId).single();
       if (fetchErr || !original) throw new Error("Failed to fetch brand");
 
-      const { data: originalAssets = [] } = await supabase
-        .from("brand_assets")
-        .select("*")
-        .eq("brand_id", brandId);
+      const { data: originalAssets = [] } = await supabase.from("brand_assets").select("*").eq("brand_id", brandId);
 
       const { data: newBrand, error: insertErr } = await supabase
         .from("brands")
@@ -111,11 +124,7 @@ export default function BrandHub() {
         await supabase.from("brand_assets").insert(assetCopies);
       }
 
-      log("brand.duplicated", "brand", newBrand.id, {
-        source_brand_id: brandId,
-        source_name: original.name,
-      });
-
+      log("brand.duplicated", "brand", newBrand.id, { source_brand_id: brandId, source_name: original.name });
       toast.success(`"${original.name}" duplicated successfully.`);
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       navigate(`/brands/${newBrand.id}/edit`);
@@ -128,11 +137,7 @@ export default function BrandHub() {
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;
-    const { data, error } = await supabase
-      .from("campaigns")
-      .insert({ name: newGroupName.trim(), user_id: user.id })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("campaigns").insert({ name: newGroupName.trim(), user_id: user.id }).select().single();
     if (error) {
       toast.error("Failed to create group.");
     } else {
@@ -191,63 +196,47 @@ export default function BrandHub() {
     brands: filteredBrands.filter((b) => b.campaign_id === g.id),
   }));
 
+  const isLoading = brandsLoading || groupsLoading;
+
   const BrandCard = ({ brand }: { brand: typeof brands[0] }) => (
     <Card className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all group">
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
+      <CardContent className="p-5">
+        <div className="flex items-start gap-3">
           {brand.logo_url ? (
-            <div className="h-12 w-12 rounded-xl overflow-hidden bg-muted shrink-0 shadow-sm">
+            <div className="h-10 w-10 rounded-xl overflow-hidden bg-muted shrink-0 shadow-sm">
               <img src={brand.logo_url} alt={brand.name} className="h-full w-full object-cover" />
             </div>
           ) : (
-            <div className="h-12 w-12 rounded-xl bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-lg font-bold">
+            <div className="h-10 w-10 rounded-xl bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-sm font-bold">
               {brand.name[0]}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-semibold text-foreground truncate">{brand.name}</h3>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.primary_color }} />
-              <div className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.secondary_color }} />
+            <h3 className="font-display font-semibold text-sm text-foreground truncate">{brand.name}</h3>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.primary_color }} />
+              <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.secondary_color }} />
             </div>
           </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground mt-4 line-clamp-2">{brand.brand_voice_rules}</p>
-
-        <div className="flex items-center gap-2 mt-5 pt-4 border-t border-border">
-          <Button variant="outline" size="sm" className="flex-1 rounded-xl" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
-            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="px-2 rounded-xl">
+              <Button variant="ghost" size="sm" className="px-1.5 h-7 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                 <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => handleDuplicate(brand.id)}
-                disabled={duplicatingId === brand.id}
-                className="gap-2"
-              >
-                {duplicatingId === brand.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
+              <DropdownMenuItem onClick={() => navigate(`/brands/${brand.id}/edit`)} className="gap-2">
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDuplicate(brand.id)} disabled={duplicatingId === brand.id} className="gap-2">
+                {duplicatingId === brand.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
                 Duplicate
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {groups.length > 0 && (
                 <>
                   {groups.map((g) => (
-                    <DropdownMenuItem
-                      key={g.id}
-                      onClick={() => handleAssignGroup(brand.id, brand.campaign_id === g.id ? null : g.id)}
-                      className="gap-2"
-                    >
+                    <DropdownMenuItem key={g.id} onClick={() => handleAssignGroup(brand.id, brand.campaign_id === g.id ? null : g.id)} className="gap-2">
                       <Folder className="h-3.5 w-3.5" />
                       {brand.campaign_id === g.id ? `Remove from "${g.name}"` : `Move to "${g.name}"`}
                     </DropdownMenuItem>
@@ -255,24 +244,27 @@ export default function BrandHub() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem
-                onClick={() => handleDelete(brand.id, brand.name)}
-                className="text-destructive focus:text-destructive gap-2"
-              >
+              <DropdownMenuItem onClick={() => handleDelete(brand.id, brand.name)} className="text-destructive focus:text-destructive gap-2">
                 <Trash2 className="h-3.5 w-3.5" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{brand.brand_voice_rules || "No voice rules set"}</p>
+
+        <Button variant="outline" size="sm" className="w-full mt-4 rounded-xl text-xs" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
+          <Pencil className="h-3 w-3 mr-1.5" /> Edit Brand
+        </Button>
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Brand Hub</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">Brands</h1>
           <p className="text-muted-foreground mt-1">Manage your brand profiles and visual identities.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -303,98 +295,134 @@ export default function BrandHub() {
                   onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()}
                   className="rounded-xl"
                 />
-                <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()} className="rounded-xl">
-                  Create
-                </Button>
+                <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()} className="rounded-xl">Create</Button>
               </div>
             </DialogContent>
           </Dialog>
-
           <Button onClick={() => navigate("/brands/new")} className="gradient-primary hover:gradient-primary-hover text-primary-foreground rounded-xl">
             <Plus className="h-4 w-4 mr-2" /> Add Brand
           </Button>
         </div>
       </div>
 
-      {/* Grouped brands */}
-      {groupedBrands.filter((g) => g.brands.length > 0).map((group) => (
-        <div key={group.id} className="space-y-4">
-          <div className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4 text-muted-foreground" />
-            {renameId === group.id ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  className="h-7 text-sm w-48 rounded-lg"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRenameGroup();
-                    if (e.key === "Escape") setRenameId(null);
-                  }}
-                />
-                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleRenameGroup}>Save</Button>
-                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setRenameId(null)}>
-                  <X className="h-3 w-3" />
-                </Button>
+      {isLoading ? (
+        <div className="space-y-6">
+          {Array.from({ length: 2 }).map((_, gi) => (
+            <div key={gi} className="space-y-3">
+              <Skeleton className="h-6 w-40" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-5 space-y-3">
+                      <div className="flex gap-3">
+                        <Skeleton className="h-10 w-10 rounded-xl" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-8 w-full rounded-xl" />
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            ) : (
-              <>
-                <h2 className="text-sm font-semibold text-foreground">{group.name}</h2>
-                <span className="text-xs text-muted-foreground">({group.brands.length})</span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1">
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem onClick={() => { setRenameId(group.id); setRenameValue(group.name); }}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleDeleteGroup(group.id, group.name)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Group
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {group.brands.map((brand) => (
-              <BrandCard key={brand.id} brand={brand} />
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : (
+        <>
+          {/* Grouped brands with collapsible sections */}
+          {groupedBrands.filter((g) => g.brands.length > 0).map((group) => (
+            <Collapsible
+              key={group.id}
+              open={expandedGroups[group.id] !== false}
+              onOpenChange={() => toggleGroup(group.id)}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-2 hover:bg-muted/50 rounded-lg px-2 py-1 transition-colors">
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expandedGroups[group.id] !== false ? "" : "-rotate-90"}`} />
+                    <Folder className="h-4 w-4 text-muted-foreground" />
+                    {renameId === group.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Input
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          className="h-7 text-sm w-48 rounded-lg"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameGroup();
+                            if (e.key === "Escape") setRenameId(null);
+                          }}
+                        />
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleRenameGroup}>Save</Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setRenameId(null)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <h2 className="text-sm font-semibold text-foreground">{group.name}</h2>
+                        <span className="text-xs text-muted-foreground">({group.brands.length})</span>
+                      </>
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                {renameId !== group.id && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <MoreVertical className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => { setRenameId(group.id); setRenameValue(group.name); }}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteGroup(group.id, group.name)} className="text-destructive focus:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Group
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {group.brands.map((brand) => (
+                    <BrandCard key={brand.id} brand={brand} />
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ))}
 
-      {/* Ungrouped brands */}
-      {ungroupedBrands.length > 0 && (
-        <div className="space-y-4">
-          {groupedBrands.some((g) => g.brands.length > 0) && (
-            <div className="flex items-center gap-2">
-              <Folder className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold text-muted-foreground">Ungrouped</h2>
-              <span className="text-xs text-muted-foreground">({ungroupedBrands.length})</span>
+          {/* Ungrouped brands */}
+          {ungroupedBrands.length > 0 && (
+            <div className="space-y-3">
+              {groupedBrands.some((g) => g.brands.length > 0) && (
+                <div className="flex items-center gap-2 px-2">
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-muted-foreground">Ungrouped</h2>
+                  <span className="text-xs text-muted-foreground">({ungroupedBrands.length})</span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {ungroupedBrands.map((brand) => (
+                  <BrandCard key={brand.id} brand={brand} />
+                ))}
+              </div>
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {ungroupedBrands.map((brand) => (
-              <BrandCard key={brand.id} brand={brand} />
-            ))}
-          </div>
-        </div>
-      )}
 
-      {brands.length === 0 && (
-        <Card className="border-dashed">
-          <CardContent className="p-12 text-center text-muted-foreground">
-            No brands yet. Add your first brand profile to get started.
-          </CardContent>
-        </Card>
+          {brands.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center text-muted-foreground">
+                No brands yet. Add your first brand profile to get started.
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
