@@ -16,6 +16,8 @@ type Action =
   | "generation.completed"
   | "generation.failed"
   | "credit.assigned"
+  | "credit.set"
+  | "credit.reset"
   | "user.created";
 
 export function useActivityLog() {

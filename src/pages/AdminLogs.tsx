@@ -29,7 +29,9 @@ const ACTION_LABELS: Record<string, { label: string; color: "default" | "seconda
   "generation.started": { label: "Generation Started", color: "secondary" },
   "generation.completed": { label: "Generation Done", color: "default" },
   "generation.failed": { label: "Generation Failed", color: "destructive" },
-  "credit.assigned": { label: "Credits Assigned", color: "default" },
+  "credit.assigned": { label: "Credits Added", color: "default" },
+  "credit.set": { label: "Credits Set", color: "default" },
+  "credit.reset": { label: "Credits Reset", color: "destructive" },
   "user.created": { label: "User Created", color: "default" },
 };
 
