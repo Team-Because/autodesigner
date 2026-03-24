@@ -302,6 +302,18 @@ export default function AdminUsers() {
                         className="gap-1.5"
                         onClick={(e) => {
                           e.stopPropagation();
+                          setResetUserId(profile.user_id);
+                          setNewPassword("");
+                        }}
+                      >
+                        <KeyRound className="h-3.5 w-3.5" /> Reset Password
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setCreditUserId(profile.user_id);
                           setCreditAmount("");
                         }}
