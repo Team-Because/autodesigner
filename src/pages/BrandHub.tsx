@@ -179,10 +179,16 @@ export default function BrandHub() {
     }
   };
 
-  const ungroupedBrands = brands.filter((b) => !b.campaign_id);
+  const filteredBrands = useMemo(() => {
+    if (!searchQuery.trim()) return brands;
+    const q = searchQuery.toLowerCase();
+    return brands.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, searchQuery]);
+
+  const ungroupedBrands = filteredBrands.filter((b) => !b.campaign_id);
   const groupedBrands = groups.map((g) => ({
     ...g,
-    brands: brands.filter((b) => b.campaign_id === g.id),
+    brands: filteredBrands.filter((b) => b.campaign_id === g.id),
   }));
 
   const BrandCard = ({ brand }: { brand: typeof brands[0] }) => (
