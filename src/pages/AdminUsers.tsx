@@ -406,46 +406,6 @@ export default function AdminUsers() {
                     }
                     await handleCreditUpdate();
                   }}
-                      if (creditMode === "add") {
-                        newRemaining = c.credits_remaining + Number(creditAmount);
-                      } else if (creditMode === "set") {
-                        newRemaining = Number(creditAmount);
-                      } else {
-                        newRemaining = 0;
-                        newUsed = 0;
-                      }
-                      const updatePayload: Record<string, number> = { credits_remaining: newRemaining };
-                      if (creditMode === "reset") updatePayload.credits_used = 0;
-
-                      const { error } = await supabase
-                        .from("user_credits")
-                        .update(updatePayload)
-                        .eq("user_id", creditUserId);
-                      if (error) throw error;
-
-                      const actionLabel = creditMode === "add" ? "credit.assigned" : creditMode === "set" ? "credit.set" : "credit.reset";
-                      log(actionLabel, "credit", undefined, {
-                        target_user: creditUserId,
-                        mode: creditMode,
-                        amount: creditMode === "reset" ? 0 : Number(creditAmount),
-                        new_balance: newRemaining,
-                      });
-                      toast.success(
-                        creditMode === "add"
-                          ? `Added ${creditAmount} credits.`
-                          : creditMode === "set"
-                          ? `Credits set to ${creditAmount}.`
-                          : "Credits reset to zero."
-                      );
-                      setCreditUserId(null);
-                      setCreditMode("add");
-                      queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
-                    } catch (err: any) {
-                      toast.error(err.message || "Failed to update credits.");
-                    } finally {
-                      setUpdatingCredits(false);
-                    }
-                  }}
                 >
                   {updatingCredits ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Updating...</>
