@@ -21,12 +21,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let initialized = false;
+
+    // Set up listener FIRST (per Supabase best practices)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
+      // Only update after initial getSession has resolved
+      if (initialized) {
+        setSession(session);
+        setLoading(false);
+      }
     });
 
+    // Then get the persisted session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      initialized = true;
       setSession(session);
       setLoading(false);
     });
