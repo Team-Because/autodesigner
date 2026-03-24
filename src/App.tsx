@@ -42,7 +42,10 @@ const App = () => (
               <Route path="/brands/:id/edit" element={<BrandForm />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="/history" element={<History />} />
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/brands" element={<AdminBrands />} />
+              <Route path="/admin/logs" element={<AdminLogs />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

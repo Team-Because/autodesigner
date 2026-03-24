@@ -24,7 +24,10 @@ const navItems = [
 ];
 
 const adminItems = [
+  { title: "Overview", url: "/admin", icon: BarChart3 },
   { title: "Accounts", url: "/admin/users", icon: Users },
+  { title: "All Brands", url: "/admin/brands", icon: ArrowRightLeft },
+  { title: "Activity Logs", url: "/admin/logs", icon: Activity },
 ];
 
 export function AppSidebar() {
