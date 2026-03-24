@@ -19,9 +19,15 @@ export default function Login() {
       return;
     }
 
+    // Auto-append domain if user enters just the username
+    let loginEmail = email.trim();
+    if (!loginEmail.includes("@")) {
+      loginEmail = `${loginEmail}@internal.brandtonic`;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: loginEmail,
       password,
     });
     setLoading(false);
