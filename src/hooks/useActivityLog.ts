@@ -18,7 +18,8 @@ type Action =
   | "credit.assigned"
   | "credit.set"
   | "credit.reset"
-  | "user.created";
+  | "user.created"
+  | "password.reset";
 
 export function useActivityLog() {
   const { user } = useAuth();

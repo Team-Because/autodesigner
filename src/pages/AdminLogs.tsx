@@ -33,6 +33,7 @@ const ACTION_LABELS: Record<string, { label: string; color: "default" | "seconda
   "credit.set": { label: "Credits Set", color: "default" },
   "credit.reset": { label: "Credits Reset", color: "destructive" },
   "user.created": { label: "User Created", color: "default" },
+  "password.reset": { label: "Password Reset", color: "secondary" },
 };
 
 export default function AdminLogs() {
