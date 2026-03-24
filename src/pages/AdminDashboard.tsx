@@ -184,7 +184,7 @@ export default function AdminDashboard() {
         <Card>
           <CardContent className="p-5">
             <p className="text-xs text-muted-foreground">Completed</p>
-            <p className="text-2xl font-display font-bold mt-1 text-green-600">{completedThisMonth}</p>
+            <p className="text-2xl font-display font-bold mt-1 text-success">{completedThisMonth}</p>
           </CardContent>
         </Card>
         <Card>
