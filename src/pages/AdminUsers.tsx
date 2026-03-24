@@ -444,6 +444,78 @@ export default function AdminUsers() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Password reset dialog */}
+      <Dialog open={!!resetUserId} onOpenChange={(open) => { if (!open) setResetUserId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          {resetUserId && (() => {
+            const p = profiles.find((p) => p.user_id === resetUserId);
+            return (
+              <div className="space-y-4 mt-2">
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm font-medium">{p?.display_name || p?.username || "User"}</p>
+                  <p className="text-xs text-muted-foreground">ID: {resetUserId.slice(0, 8)}…</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-pw">New Password</Label>
+                  <Input
+                    id="reset-pw"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    minLength={6}
+                  />
+                </div>
+                <Button
+                  className="w-full gradient-primary hover:gradient-primary-hover text-primary-foreground"
+                  disabled={resettingPassword || newPassword.length < 6}
+                  onClick={async () => {
+                    setResettingPassword(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("admin-reset-password", {
+                        body: { userId: resetUserId, newPassword },
+                      });
+                      if (error) {
+                        let msg = "Failed to reset password.";
+                        try {
+                          const ctx = (error as any).context;
+                          if (ctx?.json) {
+                            const payload = await ctx.json();
+                            if (payload?.error) msg = payload.error;
+                          }
+                        } catch {}
+                        throw new Error(msg);
+                      }
+                      if (data?.error) throw new Error(data.error);
+
+                      log("password.reset", "user", resetUserId, {
+                        target_user: resetUserId,
+                      });
+                      toast.success("Password has been reset.");
+                      setResetUserId(null);
+                      setNewPassword("");
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to reset password.");
+                    } finally {
+                      setResettingPassword(false);
+                    }
+                  }}
+                >
+                  {resettingPassword ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Resetting...</>
+                  ) : (
+                    "Reset Password"
+                  )}
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
