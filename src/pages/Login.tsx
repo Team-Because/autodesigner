@@ -19,9 +19,15 @@ export default function Login() {
       return;
     }
 
+    // Auto-append domain if user enters just the username
+    let loginEmail = email.trim();
+    if (!loginEmail.includes("@")) {
+      loginEmail = `${loginEmail}@internal.brandtonic`;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: loginEmail,
       password,
     });
     setLoading(false);
@@ -49,14 +55,14 @@ export default function Login() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Username or Email</Label>
               <Input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@internal.brandtonic"
-                autoComplete="email"
+                placeholder="admin"
+                autoComplete="username"
                 disabled={loading}
               />
             </div>
