@@ -1,65 +1,73 @@
 
 
-# Fix: Logo Not Appearing — Root Cause & Solution
+# UI Overhaul: "MakeMyAd" Rebrand
 
-## The Problem
+## Summary
 
-Three distinct failure modes happening:
+Transform the entire application from "BrandTonic Studio" to **MakeMyAd** with a premium, clean UI inspired by the reference images. The design direction: soft rounded cards, glassmorphism accents, yellow-blue-white palette, clean modern typography, generous spacing, and a light airy feel. Not typical SaaS — more like the Intelly/Influency references with personality.
 
-1. **Model writes the word "LOGO"** instead of rendering the actual logo image
-2. **Model copies the reference image's logo** instead of using the brand's logo asset
-3. **Model ignores the logo entirely**
+## Design Language (from references)
 
-## Root Cause
+- **Cards**: Large border-radius (16-20px), subtle shadows, some with colored tint backgrounds (soft yellow, soft blue)
+- **Sidebar**: Clean white or light background (not dark navy), with rounded nav items and subtle active states
+- **Glassmorphism**: Selective use — backdrop-blur on certain cards/overlays, not everywhere
+- **Colors**: Primary blue (#2563EB), accent yellow/lime (#E5B800 / #D4E157), white backgrounds, soft gray borders
+- **Typography**: Clean sans-serif body, bold display headings, generous line-height
+- **Spacing**: Very generous padding (24-32px in cards), breathing room between elements
+- **Icons**: Subtle, muted, not dominant
 
-The image generation model (Gemini Flash Image Preview) is a **generative** model, not a **compositing** tool. When you pass it a logo as an `image_url` and say "place this exactly as-is," it tries to **redraw** the logo from scratch. It often fails because:
+## Files to Change
 
-- It doesn't understand "reproduce this image pixel-perfectly" — it generates new pixels
-- The prompt says "NEVER redraw" but the model literally can only redraw
-- With multiple images (reference + 2-4 assets), the model gets confused about which image to prioritize
-- The reference image's logo is visually prominent and the model latches onto it
-
-## The Fix — Two Changes
-
-### 1. Strengthen logo instructions in the system prompt
-
-The current prompt says "use EXACTLY as provided" — but doesn't give the model enough visual anchoring. Change to:
-
-- Tell the model to **reproduce the logo's exact shape, colors, letterforms, and proportions** from the labeled logo image
-- Add explicit instruction: "The logo is IMAGE N. Study its exact visual appearance — every letter, shape, color, symbol. Reproduce it faithfully in the output."
-- Remove generic "NEVER redraw" (contradictory — it HAS to redraw, it's generative) and replace with "faithfully reproduce"
-
-### 2. Reduce image overload — pass logo as the FIRST asset image (right after reference)
-
-Currently the order is: reference → assets in directive order. The model gives more attention to images earlier in the sequence. Ensure the logo is always IMAGE 2 (immediately after reference) regardless of directive ordering. This is already partially done by the force-inclusion at index 0, but the `userContent` building loop iterates `directive.selected_assets` in order — which may not put logo first if the directive ordered it differently.
-
-**Change in `generateCreative()`** (~line 874-907):
-- Sort `directive.selected_assets` so `role === "logo"` comes first before building `userContent`
-- In the label text, for logo specifically: "Study this logo carefully — reproduce its exact letterforms, colors, shapes, and proportions in the final output"
-
-### 3. In `buildDirectivePrompt` — rewrite LOGO RULES section
-
-Replace the current logo rules (lines 646-655) which focus on contrast/backing with rules that focus on **visual fidelity**:
-
-```
-LOGO RULES:
-- The logo is provided as a separate image. Study it carefully.
-- Reproduce the logo's EXACT letterforms, icon shapes, colors, and proportions
-- Place it at the specified location with appropriate sizing
-- Ensure contrast: on dark backgrounds add a light backing panel, on light backgrounds use as-is
-- The logo from the REFERENCE image is NOT your brand's logo — ignore it completely
-```
-
-## File Changed
-
-| File | Change |
+| File | What Changes |
 |---|---|
-| `supabase/functions/generate-creative/index.ts` | Reorder assets to put logo first in userContent; strengthen logo label text; rewrite LOGO RULES in directive prompt; same treatment in fallback prompt |
+| `src/index.css` | New CSS variables: softer palette, larger radius, glass utility classes, new font import |
+| `tailwind.config.ts` | Updated color tokens, larger border-radius defaults, new font family |
+| `src/components/AppSidebar.tsx` | Light sidebar theme, "MakeMyAd" branding, rounded pill-style nav items |
+| `src/components/DashboardLayout.tsx` | Softer header with glassmorphism, cleaner layout |
+| `src/pages/Login.tsx` | Premium login with gradient background, glass card, "MakeMyAd" name |
+| `src/pages/Dashboard.tsx` | Colored stat cards (yellow/blue tints), welcome greeting, better card styling |
+| `src/pages/BrandHub.tsx` | Softer brand cards with hover lift, cleaner group headers |
+| `src/pages/Studio.tsx` | Cleaner step cards, better drop zone, refined output area |
+| `src/pages/History.tsx` | Cleaner filter bar, softer cards |
+| `src/pages/AdminDashboard.tsx` | Colored stat cards, cleaner tables |
+| `src/pages/AdminUsers.tsx` | Better user cards with avatar styling |
+| `src/pages/AdminBrands.tsx` | Cleaner brand list |
+| `src/pages/AdminLogs.tsx` | Cleaner log entries |
+| `src/pages/BrandForm.tsx` | Cleaner form sections |
+| `index.html` | Update title to "MakeMyAd" |
 
-## What This Does NOT Change
+## Design Token Changes
 
-- No layout templates or constraints
-- No changes to Analyze or Adapt steps
-- No model changes
-- Asset selection logic stays the same
+```text
+Current → New:
+--radius: 0.625rem → 1rem (larger, rounder)
+--background: pure white stays
+--primary: blue stays but slightly adjusted
+--secondary: gold/yellow stays but softer
+--sidebar-background: dark navy → white/light gray
+--sidebar-foreground: gray → dark text
+New additions:
+  --glass: backdrop-blur + semi-transparent bg utility
+  Colored card variants: bg-yellow-50/60, bg-blue-50/60
+  Font: Inter or Outfit (cleaner than DM Sans for this aesthetic)
+```
+
+## Key Visual Patterns
+
+1. **Stat cards** — Each gets a subtle color tint (yellow card for credits, blue for generations, green for success rate) like the Influency reference
+2. **Sidebar** — White background, rounded pill active states with yellow/blue accent, "MakeMyAd" logo text at top
+3. **Welcome greeting** — "Welcome back, [name]" like the reference dashboards
+4. **Glass header** — Subtle backdrop-blur on the top bar
+5. **Buttons** — Rounded-full for primary CTAs, rounded-xl for secondary
+6. **Drop zone** — Cleaner with dotted border and soft background
+
+## Implementation Order
+
+1. Design tokens (CSS + Tailwind config + HTML title)
+2. Sidebar + Layout (structural foundation)
+3. Login page
+4. Dashboard
+5. All other pages (BrandHub, Studio, History, Admin pages, BrandForm)
+
+All changes are purely visual — no logic, data, or routing changes.
 
