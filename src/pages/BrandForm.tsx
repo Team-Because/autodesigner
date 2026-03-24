@@ -63,10 +63,58 @@ export default function BrandForm() {
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
   const [voiceRules, setVoiceRules] = useState("");
   const [negativePrompts, setNegativePrompts] = useState("");
-  const [brandBrief, setBrandBrief] = useState("");
+  // Structured brief sections
+  const [briefIdentity, setBriefIdentity] = useState("");
+  const [briefMandatory, setBriefMandatory] = useState("");
+  const [briefVisual, setBriefVisual] = useState("");
+  const [briefCopy, setBriefCopy] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+
+  // Parse existing brand_brief into structured sections
+  const parseBrief = (raw: string) => {
+    const sections: Record<string, string> = { identity: "", mandatory: "", visual: "", copy: "" };
+    const sectionMap: Record<string, keyof typeof sections> = {
+      "brand identity": "identity",
+      "must-include elements": "mandatory",
+      "mandatory elements": "mandatory",
+      "visual direction": "visual",
+      "example copy": "copy",
+      "copy examples": "copy",
+    };
+    let currentKey: keyof typeof sections | null = null;
+    for (const line of raw.split("\n")) {
+      const headerMatch = line.match(/^##\s+(.+)/);
+      if (headerMatch) {
+        const title = headerMatch[1].trim().toLowerCase();
+        currentKey = sectionMap[title] || null;
+        continue;
+      }
+      if (currentKey) {
+        sections[currentKey] += (sections[currentKey] ? "\n" : "") + line;
+      } else {
+        // Lines before any header go to identity
+        sections.identity += (sections.identity ? "\n" : "") + line;
+      }
+    }
+    return {
+      identity: sections.identity.trim(),
+      mandatory: sections.mandatory.trim(),
+      visual: sections.visual.trim(),
+      copy: sections.copy.trim(),
+    };
+  };
+
+  // Combine structured sections into a single brand_brief string
+  const combineBrief = () => {
+    const parts: string[] = [];
+    if (briefIdentity.trim()) parts.push(`## Brand Identity\n${briefIdentity.trim()}`);
+    if (briefMandatory.trim()) parts.push(`## Must-Include Elements\n${briefMandatory.trim()}`);
+    if (briefVisual.trim()) parts.push(`## Visual Direction\n${briefVisual.trim()}`);
+    if (briefCopy.trim()) parts.push(`## Example Copy\n${briefCopy.trim()}`);
+    return parts.join("\n\n");
+  };
 
   useEffect(() => {
     if (isEditing) {
@@ -81,7 +129,12 @@ export default function BrandForm() {
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
           setNegativePrompts(data.negative_prompts || "");
-          setBrandBrief((data as any).brand_brief || "");
+          const briefRaw = (data as any).brand_brief || "";
+          const parsed = parseBrief(briefRaw);
+          setBriefIdentity(parsed.identity);
+          setBriefMandatory(parsed.mandatory);
+          setBriefVisual(parsed.visual);
+          setBriefCopy(parsed.copy);
           // Load extra colors
           const ec = (data as any).extra_colors;
           if (ec && Array.isArray(ec)) {
@@ -186,7 +239,7 @@ export default function BrandForm() {
       extra_colors: extraColors,
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
-      brand_brief: brandBrief,
+      brand_brief: combineBrief(),
       user_id: user.id,
     };
 
@@ -473,21 +526,65 @@ export default function BrandForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-display">Brand Brief / Guidelines</CardTitle>
+            <CardTitle className="text-base font-display">Brand Brief</CardTitle>
+            <CardDescription>Structured sections help the AI use your brand data accurately. Fill in what applies.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="brief">Paste your full brand brief, guidelines, or system prompt here</Label>
-            <Textarea
-              id="brief"
-              value={brandBrief}
-              onChange={(e) => setBrandBrief(e.target.value)}
-              placeholder="Paste your complete brand guidelines, tone of voice, visual style, target audience, campaign details, typography rules, key messages, and any other brand information here..."
-              rows={10}
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              Include everything the AI needs to know about your brand. Use markdown headers (## SECTION) for structure.
-            </p>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="brief-identity">Brand Identity</Label>
+              <Textarea
+                id="brief-identity"
+                value={briefIdentity}
+                onChange={(e) => setBriefIdentity(e.target.value)}
+                placeholder="Project name, location, developer, USP, key differentiators..."
+                rows={4}
+                className="text-sm"
+                maxLength={800}
+              />
+              <p className="text-xs text-muted-foreground">{briefIdentity.length}/800 — Project name, location, developer, USP</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-mandatory">Must-Include Elements</Label>
+              <Textarea
+                id="brief-mandatory"
+                value={briefMandatory}
+                onChange={(e) => setBriefMandatory(e.target.value)}
+                placeholder="RERA number, contact info, tagline, legal text, website URL..."
+                rows={3}
+                className="text-sm"
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">{briefMandatory.length}/500 — RERA, contact, tagline, legal text</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-visual">Visual Direction</Label>
+              <Textarea
+                id="brief-visual"
+                value={briefVisual}
+                onChange={(e) => setBriefVisual(e.target.value)}
+                placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
+                rows={3}
+                className="text-sm"
+                maxLength={600}
+              />
+              <p className="text-xs text-muted-foreground">{briefVisual.length}/600 — Mood, lighting, photography style, layout preferences</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brief-copy">Example Copy</Label>
+              <Textarea
+                id="brief-copy"
+                value={briefCopy}
+                onChange={(e) => setBriefCopy(e.target.value)}
+                placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
+                rows={3}
+                className="text-sm"
+                maxLength={600}
+              />
+              <p className="text-xs text-muted-foreground">{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+            </div>
           </CardContent>
         </Card>
 
