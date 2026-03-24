@@ -1,6 +1,7 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Sidebar,
   SidebarContent,
@@ -22,10 +23,15 @@ const navItems = [
   { title: "History", url: "/history", icon: Clock },
 ];
 
+const adminItems = [
+  { title: "Accounts", url: "/admin/users", icon: Users },
+];
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
+  const { isAdmin } = useIsAdmin();
 
   return (
     <Sidebar collapsible="icon">
@@ -36,7 +42,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <span className="font-display font-bold text-base text-sidebar-accent-foreground tracking-tight">
-              BrandCraft Studio
+              BrandTonic Studio
             </span>
           )}
         </div>
@@ -64,6 +70,34 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              {!collapsed && (
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                  Admin
+                </p>
+              )}
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-3">
