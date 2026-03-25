@@ -1,121 +1,104 @@
 
 
-# Analysis: What's Working, What's Broken, and How to Fix It
+# Quality Audit: 10+ Generations Reviewed + Improvement Plan
 
-## What's Actually Working
+## What I Found Across 15+ Generations
 
-1. **Credit system** — Just implemented. Check + deduction on success only. Working correctly.
-2. **Framework sanitization** — Strips reference content (names, prices, locations) from the structural analysis. Working.
-3. **Content isolation prompting** — Multiple layers of "never copy from reference" instructions. Working at the prompt level.
-4. **Model cascade** — Tries 3 models with fallback (Gemini 3.1 Flash → 2.5 Flash → 3 Pro). Working.
-5. **Logo force-inclusion** — If the Adapt step forgets the logo, it's force-added. Working (regex broadened in last change).
+### Pattern 1: Reference Text Leaking Into Framework (Critical)
 
-## What's Broken or Suboptimal
+The Step 1 framework extraction captures **exact reference text** — "AEON & TRISL", "ESTD 2008", "Imtiaz Sales Centre, Dubai Hills Estate", "Saturday 1st November 2025", "RANKED NO.1 AGENCY OF DUBAI". While `sanitizeFramework()` tries to clean this, it's incomplete:
 
-### Critical Issue 1: Adapt Step is BLIND to Brand Assets
+- `text_elements[].content_description` gets replaced with generic labels like "headline text" — this works
+- `composition_notes` still leaks reference brand names (only strips quoted text, not inline mentions)
+- Zone descriptions like "IMTIAZ DEVELOPMENTS logo" become "brand logo zone" — this works
+- BUT the sanitized framework still includes structural references to reference-specific elements like "event_details_card" and "secondary_logo" zones — these reference concepts (an open house event with date/time/location) bleed through as structural expectations
 
-The Adapt step (Step 2) receives the brand assets as **text-only** — just labels and URLs:
-```
-[0] "Logo" — https://storage.example.com/abc.png
-[1] "Architecture" — https://storage.example.com/xyz.png
-```
+**Impact**: The image model sometimes recreates reference-specific UI elements (event cards, date boxes) even though the text is changed to brand content.
 
-The AI **cannot see** these images. It picks assets by label alone, guessing which one fits the reference layout. If you have 3 architecture renders, it can't tell which one matches the reference's composition. This is the **#1 reason** assets aren't used well.
+### Pattern 2: Copy is Repetitive Across Generations (Moderate)
 
-**Fix**: Send brand asset images as actual image inputs to the Adapt step, so it can visually evaluate which ones best match the reference layout.
+All 15 Kalrav Treasure generations produced variations of the same 4-5 headlines:
+- "Own Space. Refined Living."
+- "Where Future Addresses Begin"
+- "Prime Location. Proven Potential."
+- "Own Your Treasure"
+- "Space Near Ahmedabad's Finest"
 
-### Critical Issue 2: Generation Prompt is Too Long
+The Adapt step always sources from the same brand brief, producing similar copy regardless of reference style. A lifestyle-focused reference and a formal corporate reference both get the same "premium plots" messaging.
 
-The final prompt sent to the image model is enormous — 150+ lines of instructions, rules, checklists, framework JSON, brand context, negative prompts, asset rules, color rules, typography rules, deduplication rules, and compliance notes. Image generation models (Gemini Flash/Pro) are **not** instruction-following text models — they're creative models. Overloading them with rules causes:
-- Important instructions (like "use this exact logo") getting buried
-- Contradictory rules creating confusion
-- The model ignoring later sections entirely
+### Pattern 3: Reference Structural Concepts Override Brand Context (Critical)
 
-**Fix**: Drastically simplify the generation prompt to ~30 lines max. Move complex decision-making to the Adapt step (which uses a text model good at reasoning) and give the image model a simple, clear directive.
+When the reference is a luxury real estate "Open House" invitation (dark blue, sunset, yacht), the framework captures zones like `event_details_card`, `secondary_logo`, and `footer_bar`. The Adapt step tries to map these to brand content, but the image model still generates event-card-like UI elements, date boxes, or partner logo zones that don't belong in the brand's creative.
 
-### Critical Issue 3: Asset Categories Don't Map to Generation Roles
+The framework is too reference-specific — it describes WHAT the reference IS rather than extracting reusable DESIGN PRINCIPLES.
 
-The Brand Form offers these categories: Logo, Hero Image, Architecture, Lifestyle, Masterplan, Product, Mascot, Pattern/Texture, Icon, Other.
+### Pattern 4: Failed Generations Show QC Was Working (Informational)
 
-But the edge function only has special handling for:
-- **Logo**: Force-inclusion + fidelity rules ✅
-- **Architecture** (`/architect|3d|render|building|elevation|facade/i`): 3D render preservation rules ✅
-- Everything else: Generic "reproduce with fidelity" ❌
+The Meevaa Foods failures reveal a QC step was catching real issues: wrong aspect ratio, wrong product shown, missing CTAs, stock-looking imagery. These are legitimate quality issues the image model produces. The QC step appears to have been removed or bypassed — generations now just pass through without validation.
 
-Assets tagged "Lifestyle", "Masterplan", "Product", or "Mascot" get no role-specific instructions. The image model doesn't know whether to use a lifestyle shot as a background, a hero visual, or a supporting element.
+### Pattern 5: Same Reference Used Repeatedly
 
-**Fix**: Map each category to explicit generation roles with clear instructions for each.
-
-### Issue 4: Brand Brief Structure is Unenforced
-
-The Best Practices guide *suggests* using `## VISUAL DNA`, `## MANDATORY ELEMENTS`, etc., but the textarea accepts anything. Most users paste unstructured paragraphs. The AI then gets a wall of text with no clear hierarchy, causing it to miss mandatory elements (RERA numbers, contact info, specific locations).
-
-**Fix**: Replace the single textarea with a structured multi-section form that maps directly to the fields the AI actually uses.
-
-### Issue 5: logo_url Uses Exact String Match
-
-Line 183 in BrandForm: `assets.find((a) => a.label === "Logo")` — this works because labels come from a dropdown. But `brands.logo_url` is set from this and is only used as a thumbnail, not in generation. The edge function reads `brand_assets` directly. So `logo_url` is fine for its purpose.
+Multiple generations use the exact same reference image (the AEON & TRISL open house ad was used 10+ times). This suggests the user is testing with limited references, but also means the system should produce MORE variety from the same reference.
 
 ---
 
-## Proposed Fix Plan
+## Root Causes
 
-### Step 1: Make Adapt Step See Brand Assets (Edge Function)
+1. **Framework is too literal** — It describes reference content ("AEON & TRISL logo", "event with date/time"), not abstract design principles ("brand mark zone at top-center", "information card with 3 data points")
+2. **Sanitization happens too late** — Framework is extracted with content, then partially cleaned. Better to instruct the analyzer to extract content-agnostic structure from the start
+3. **No copy variation mechanism** — Each generation independently produces copy from the same brief, with no seed/variation prompt
+4. **No structural abstraction** — Zone names like `event_details_card` and `secondary_logo` carry semantic meaning that biases the image model toward recreating reference-specific elements
 
-Send brand asset images as actual `image_url` inputs to the Adapt step alongside the reference image. This lets the AI visually match assets to reference layout zones.
+## Improvement Plan
 
-**Trade-off**: More tokens/cost per generation, but dramatically better asset selection.
+### Fix 1: Rewrite Analyze Step Prompt for Abstract Extraction
 
-### Step 2: Simplify Generation Prompt (Edge Function)
+Change the Step 1 system prompt to explicitly instruct: "Describe layout zones by their DESIGN ROLE (hero visual, text block, information strip, accent element), NOT by their content. Never mention brand names, locations, dates, or product types from the reference."
 
-Restructure the image model prompt to be concise:
-- 1 line: output dimensions
-- 3 lines: exact text to render (headline, subcopy, CTA)  
-- 5 lines: asset placement instructions (from Adapt)
-- 3 lines: color palette
-- 3 lines: critical constraints (no reference content, logo fidelity, text on clean backgrounds)
+Add to the tool schema: a `zone_type` enum (hero_visual, text_block, accent_strip, brand_mark, information_grid, footer_bar, background) so zones are categorized abstractly.
 
-Move all the verbose rules, checklists, framework JSON, and compliance notes into the Adapt step's system prompt (where the text model can actually process them).
+### Fix 2: Stronger Sanitization as Safety Net
 
-### Step 3: Add Role-Specific Asset Handling (Edge Function)
+Even with better extraction, sanitize more aggressively:
+- Strip ALL proper nouns from `composition_notes` (not just quoted text)
+- Replace zone names that contain reference-specific concepts (`event_details_card` → `info_grid`, `secondary_logo` → `partner_mark`)
+- Remove `text_elements[].content_description` entirely (the Adapt step generates its own copy anyway)
 
-Map each asset category to explicit image-model instructions:
-- **Lifestyle/Hero Image** → "Use as background/atmospheric element"
-- **Product** → "Feature prominently, preserve details"
-- **Masterplan** → "Include in dedicated zone, maintain readability"
-- **Mascot** → "Place as character element, preserve design"
-- **Pattern/Texture** → "Use as background texture or accent"
-- **Icon** → "Small element, use at specified position"
+### Fix 3: Add Copy Variation to Adapt Step
 
-### Step 4: Structured Brand Brief Form (BrandForm.tsx)
+Add a `variation_seed` instruction to the Adapt step:
+- "Generate copy that matches the MOOD of the reference (formal/playful/bold/minimalist), not just brand USPs"
+- Include a random variation hint: "Creative direction: [energetic/contemplative/bold/sophisticated]" — rotated per generation
+- This produces different copy angles from the same brief
 
-Replace the single giant textarea with 4 focused sections that map directly to the AI fields:
+### Fix 4: Zone Name Normalization
 
-| Section | Maps To | Max Chars |
-|---|---|---|
-| **Brand Identity** (project name, location, developer, USP) | `brand_brief` top section | 800 |
-| **Mandatory Elements** (RERA, contact, tagline, legal text) | `brand_brief` middle | 500 |
-| **Visual Direction** (mood, lighting, photography style, layout preferences) | `brand_brief` bottom | 600 |
-| **Example Copy** (sample headlines, CTAs, taglines) | `brand_brief` end | 600 |
+Before passing framework to Steps 2 and 3, normalize all zone names to a fixed vocabulary:
+```
+background, brand_mark, headline, subcopy, hero_visual, 
+supporting_visual, info_strip, cta, footer, accent
+```
+This prevents reference-specific zone semantics from leaking through.
 
-These get concatenated with markdown headers before saving to `brand_brief`. Existing briefs are parsed back into sections on edit. The "Tone & Audience" and "Never List" fields stay separate (they already map to `brand_voice_rules` and `negative_prompts`).
+### Fix 5: Re-enable QC as Warning (Not Blocker)
 
-### Step 5: Brand Brief Template Suggestion
-
-When creating a new brand, pre-populate the structured sections with placeholder examples relevant to the brand's industry (if detectable from name/assets).
+The QC step caught real issues but was probably removed because it caused too many failures. Re-add it as a non-blocking quality check that:
+- Stores QC score + issues in `copywriting` JSON alongside the caption
+- Never blocks generation (always saves the output)
+- Surfaces quality warnings in the History detail dialog so users know what to watch for
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `supabase/functions/generate-creative/index.ts` | Send asset images to Adapt step, simplify generation prompt, add role-specific asset handling |
-| `src/pages/BrandForm.tsx` | Replace single brief textarea with structured multi-section form, parse existing briefs back into sections |
+| `supabase/functions/generate-creative/index.ts` | Rewrite analyzeFramework prompt for abstract extraction, stronger sanitization, zone normalization, copy variation seed, optional QC step |
+| `src/pages/History.tsx` | Show QC score/warnings in generation detail dialog (if present) |
 
 ## What This Does NOT Change
 
-- No database schema changes — `brand_brief` stays as a text field (sections concatenated with markdown headers)
-- No changes to Step 1 (Analyze) — framework extraction works well
-- No changes to model cascade or error handling
+- No database schema changes
+- No changes to model selection or cascade
 - Credit system unchanged
-- Asset categories dropdown unchanged (they're already good)
+- Brand brief structure unchanged
+- Asset selection logic unchanged (the multimodal adapt step from last change stays)
 
