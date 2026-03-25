@@ -16,6 +16,44 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ─── Fixed vocabulary for zone normalization ───
+const NORM_ZONE_MAP: Record<string, string> = {
+  // Logo variants
+  logo: "brand_mark", brand_logo: "brand_mark", secondary_logo: "brand_mark",
+  partner_logo: "brand_mark", logo_zone: "brand_mark", brand_mark: "brand_mark",
+  // Headlines
+  headline: "headline", title: "headline", main_headline: "headline",
+  headline_text: "headline", primary_text: "headline",
+  // Subcopy
+  subtext: "subcopy", subcopy: "subcopy", body_text: "subcopy", body: "subcopy",
+  description: "subcopy", supporting_text: "subcopy", sub_headline: "subcopy",
+  // Hero visual
+  hero_image: "hero_visual", hero: "hero_visual", main_image: "hero_visual",
+  product_image: "hero_visual", hero_visual: "hero_visual", primary_visual: "hero_visual",
+  architecture: "hero_visual", render: "hero_visual", "3d_render": "hero_visual",
+  // Supporting visual
+  supporting_image: "supporting_visual", secondary_image: "supporting_visual",
+  supporting_visual: "supporting_visual", lifestyle_image: "supporting_visual",
+  // Info strip
+  info_strip: "info_strip", details: "info_strip", information: "info_strip",
+  event_details: "info_strip", event_details_card: "info_strip", info_grid: "info_strip",
+  contact_info: "info_strip", details_card: "info_strip",
+  // CTA
+  cta: "cta", cta_button: "cta", button: "cta", call_to_action: "cta",
+  // Footer
+  footer: "footer", footer_bar: "footer", disclaimer: "footer", legal: "footer",
+  // Background
+  background: "background", bg: "background", overlay: "background",
+  // Accent
+  accent: "accent", accent_strip: "accent", divider: "accent", separator: "accent",
+  tagline: "accent", tag: "accent",
+};
+
+function normalizeZoneName(name: string): string {
+  const key = name.toLowerCase().replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "");
+  return NORM_ZONE_MAP[key] || "accent";
+}
+
 function parseStoredFramework(value: unknown): Record<string, unknown> | null {
   if (!value) return null;
   if (typeof value === "string") {
@@ -37,50 +75,70 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
 function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown> {
   const clean = JSON.parse(JSON.stringify(fw));
 
-  // Sanitize zone descriptions — keep name/position/size, replace description with generic role
+  // Sanitize zone names + descriptions
   if (clean.layout?.zones && Array.isArray(clean.layout.zones)) {
     for (const zone of clean.layout.zones) {
+      // Normalize zone name to fixed vocabulary
+      if (zone.name) {
+        zone.name = normalizeZoneName(zone.name);
+      }
+      // Replace description with generic role
       if (zone.description) {
-        // Replace content description with generic role based on zone name
-        const name = (zone.name || "").toLowerCase();
-        if (/logo/.test(name)) zone.description = "brand logo zone";
-        else if (/hero|main|product|image/.test(name)) zone.description = "hero visual zone";
-        else if (/headline|title/.test(name)) zone.description = "headline text zone";
-        else if (/sub|body|copy/.test(name)) zone.description = "supporting text zone";
-        else if (/cta|button|action/.test(name)) zone.description = "call-to-action zone";
-        else if (/background|bg/.test(name)) zone.description = "background zone";
-        else if (/tag/.test(name)) zone.description = "tagline zone";
-        else if (/price|offer/.test(name)) zone.description = "promotional detail zone";
-        else if (/disclaim|legal|footer/.test(name)) zone.description = "footer/legal zone";
-        else zone.description = "design element zone";
+        const norm = zone.name || "accent";
+        const descMap: Record<string, string> = {
+          brand_mark: "brand logo placement zone",
+          headline: "primary headline text zone",
+          subcopy: "supporting text zone",
+          hero_visual: "primary visual / imagery zone",
+          supporting_visual: "secondary visual element zone",
+          info_strip: "information strip with key details",
+          cta: "call-to-action button or strip",
+          footer: "footer / legal zone",
+          background: "background zone",
+          accent: "design accent element",
+        };
+        zone.description = descMap[norm] || "design element zone";
       }
     }
   }
 
-  // Sanitize text_elements — keep type/position/font_style/approximate_size, replace content_description
+  // Remove content_description entirely from text_elements (Adapt generates its own copy)
   if (clean.text_elements && Array.isArray(clean.text_elements)) {
     for (const te of clean.text_elements) {
-      if (te.content_description) {
-        const type = (te.type || "").toLowerCase();
-        if (/headline|title/.test(type)) te.content_description = "headline text";
-        else if (/sub/.test(type)) te.content_description = "subcopy text";
-        else if (/cta|button/.test(type)) te.content_description = "CTA text";
-        else if (/tag/.test(type)) te.content_description = "tagline text";
-        else if (/price|offer/.test(type)) te.content_description = "promotional detail";
-        else if (/disclaim|legal/.test(type)) te.content_description = "legal/disclaimer text";
-        else te.content_description = "text element";
+      delete te.content_description;
+      // Normalize type
+      if (te.type) {
+        const t = te.type.toLowerCase();
+        if (/headline|title/.test(t)) te.type = "headline";
+        else if (/sub/.test(t)) te.type = "subcopy";
+        else if (/cta|button/.test(t)) te.type = "cta";
+        else if (/tag/.test(t)) te.type = "tagline";
+        else if (/price|offer/.test(t)) te.type = "detail";
+        else if (/disclaim|legal/.test(t)) te.type = "footer";
       }
     }
   }
 
-  // Strip any composition_notes that reference specific content
-  // Keep it but remove brand-specific mentions
+  // Aggressively clean composition_notes
   if (typeof clean.composition_notes === "string") {
-    // Remove quoted text fragments, specific brand/location names, prices, currencies
     clean.composition_notes = clean.composition_notes
+      // Remove quoted text
       .replace(/"[^"]*"/g, '"[text]"')
+      // Remove proper nouns (2+ consecutive capitalized words)
+      .replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g, "[brand]")
+      // Remove ALL-CAPS words of 3+ chars (likely brand names)
+      .replace(/\b[A-Z]{3,}\b/g, "[brand]")
+      // Remove prices/currencies
       .replace(/\b[A-Z]{3}\s*[\d,.]+[MKBmkb]?\b/g, "[price]")
-      .replace(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|yds?|m)|acres?)\b/gi, "[size]");
+      .replace(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|yds?|m)|acres?)\b/gi, "[size]")
+      // Remove dates
+      .replace(/\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/gi, "[date]")
+      .replace(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/gi, "[day]")
+      // Remove phone numbers
+      .replace(/\+?\d[\d\s-]{7,}\d/g, "[phone]")
+      // Remove URLs
+      .replace(/https?:\/\/\S+/g, "[url]")
+      .replace(/www\.\S+/g, "[url]");
   }
 
   return clean;
@@ -126,6 +184,22 @@ function extractImagePayload(aiData: any): string | null {
   return null;
 }
 
+// ─── Creative direction moods for copy variation ───
+const CREATIVE_MOODS = [
+  "Bold & Confident — use strong, declarative language with authority",
+  "Aspirational & Dreamy — paint a vision of the ideal lifestyle",
+  "Minimal & Elegant — fewer words, more impact, refined tone",
+  "Energetic & Dynamic — action-oriented, momentum-driven language",
+  "Warm & Inviting — conversational, welcoming, personal tone",
+  "Sophisticated & Premium — luxury vocabulary, understated elegance",
+  "Direct & Practical — focus on tangible benefits and facts",
+  "Poetic & Evocative — rhythmic, image-rich, emotionally resonant",
+];
+
+function getRandomMood(): string {
+  return CREATIVE_MOODS[Math.floor(Math.random() * CREATIVE_MOODS.length)];
+}
+
 // ─────────────────────────────────────────────────────
 // Step 1 — Analyze reference image design framework
 // ─────────────────────────────────────────────────────
@@ -146,14 +220,28 @@ async function analyzeFramework(
         messages: [
           {
             role: "system",
-            content: `You are an expert visual design analyst. Analyze the given advertisement image and extract a precise structural framework describing its layout, composition, visual style, and text elements. Be specific about positions, sizes, and visual treatments.`,
+            content: `You are an expert visual design analyst specializing in ABSTRACT DESIGN PRINCIPLES.
+
+CRITICAL RULES:
+1. Describe layout zones by their DESIGN ROLE — NOT by their content.
+2. NEVER mention brand names, company names, product names, locations, dates, prices, phone numbers, or any specific text visible in the image.
+3. Use ONLY these zone_type categories: background, brand_mark, headline, subcopy, hero_visual, supporting_visual, info_strip, cta, footer, accent
+4. Describe SPATIAL RELATIONSHIPS, visual weight, and compositional principles — not what specific content fills each zone.
+5. For text_elements, describe the TYPOGRAPHIC STYLE (weight, case, size, contrast) — never the actual words.
+6. Think of yourself as extracting a REUSABLE TEMPLATE, not describing this specific ad.
+
+Example of WRONG zone description: "AEON & TRISL logo in white"
+Example of RIGHT zone description: "brand mark placement, white on dark, high contrast"
+
+Example of WRONG composition note: "Open house event with date and venue details"  
+Example of RIGHT composition note: "Information strip with 3-4 short data points, left-aligned"`,
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Analyze this advertisement image and extract its complete design framework. Describe every visual zone, text element, and stylistic choice in detail.",
+                text: "Extract the ABSTRACT DESIGN FRAMEWORK from this advertisement. Focus on spatial layout, visual hierarchy, typographic style, and compositional principles. Do NOT describe any specific content — only design structure.",
               },
               {
                 type: "image_url",
@@ -168,7 +256,7 @@ async function analyzeFramework(
             function: {
               name: "extract_design_framework",
               description:
-                "Extract a structured design framework from the reference advertisement image.",
+                "Extract a reusable, content-agnostic design framework from the reference image.",
               parameters: {
                 type: "object",
                 properties: {
@@ -186,13 +274,24 @@ async function analyzeFramework(
                           properties: {
                             name: {
                               type: "string",
-                              description:
-                                "Zone name, e.g. logo, headline, hero_image, cta_button, product_image, background, subtext, tagline",
+                              enum: [
+                                "background",
+                                "brand_mark",
+                                "headline",
+                                "subcopy",
+                                "hero_visual",
+                                "supporting_visual",
+                                "info_strip",
+                                "cta",
+                                "footer",
+                                "accent",
+                              ],
+                              description: "Abstract zone type from the fixed vocabulary",
                             },
                             position: {
                               type: "string",
                               description:
-                                "Precise position, e.g. top-left, center, bottom-right, left-third, right-half",
+                                "Precise position: top-left, center, bottom-right, left-third, right-half, etc.",
                             },
                             size: {
                               type: "string",
@@ -202,7 +301,7 @@ async function analyzeFramework(
                             description: {
                               type: "string",
                               description:
-                                "What occupies this zone in the reference image",
+                                "DESIGN ROLE description only — spatial function, visual weight, contrast approach. NEVER mention specific content.",
                             },
                           },
                           required: ["name", "position", "size", "description"],
@@ -224,7 +323,7 @@ async function analyzeFramework(
                       photography_style: {
                         type: "string",
                         description:
-                          "lifestyle, product-shot, abstract, illustration, none",
+                          "lifestyle, product-shot, abstract, illustration, architectural, none",
                       },
                       overlay: {
                         type: "string",
@@ -239,7 +338,7 @@ async function analyzeFramework(
                       color_scheme: {
                         type: "string",
                         description:
-                          "Describe the dominant colors and their distribution",
+                          "Describe the color relationships — dominant/accent/neutral distribution, NOT specific brand colors",
                       },
                     },
                     required: [
@@ -258,12 +357,8 @@ async function analyzeFramework(
                       properties: {
                         type: {
                           type: "string",
-                          description:
-                            "headline, subtext, cta, tagline, disclaimer, price",
-                        },
-                        content_description: {
-                          type: "string",
-                          description: "What the text says or conveys",
+                          enum: ["headline", "subcopy", "cta", "tagline", "detail", "footer"],
+                          description: "Text element type from fixed vocabulary",
                         },
                         position: {
                           type: "string",
@@ -272,7 +367,7 @@ async function analyzeFramework(
                         font_style: {
                           type: "string",
                           description:
-                            "bold, light, italic, uppercase, condensed, etc.",
+                            "bold, light, italic, uppercase, condensed, serif, sans-serif, display, etc.",
                         },
                         approximate_size: {
                           type: "string",
@@ -281,7 +376,6 @@ async function analyzeFramework(
                       },
                       required: [
                         "type",
-                        "content_description",
                         "position",
                         "font_style",
                         "approximate_size",
@@ -292,7 +386,7 @@ async function analyzeFramework(
                   composition_notes: {
                     type: "string",
                     description:
-                      "Additional notes about symmetry, focal point, whitespace, visual flow, and any distinctive design techniques",
+                      "Abstract design observations about symmetry, focal point, whitespace usage, visual flow, contrast strategy, and information hierarchy. NEVER mention specific content, brands, or text from the image.",
                   },
                 },
                 required: [
@@ -404,12 +498,19 @@ async function adaptDirective(
     .filter(Boolean)
     .join("\n");
 
+  // Get random creative mood for copy variation
+  const creativeMood = getRandomMood();
+
   const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
 
 CRITICAL — CONTENT ISOLATION:
 The reference image is for LAYOUT, COMPOSITION, and VISUAL STYLE only.
 IGNORE ALL text, names, locations, prices, currencies, phone numbers, addresses, URLs, and any written content visible in the reference image.
 ALL copy (headline, subcopy, CTA) must come EXCLUSIVELY from the brand data below.
+
+CREATIVE DIRECTION FOR THIS GENERATION:
+${creativeMood}
+Write copy that embodies this mood. Do NOT just repeat the brand's tagline — interpret the brand brief through this creative lens. Each generation should feel fresh and different.
 
 You receive:
 1. A reference advertisement image (for concept/style/layout inspiration ONLY)
@@ -445,10 +546,11 @@ ASSET ROLE MAPPING:
 - Icon → Small supporting element
 
 COPY RULES:
-- Headlines must be original, punchy, and aligned to brand voice
+- Headlines must be original, punchy, and aligned to the CREATIVE DIRECTION above
 - ALL text MUST come from the brand brief and brand data
 - If the brand brief contains mandatory text (RERA, contact, location), include it
 - CTA should be actionable and brand-appropriate
+- DO NOT repeat the same headlines across generations — be creative and varied
 
 COLOR RULES:
 - Use brand primary for dominant elements (headlines, accent strips, CTA)
@@ -461,7 +563,7 @@ TEXT PLACEMENT:
 
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
-  const userMessage = `DESIGN FRAMEWORK (from reference analysis):
+  const userMessage = `DESIGN FRAMEWORK (abstract structural analysis — zone names are normalized):
 ${JSON.stringify(sanitizeFramework(framework), null, 2)}
 
 BRAND DATA:
@@ -619,6 +721,7 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     subcopy: directive.subcopy,
     cta: directive.cta_text,
     assetsSelected: directive.selected_assets?.length ?? 0,
+    mood: creativeMood.split("—")[0].trim(),
   }));
 
   // Force-include logo if brand has one but directive didn't select it
@@ -730,7 +833,7 @@ function buildFallbackPrompt(
   const selectedAssets = brandAssets.slice(0, 5);
   const hasAssets = selectedAssets.length > 0;
 
-  const logoAssets = selectedAssets.filter((a: any) => /logo/i.test(a.label || ""));
+  const logoAssets = selectedAssets.filter((a: any) => /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(a.label || ""));
   const architectureAssets = selectedAssets.filter((a: any) =>
     /architect|3d|render|building|elevation|facade/i.test(a.label || "")
   );
@@ -793,6 +896,104 @@ CHECKLIST:
 ✅ Professional quality
 
 Output: ${spec.width}×${spec.height} pixels. Generate now.`;
+}
+
+// ─────────────────────────────────────────────────────
+// Advisory QC Step (non-blocking)
+// ─────────────────────────────────────────────────────
+interface QCResult {
+  score: number; // 1-10
+  issues: string[];
+  strengths: string[];
+}
+
+async function advisoryQC(
+  outputImageUrl: string,
+  directive: CreativeDirective | null,
+  brand: any,
+  apiKey: string
+): Promise<QCResult | null> {
+  try {
+    const checkItems = [
+      directive ? `Expected headline: "${directive.headline}"` : "",
+      directive ? `Expected CTA: "${directive.cta_text}"` : "",
+      `Brand name: ${brand.name}`,
+      `Brand colors: primary ${brand.primary_color}, secondary ${brand.secondary_color}`,
+      brand.negative_prompts ? `Should NOT contain: ${toCompactText(brand.negative_prompts, 500)}` : "",
+    ].filter(Boolean).join("\n");
+
+    const response = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: `You are a quality control reviewer for generated advertisements. Score the output 1-10 and list specific issues. Be concise. Focus on: logo presence, text legibility, color accuracy, content correctness, overall professionalism.`,
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: `Review this generated ad against these requirements:\n${checkItems}\n\nScore 1-10 and list issues + strengths.` },
+                { type: "image_url", image_url: { url: outputImageUrl } },
+              ],
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "qc_review",
+                description: "Quality control review of generated creative",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number", description: "Quality score 1-10" },
+                    issues: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of specific issues found",
+                    },
+                    strengths: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of things done well",
+                    },
+                  },
+                  required: ["score", "issues", "strengths"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "qc_review" } },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn("QC step failed (non-blocking):", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall?.function?.arguments) return null;
+
+    const result: QCResult = JSON.parse(toolCall.function.arguments);
+    console.log(`QC score: ${result.score}/10, issues: ${result.issues.length}, strengths: ${result.strengths.length}`);
+    return result;
+  } catch (err) {
+    console.warn("QC step error (non-blocking):", err);
+    return null;
+  }
 }
 
 async function generateCreative(
@@ -1003,7 +1204,6 @@ serve(async (req) => {
     );
 
     // ── Credit check ──
-    // Get user_id from the generation record
     let generationUserId: string | null = null;
     if (generationId) {
       const { data: genRec } = await supabase
@@ -1111,7 +1311,6 @@ serve(async (req) => {
       console.log("Adapt directive created successfully");
     } catch (err) {
       console.warn("Adapt step failed, falling back to direct generation:", err);
-      // directive stays null — generateCreative will use fallback prompt
     }
 
     // ── Step 3: Generate ──
@@ -1221,12 +1420,28 @@ serve(async (req) => {
         ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
         : "");
 
+    // ── Advisory QC (non-blocking) ──
+    let qcResult: QCResult | null = null;
+    try {
+      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY);
+    } catch {
+      console.warn("QC step skipped due to error");
+    }
+
+    // Build copywriting JSON with optional QC data
+    const copywritingData: Record<string, any> = { caption: finalCaption };
+    if (qcResult) {
+      copywritingData.qc_score = qcResult.score;
+      copywritingData.qc_issues = qcResult.issues;
+      copywritingData.qc_strengths = qcResult.strengths;
+    }
+
     const { error: updateError } = await supabase
       .from("generations")
       .update({
         output_image_url: publicUrlData.publicUrl,
         layout_guide: JSON.stringify(framework),
-        copywriting: { caption: finalCaption },
+        copywriting: copywritingData,
         status: "completed",
       })
       .eq("id", generationId);
@@ -1251,6 +1466,7 @@ serve(async (req) => {
         caption: finalCaption,
         framework,
         generationId,
+        qc: qcResult ? { score: qcResult.score, issues: qcResult.issues } : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
