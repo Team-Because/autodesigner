@@ -307,6 +307,38 @@ export default function History() {
                   </div>
                 )}
 
+                {/* QC Advisory (if present) */}
+                {cw?.qc_score != null && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">Quality Score</p>
+                      <Badge variant={cw.qc_score >= 7 ? "default" : cw.qc_score >= 4 ? "secondary" : "destructive"} className="text-xs">
+                        {cw.qc_score}/10
+                      </Badge>
+                    </div>
+                    {cw.qc_issues && cw.qc_issues.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Issues Found</p>
+                        <ul className="text-xs space-y-0.5 text-muted-foreground list-disc list-inside bg-muted rounded-md p-2.5">
+                          {(cw.qc_issues as string[]).map((issue: string, i: number) => (
+                            <li key={i}>{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {cw.qc_strengths && cw.qc_strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Strengths</p>
+                        <ul className="text-xs space-y-0.5 text-muted-foreground list-disc list-inside bg-muted rounded-md p-2.5">
+                          {(cw.qc_strengths as string[]).map((s: string, i: number) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {selectedGeneration.output_image_url && (
                   <div className="flex gap-3">
                     <Button
