@@ -26,6 +26,7 @@ const ACTION_LABELS: Record<string, { label: string; color: "default" | "seconda
   "group.created": { label: "Group Created", color: "default" },
   "group.renamed": { label: "Group Renamed", color: "secondary" },
   "group.deleted": { label: "Group Deleted", color: "destructive" },
+  "group.transferred": { label: "Group Transferred", color: "default" },
   "generation.started": { label: "Generation Started", color: "secondary" },
   "generation.completed": { label: "Generation Done", color: "default" },
   "generation.failed": { label: "Generation Failed", color: "destructive" },

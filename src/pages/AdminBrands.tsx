@@ -31,6 +31,10 @@ import {
 import { Loader2, ArrowRightLeft, Search, Palette, ChevronDown, Folder } from "lucide-react";
 import { toast } from "sonner";
 
+type TransferTarget =
+  | { type: "brand"; brand: any }
+  | { type: "group"; groupId: string; groupName: string; brands: any[]; groupUserId: string | null };
+
 export default function AdminBrands() {
   const { user } = useAuth();
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
@@ -39,7 +43,7 @@ export default function AdminBrands() {
 
   const [search, setSearch] = useState("");
   const [userFilter, setUserFilter] = useState("all");
-  const [transferBrand, setTransferBrand] = useState<any | null>(null);
+  const [transferTarget, setTransferTarget] = useState<TransferTarget | null>(null);
   const [targetUserId, setTargetUserId] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -76,11 +80,6 @@ export default function AdminBrands() {
     [profiles]
   );
 
-  const groupMap = useMemo(
-    () => Object.fromEntries(groups.map((g) => [g.id, g.name])),
-    [groups]
-  );
-
   const uniqueUsers = useMemo(() => {
     const seen = new Set<string>();
     return profiles.reduce<{ id: string; name: string }[]>((acc, p) => {
@@ -100,15 +99,14 @@ export default function AdminBrands() {
     });
   }, [brands, userFilter, search]);
 
-  // Group filtered brands
   const groupedFiltered = useMemo(() => {
-    const result: { groupName: string; groupId: string | null; brands: typeof brands }[] = [];
+    const result: { groupName: string; groupId: string | null; groupUserId: string | null; brands: typeof brands }[] = [];
     for (const g of groups) {
       const gb = filtered.filter((b) => b.campaign_id === g.id);
-      if (gb.length > 0) result.push({ groupName: g.name, groupId: g.id, brands: gb });
+      if (gb.length > 0) result.push({ groupName: g.name, groupId: g.id, groupUserId: g.user_id, brands: gb });
     }
     const ungrouped = filtered.filter((b) => !b.campaign_id);
-    if (ungrouped.length > 0) result.push({ groupName: "Ungrouped", groupId: null, brands: ungrouped });
+    if (ungrouped.length > 0) result.push({ groupName: "Ungrouped", groupId: null, groupUserId: null, brands: ungrouped });
     return result;
   }, [filtered, groups]);
 
@@ -116,29 +114,59 @@ export default function AdminBrands() {
     setExpandedGroups((prev) => ({ ...prev, [key]: prev[key] === false ? true : false }));
   };
 
+  // Get current owner for the transfer dialog
+  const currentOwnerId = transferTarget
+    ? transferTarget.type === "brand"
+      ? transferTarget.brand.user_id
+      : transferTarget.groupUserId ?? transferTarget.brands[0]?.user_id
+    : null;
+
   const handleTransfer = async () => {
-    if (!transferBrand || !targetUserId) return;
+    if (!transferTarget || !targetUserId) return;
     setTransferring(true);
     try {
-      const brandId = transferBrand.id;
-      const originalUserId = transferBrand.user_id;
+      if (transferTarget.type === "brand") {
+        const { id: brandId, user_id: originalUserId, name } = transferTarget.brand;
+        const { error } = await supabase.from("brands").update({ user_id: targetUserId }).eq("id", brandId);
+        if (error) throw error;
+        await supabase.from("brand_assets").update({ user_id: targetUserId }).eq("brand_id", brandId);
+        await supabase.from("generations").update({ user_id: targetUserId }).eq("brand_id", brandId);
+        log("brand.transferred", "brand", brandId, { from_user: originalUserId, to_user: targetUserId, brand_name: name });
+        toast.success(`"${name}" transferred to ${profileMap[targetUserId] || targetUserId.slice(0, 8)}`);
+      } else {
+        // Transfer entire group: campaign + all brands + assets + generations
+        const { groupId, groupName, brands: groupBrands } = transferTarget;
 
-      const { error: brandErr } = await supabase.from("brands").update({ user_id: targetUserId }).eq("id", brandId);
-      if (brandErr) throw brandErr;
+        // 1. Transfer the campaign itself
+        if (groupId) {
+          const { error } = await supabase.from("campaigns").update({ user_id: targetUserId }).eq("id", groupId);
+          if (error) throw error;
+        }
 
-      await supabase.from("brand_assets").update({ user_id: targetUserId }).eq("brand_id", brandId);
-      await supabase.from("generations").update({ user_id: targetUserId }).eq("brand_id", brandId);
+        // 2. Transfer all brands in the group
+        const brandIds = groupBrands.map((b) => b.id);
+        const originalUserId = groupBrands[0]?.user_id;
 
-      log("brand.transferred", "brand", brandId, {
-        from_user: originalUserId,
-        to_user: targetUserId,
-        brand_name: transferBrand.name,
-      });
+        for (const brandId of brandIds) {
+          await supabase.from("brands").update({ user_id: targetUserId }).eq("id", brandId);
+          await supabase.from("brand_assets").update({ user_id: targetUserId }).eq("brand_id", brandId);
+          await supabase.from("generations").update({ user_id: targetUserId }).eq("brand_id", brandId);
+        }
 
-      toast.success(`"${transferBrand.name}" transferred to ${profileMap[targetUserId] || targetUserId.slice(0, 8)}`);
-      setTransferBrand(null);
+        log("group.transferred", "campaign", groupId || "", {
+          from_user: originalUserId,
+          to_user: targetUserId,
+          group_name: groupName,
+          brand_count: brandIds.length,
+        });
+
+        toast.success(`Group "${groupName}" (${brandIds.length} brands) transferred to ${profileMap[targetUserId] || targetUserId.slice(0, 8)}`);
+      }
+
+      setTransferTarget(null);
       setTargetUserId("");
       queryClient.invalidateQueries({ queryKey: ["admin-all-brands"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-all-groups"] });
     } catch (err: any) {
       toast.error(err.message || "Transfer failed.");
     } finally {
@@ -151,11 +179,15 @@ export default function AdminBrands() {
   }
   if (!isAdmin) return <Navigate to="/" replace />;
 
+  const transferLabel = transferTarget?.type === "group"
+    ? `Transfer Group: ${transferTarget.groupName}`
+    : "Transfer Brand";
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">All Brands</h1>
-        <p className="text-muted-foreground mt-1">View and transfer brands across accounts.</p>
+        <p className="text-muted-foreground mt-1">View and transfer brands or entire groups across accounts.</p>
       </div>
 
       {/* Filters */}
@@ -200,14 +232,41 @@ export default function AdminBrands() {
             const isOpen = expandedGroups[key] !== false;
             return (
               <Collapsible key={key} open={isOpen} onOpenChange={() => toggleGroup(key)}>
-                <CollapsibleTrigger asChild>
-                  <button className="flex items-center gap-2 hover:bg-muted/50 rounded-lg px-2 py-1 transition-colors mb-2">
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-                    <Folder className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold">{group.groupName}</span>
-                    <span className="text-xs text-muted-foreground">({group.brands.length})</span>
-                  </button>
-                </CollapsibleTrigger>
+                <div className="flex items-center justify-between mb-2">
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center gap-2 hover:bg-muted/50 rounded-lg px-2 py-1 transition-colors">
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                      <Folder className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-semibold">{group.groupName}</span>
+                      <span className="text-xs text-muted-foreground">({group.brands.length})</span>
+                      {group.groupUserId && (
+                        <Badge variant="outline" className="text-[10px] ml-1">
+                          {profileMap[group.groupUserId] || group.groupUserId.slice(0, 8)}
+                        </Badge>
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  {group.groupId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 rounded-xl text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTransferTarget({
+                          type: "group",
+                          groupId: group.groupId!,
+                          groupName: group.groupName,
+                          brands: group.brands,
+                          groupUserId: group.groupUserId,
+                        } as TransferTarget & { groupUserId: string | null });
+                        setTargetUserId("");
+                      }}
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" /> Transfer Group
+                    </Button>
+                  )}
+                </div>
                 <CollapsibleContent>
                   <div className="grid gap-2">
                     {group.brands.map((brand) => (
@@ -240,7 +299,7 @@ export default function AdminBrands() {
                                 variant="outline"
                                 size="sm"
                                 className="gap-1.5 rounded-xl"
-                                onClick={() => { setTransferBrand(brand); setTargetUserId(""); }}
+                                onClick={() => { setTransferTarget({ type: "brand", brand }); setTargetUserId(""); }}
                               >
                                 <ArrowRightLeft className="h-3.5 w-3.5" /> Transfer
                               </Button>
@@ -258,18 +317,37 @@ export default function AdminBrands() {
       )}
 
       {/* Transfer dialog */}
-      <Dialog open={!!transferBrand} onOpenChange={(open) => !open && setTransferBrand(null)}>
+      <Dialog open={!!transferTarget} onOpenChange={(open) => !open && setTransferTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Transfer Brand</DialogTitle>
+            <DialogTitle>{transferLabel}</DialogTitle>
           </DialogHeader>
-          {transferBrand && (
+          {transferTarget && (
             <div className="space-y-4 mt-2">
               <div className="bg-muted rounded-lg p-3">
-                <p className="text-sm font-medium">{transferBrand.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Current owner: {profileMap[transferBrand.user_id] || transferBrand.user_id.slice(0, 8)}
-                </p>
+                {transferTarget.type === "brand" ? (
+                  <>
+                    <p className="text-sm font-medium">{transferTarget.brand.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Current owner: {profileMap[transferTarget.brand.user_id] || transferTarget.brand.user_id.slice(0, 8)}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Folder className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">{transferTarget.groupName}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {transferTarget.brands.length} brand{transferTarget.brands.length !== 1 ? "s" : ""}: {transferTarget.brands.map((b) => b.name).join(", ")}
+                    </p>
+                    {currentOwnerId && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current owner: {profileMap[currentOwnerId] || currentOwnerId.slice(0, 8)}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Transfer to:</p>
@@ -279,7 +357,7 @@ export default function AdminBrands() {
                   </SelectTrigger>
                   <SelectContent>
                     {profiles
-                      .filter((p) => p.user_id !== transferBrand.user_id)
+                      .filter((p) => p.user_id !== currentOwnerId)
                       .map((p) => (
                         <SelectItem key={p.user_id} value={p.user_id}>
                           {p.display_name || p.username || p.user_id.slice(0, 8)}
@@ -289,7 +367,9 @@ export default function AdminBrands() {
                 </Select>
               </div>
               <p className="text-xs text-muted-foreground">
-                This will transfer the brand, all its assets, and generation history. Credit usage stays with the original account.
+                {transferTarget.type === "group"
+                  ? "This will transfer the entire group, all its brands, assets, and generation history. Credit usage stays with the original account."
+                  : "This will transfer the brand, all its assets, and generation history. Credit usage stays with the original account."}
               </p>
               <Button
                 onClick={handleTransfer}

@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallback } from "react";
 
-type EntityType = "brand" | "group" | "generation" | "credit" | "user";
+type EntityType = "brand" | "group" | "campaign" | "generation" | "credit" | "user";
 type Action =
   | "brand.created"
   | "brand.updated"
@@ -12,6 +12,7 @@ type Action =
   | "group.created"
   | "group.renamed"
   | "group.deleted"
+  | "group.transferred"
   | "generation.started"
   | "generation.completed"
   | "generation.failed"
