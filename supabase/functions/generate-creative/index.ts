@@ -7,11 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const FORMAT_SPECS: Record<string, { width: number; height: number; label: string }> = {
-  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)" },
-  square: { width: 1080, height: 1080, label: "square (1080×1080)" },
-  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)" },
-  portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)" },
+const FORMAT_SPECS: Record<string, { width: number; height: number; label: string; aspectRatio: string }> = {
+  landscape: { width: 1920, height: 1080, label: "landscape (1920×1080)", aspectRatio: "16:9" },
+  square: { width: 1080, height: 1080, label: "square (1080×1080)", aspectRatio: "1:1" },
+  story: { width: 1080, height: 1920, label: "portrait/story (1080×1920)", aspectRatio: "9:16" },
+  portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)", aspectRatio: "4:5" },
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -774,7 +774,7 @@ function buildDirectivePrompt(
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
   // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}).
+  return `MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. The output image MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. Aspect ratio: ${aspectRatioLabel}. Do NOT use any other dimensions. IGNORE the dimensions of the reference image — output MUST be ${spec.width}x${spec.height}.
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
@@ -800,7 +800,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-Generate ${spec.width}×${spec.height} now.`;
+MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. Generate the image at exactly ${spec.width}x${spec.height} now.`;
 }
 
 function buildFallbackPrompt(
