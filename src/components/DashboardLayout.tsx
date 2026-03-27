@@ -7,9 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { CreditCard } from "lucide-react";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Dashboard",
+  "/": "The Magic",
   "/brands": "Brands",
-  "/studio": "The Magic",
+  "/dashboard": "Dashboard",
   "/history": "History",
   "/admin": "Admin Dashboard",
   "/admin/users": "Accounts",
