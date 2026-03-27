@@ -1,0 +1,1 @@
+UPDATE brands SET user_id = 'd3bf75d2-f536-4586-8429-236b602dd690' WHERE user_id = '5d43e092-2e30-44cd-979a-55a7e4de582d'; UPDATE brand_assets SET user_id = 'd3bf75d2-f536-4586-8429-236b602dd690' WHERE user_id = '5d43e092-2e30-44cd-979a-55a7e4de582d';
