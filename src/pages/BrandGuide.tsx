@@ -29,7 +29,7 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
         onClick={handleCopy}
         className="absolute top-2 right-2 h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+        {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
         <span className="text-[10px] ml-1">{copied ? "Copied" : "Copy"}</span>
       </Button>
     </div>
