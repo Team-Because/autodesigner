@@ -750,7 +750,7 @@ function buildDirectivePrompt(
   framework: Record<string, unknown>,
   brand: any,
   selectedAssets: any[],
-  spec: { width: number; height: number; label: string }
+  spec: { width: number; height: number; label: string; aspectRatio: string }
 ): string {
   const aspectRatioLabel =
     spec.width === spec.height
@@ -807,7 +807,7 @@ function buildFallbackPrompt(
   framework: Record<string, unknown>,
   brand: any,
   brandAssets: any[],
-  spec: { width: number; height: number; label: string }
+  spec: { width: number; height: number; label: string; aspectRatio: string }
 ): string {
   const extraColorsText =
     brand.extra_colors && Array.isArray(brand.extra_colors) && brand.extra_colors.length > 0
@@ -1001,7 +1001,7 @@ async function generateCreative(
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
-  spec: { width: number; height: number; label: string },
+  spec: { width: number; height: number; label: string; aspectRatio: string },
   apiKey: string,
   directive: CreativeDirective | null
 ): Promise<{ imageBase64: string; captionText: string }> {
@@ -1036,7 +1036,7 @@ async function generateCreative(
   const userContent: any[] = [
     {
       type: "text",
-      text: `Output MUST be ${spec.width}×${spec.height} pixels. All text from Creative Directive only.`,
+      text: `MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels (aspect ratio ${spec.aspectRatio}). IGNORE the dimensions of the reference image. The output MUST be ${spec.aspectRatio} aspect ratio, exactly ${spec.width}×${spec.height}px. All text from Creative Directive only.`,
     },
     {
       type: "text",
@@ -1120,6 +1120,7 @@ async function generateCreative(
             { role: "user", content: userContent },
           ],
           modalities: ["image", "text"],
+          aspect_ratio: spec.aspectRatio,
           size: `${spec.width}x${spec.height}`,
           image_size: { width: spec.width, height: spec.height },
         }),
