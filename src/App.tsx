@@ -37,11 +37,11 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Studio />} />
               <Route path="/brands" element={<BrandHub />} />
               <Route path="/brands/:id" element={<BrandForm />} />
               <Route path="/brands/:id/edit" element={<BrandForm />} />
-              <Route path="/studio" element={<Studio />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/history" element={<History />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsers />} />

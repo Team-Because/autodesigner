@@ -29,10 +29,10 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 const userItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "The Magic", url: "/", icon: Sparkles },
   { title: "Brands", url: "/brands", icon: Palette },
-  { title: "The Magic", url: "/studio", icon: Sparkles },
   { title: "History", url: "/history", icon: Clock },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
 ];
 
 const adminItems = [
