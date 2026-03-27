@@ -1,50 +1,62 @@
 
 
-# Fix Image Output Sizing
+# Brand Setup Guide — Built Into the App
 
-## Problem
-When users select a format (square, portrait, landscape, story), the generated images come back in random dimensions. The AI models ignore the pixel dimension instructions in the prompt and the non-standard `size`/`image_size` parameters.
+## What We're Building
 
-## Root Cause
-The Gemini image generation models do not respect `size` or `image_size` as API parameters — these are not part of the standard API. The dimension instructions in the prompt text are also frequently ignored by the model, especially when a reference image of a different aspect ratio is provided.
+A dedicated **Brand Setup Guide** page accessible from the sidebar (or as a help link from the Brand Form). This will be a comprehensive, well-structured reference page that walks users through every field in the brand form with examples, tips, and a ready-to-copy template — all styled consistently with the app.
 
-## Solution: Two-Layer Fix
+## Current State
 
-### Layer 1 — Pass `aspect_ratio` parameter
-Gemini image generation models support an `aspect_ratio` parameter (e.g., `"1:1"`, `"16:9"`, `"9:16"`, `"4:5"`). This is the standard way to control output dimensions. We already have `aspectRatio` in `FORMAT_SPECS` but never pass it in the API call.
+The Brand Form already has a collapsible "Best Practices" card at the top with 5 bullet tips. This is helpful but brief. The new guide will be a full standalone page with detailed, section-by-section instructions.
 
-**Change in `generateCreative` function** (~line 1116-1125):
-- Add `aspect_ratio: spec.aspectRatio` to the request body alongside `modalities`
-- Keep `size` as a fallback hint
+## Plan
 
-### Layer 2 — Post-generation resize using sharp-compatible Wasm
-After receiving the base64 image, decode it, check if the aspect ratio matches the target, and if not, resize/crop to the correct dimensions. Use `jsr:@aspect/image` or a lightweight PNG/JPEG decoder+encoder in Deno to:
-1. Decode the base64 image
-2. Calculate current vs target aspect ratio
-3. If mismatch > 5%, center-crop to correct ratio then scale to exact pixel dimensions
-4. Re-encode to base64
+### 1. Create `/brand-guide` page (`src/pages/BrandGuide.tsx`)
 
-If Wasm image processing is too complex for edge functions, an alternative is to use a second AI call with the resize model (`google/gemini-2.5-flash-image`) asking it to simply resize the output — but this doubles cost.
+A clean, editorial-style page with these sections:
 
-### Pragmatic Fallback — Canvas-free resize via re-generation prompt
-If the Wasm approach proves infeasible in Deno Deploy, we add a **validation + retry** step:
-1. After generation, make a lightweight vision call to check the output dimensions
-2. If wrong, retry with an even more forceful prompt that says "The previous output was WxH but MUST be WxH. Resize this image to exactly WxH pixels" with the generated image as input
+**Overview** — What the brand profile powers and why completeness matters
 
-## Technical Changes
+**Section-by-Section Walkthrough:**
 
-### File: `supabase/functions/generate-creative/index.ts`
+| Form Section | Guide Content |
+|---|---|
+| **Brand Name** | Naming conventions, short-form rules |
+| **Brand Assets** | What to upload, how to tag (Logo, Hero, Architecture, Product, etc.), why tagging matters |
+| **Color Palette** | Primary vs Secondary vs Extra colors, naming conventions, usage rules |
+| **Brand Brief — Identity** | What goes here: project name, location, developer, USPs, differentiators. Template provided |
+| **Brand Brief — Must-Include** | Mandatory text elements: RERA, contact, tagline, legal disclaimers. Template provided |
+| **Brand Brief — Visual Direction** | Mood, lighting, photography style, layout preferences, textures. Template provided |
+| **Brand Brief — Example Copy** | Sample headlines, CTAs, taglines for AI to reference |
+| **Tone & Target Audience** | Voice traits, demographic targeting, desired emotional response |
+| **The "Never" List** | Visual Nevers vs Content Nevers separation, examples |
 
-1. **API request body** (~line 1116): Add `aspect_ratio` field from `FORMAT_SPECS`
-2. **System prompt prefix** (~line 1008): Add an unambiguous first line: `"You MUST output an image with aspect ratio {X:Y}. The image dimensions MUST be {W}x{H} pixels."`
-3. **Post-generation resize step** (~line 1170): After extracting `imageBase64`, attempt to validate and resize if needed
-4. **Update `spec` type** throughout to include `aspectRatio: string`
+**Ready-to-Copy Template** — A complete fillable template users can copy-paste into each field, covering both real estate and general brand archetypes.
 
-### File: `src/pages/Studio.tsx`
-No changes needed — the frontend already passes the correct `outputFormat` string.
+**Pro Tips** — Data budget limits (2500/1500/1000 chars), markdown formatting, front-loading critical info.
 
-## Priority Order
-1. Add `aspect_ratio` to API call (quick, high impact)
-2. Strengthen prompt injection at system level (quick)
-3. Add post-generation resize (moderate effort, guarantees correctness)
+### 2. Add route in `src/App.tsx`
+
+Add `/brand-guide` route pointing to the new page.
+
+### 3. Add navigation entry
+
+- Add a subtle "Setup Guide" link in the sidebar under Brands (or as a secondary nav item)
+- Add a "View full guide →" link inside the existing Best Practices collapsible on the Brand Form
+
+### 4. Styling
+
+- Use the existing card/typography system
+- Collapsible sections for each form field so the page isn't overwhelming
+- Code blocks for template text that users can copy
+- Consistent with the app's dark theme and font system
+
+### Technical Details
+
+- Single new file: `src/pages/BrandGuide.tsx` (~300-400 lines)
+- Minor edits to `src/App.tsx` (add route)
+- Minor edits to `src/components/AppSidebar.tsx` (add nav link)
+- Minor edit to `src/pages/BrandForm.tsx` (add "View full guide" link in the Best Practices card)
+- No database changes needed
 
