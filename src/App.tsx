@@ -16,6 +16,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminBrands from "@/pages/AdminBrands";
 import AdminLogs from "@/pages/AdminLogs";
 import AdminHistory from "@/pages/AdminHistory";
+import BrandGuide from "@/pages/BrandGuide";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/" element={<Studio />} />
               <Route path="/brands" element={<BrandHub />} />
               <Route path="/brands/:id" element={<BrandForm />} />
+              <Route path="/brand-guide" element={<BrandGuide />} />
               <Route path="/brands/:id/edit" element={<BrandForm />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/history" element={<History />} />

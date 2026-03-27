@@ -14,7 +14,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check } from "lucide-react";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Select,
@@ -355,6 +356,11 @@ export default function BrandForm() {
                     <p className="text-muted-foreground text-xs mt-0.5">In "Tone & Audience", include age range, psychographics, and the desired emotional response. E.g., "Affluent homebuyers (35-55) seeking low-density luxury living — tone should feel grounded, premium, and nature-led."</p>
                   </div>
                 </div>
+              </div>
+              <div className="pt-3 border-t border-border/50">
+                <Link to="/brand-guide" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                  <ExternalLink className="h-3 w-3" /> View the full Brand Setup Guide with templates
+                </Link>
               </div>
             </CardContent>
           </CollapsibleContent>
