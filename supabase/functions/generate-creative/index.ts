@@ -1001,7 +1001,7 @@ async function generateCreative(
   brand: any,
   brandAssets: any[],
   referenceImageUrl: string,
-  spec: { width: number; height: number; label: string },
+  spec: { width: number; height: number; label: string; aspectRatio: string },
   apiKey: string,
   directive: CreativeDirective | null
 ): Promise<{ imageBase64: string; captionText: string }> {
