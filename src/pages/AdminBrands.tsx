@@ -33,7 +33,7 @@ import { toast } from "sonner";
 
 type TransferTarget =
   | { type: "brand"; brand: any }
-  | { type: "group"; groupId: string; groupName: string; brands: any[] };
+  | { type: "group"; groupId: string; groupName: string; brands: any[]; groupUserId: string | null };
 
 export default function AdminBrands() {
   const { user } = useAuth();

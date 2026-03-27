@@ -12,6 +12,7 @@ type Action =
   | "group.created"
   | "group.renamed"
   | "group.deleted"
+  | "group.transferred"
   | "generation.started"
   | "generation.completed"
   | "generation.failed"
