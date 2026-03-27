@@ -1,34 +1,50 @@
 
 
-# Set Up Tata IIS Brand
+# Fix Image Output Sizing
 
-## What Will Be Done
+## Problem
+When users select a format (square, portrait, landscape, story), the generated images come back in random dimensions. The AI models ignore the pixel dimension instructions in the prompt and the non-standard `size`/`image_size` parameters.
 
-Create a **Tata IIS** campaign group under the **Because Education** account, then insert a single **Tata Indian Institute of Skills** brand with the full structured brief.
+## Root Cause
+The Gemini image generation models do not respect `size` or `image_size` as API parameters — these are not part of the standard API. The dimension instructions in the prompt text are also frequently ignored by the model, especially when a reference image of a different aspect ratio is provided.
 
-## Data Operations (via insert tool)
+## Solution: Two-Layer Fix
 
-### 1. Create Campaign
-Insert into `campaigns`:
-- **name**: `Tata IIS`
-- **user_id**: `d3bf75d2-f536-4586-8429-236b602dd690` (Because Education)
+### Layer 1 — Pass `aspect_ratio` parameter
+Gemini image generation models support an `aspect_ratio` parameter (e.g., `"1:1"`, `"16:9"`, `"9:16"`, `"4:5"`). This is the standard way to control output dimensions. We already have `aspectRatio` in `FORMAT_SPECS` but never pass it in the API call.
 
-### 2. Create Brand
-Insert into `brands` with the new campaign_id:
+**Change in `generateCreative` function** (~line 1116-1125):
+- Add `aspect_ratio: spec.aspectRatio` to the request body alongside `modalities`
+- Keep `size` as a fallback hint
 
-| Field | Value |
-|---|---|
-| **name** | Tata Indian Institute of Skills |
-| **primary_color** | `#3A7DDA` (Tata Blue) |
-| **secondary_color** | `#272727` (Steel Grey) |
-| **extra_colors** | `#0F385A` (Dark Tata Blue), `#3E7B9A` (Teal Grey), `#FFEC00` (Education Yellow), `#00A8B6` (Accent Teal), `#FFFFFF` (White) |
-| **brand_brief** | Sections A + B + E mapped to: Brand Identity (vocational STEM, 70% practical, Tata legacy, IIS Mumbai & Ahmedabad), Must-Include Elements (Tata IIS branding, tagline, CTAs, hashtags, eligibility/duration), Visual Direction (industrial-clean mood, cool lab lighting, real trainees in PPE, structured grid layouts, Tata Blue logo top-left) |
-| **brand_voice_rules** | Voice traits (Empowering, Professional, Future-focused), messaging pillars (Industry 4.0, hands-on learning, inclusive career growth), target audience (youth 18-27, parents, working professionals), DO's from Section F |
-| **negative_prompts** | Visual Nevers (never stretch/recolor Tata logo, no busy backgrounds, no low-res machinery), Content Nevers (no "guaranteed placement", no "100% jobs", no high-pressure tactics, no omitting Tata branding) |
+### Layer 2 — Post-generation resize using sharp-compatible Wasm
+After receiving the base64 image, decode it, check if the aspect ratio matches the target, and if not, resize/crop to the correct dimensions. Use `jsr:@aspect/image` or a lightweight PNG/JPEG decoder+encoder in Deno to:
+1. Decode the base64 image
+2. Calculate current vs target aspect ratio
+3. If mismatch > 5%, center-crop to correct ratio then scale to exact pixel dimensions
+4. Re-encode to base64
 
-### Asset Uploads
-No image uploads in this step — user will need to upload logo files, campus photos, and lab imagery separately and tag them (Logo, Architecture, Lifestyle, Icon).
+If Wasm image processing is too complex for edge functions, an alternative is to use a second AI call with the resize model (`google/gemini-2.5-flash-image`) asking it to simply resize the output — but this doubles cost.
 
-## No Code Changes Required
-This is a data-only operation using the existing brand schema.
+### Pragmatic Fallback — Canvas-free resize via re-generation prompt
+If the Wasm approach proves infeasible in Deno Deploy, we add a **validation + retry** step:
+1. After generation, make a lightweight vision call to check the output dimensions
+2. If wrong, retry with an even more forceful prompt that says "The previous output was WxH but MUST be WxH. Resize this image to exactly WxH pixels" with the generated image as input
+
+## Technical Changes
+
+### File: `supabase/functions/generate-creative/index.ts`
+
+1. **API request body** (~line 1116): Add `aspect_ratio` field from `FORMAT_SPECS`
+2. **System prompt prefix** (~line 1008): Add an unambiguous first line: `"You MUST output an image with aspect ratio {X:Y}. The image dimensions MUST be {W}x{H} pixels."`
+3. **Post-generation resize step** (~line 1170): After extracting `imageBase64`, attempt to validate and resize if needed
+4. **Update `spec` type** throughout to include `aspectRatio: string`
+
+### File: `src/pages/Studio.tsx`
+No changes needed — the frontend already passes the correct `outputFormat` string.
+
+## Priority Order
+1. Add `aspect_ratio` to API call (quick, high impact)
+2. Strengthen prompt injection at system level (quick)
+3. Add post-generation resize (moderate effort, guarantees correctness)
 
