@@ -1246,7 +1246,25 @@ serve(async (req) => {
     }
 
     const brand = brandRes.data;
-    const brandAssets = assetsRes.data || [];
+    const SUPPORTED_IMAGE_EXTS = /\.(png|jpe?g|webp|gif)(\?.*)?$/i;
+    const brandAssets = (assetsRes.data || []).filter((a: any) => {
+      if (!a.image_url) return false;
+      // Extract pathname (ignore query params) and check extension
+      try {
+        const pathname = new URL(a.image_url).pathname;
+        if (!SUPPORTED_IMAGE_EXTS.test(pathname)) {
+          console.warn(`Skipping unsupported image format: ${pathname}`);
+          return false;
+        }
+      } catch {
+        // If URL parsing fails, check the raw string
+        if (!SUPPORTED_IMAGE_EXTS.test(a.image_url)) {
+          console.warn(`Skipping unsupported image format: ${a.image_url}`);
+          return false;
+        }
+      }
+      return true;
+    });
 
     const generationRes = generationId
       ? await supabase
