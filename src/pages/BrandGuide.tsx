@@ -79,149 +79,156 @@ function Section({
   );
 }
 
-const FULL_PROMPT = `# Brand Setup Guide — Full Prompt Template
+const FULL_PROMPT = `# 🚀 Brand Setup Power Prompt — AI Creative System
 
-Use this prompt with any LLM to optimize your brand setup for the AI creative generation system.
+You are a brand strategist and prompt engineer. Your job is to help me structure my raw brand information into a perfectly optimized brand profile for an AI creative generation system.
+
+## How This Works
+
+I will provide you with raw, unstructured information about my brand — documents, notes, bullet points, images descriptions, whatever I have. Your job is to:
+
+1. **Ask me at least 10-15 clarifying questions** before writing anything. Don't assume — ask. The more context you extract from me, the better the output.
+2. **Organize my raw data** into the structured format below.
+3. **Fill gaps** — if I'm missing critical information, tell me what's missing and why it matters.
+4. **Be specific, not vague** — "Warm golden-hour lighting with visible sky at 60% frame" is 10x better than "make it look nice." Push me for specifics.
+5. **Front-load critical info** in every section — the AI system prioritizes content that appears first.
+6. **Use markdown headers (##)** — the AI parses these to separate different types of instructions.
+7. **Stay within character limits** — each section has a budget. Be concise but complete.
 
 ---
 
-## BRAND NAME
-Keep it concise. Use the official brand name, not abbreviations. Include the project/product name if applicable (e.g., "ANANTARA ALORA"). Avoid taglines or descriptions here.
+## 🔍 Before You Start — Questions to Ask Me
 
-## BRAND ASSETS
-Upload all visual materials the AI should reference. Tagging is critical — it tells the AI how to use each image.
-- Logo: Primary logo — preserved exactly, never altered
-- Hero Image: Key visual that sets the creative mood
-- Architecture: Building renders, elevations, exteriors
-- Lifestyle: People, aspirational scenes, amenity shots
-- Product: Product photos, close-ups, detail shots
-- Masterplan: Site layouts, floor plans, maps
-- Mascot: Brand character or illustrated figure
-- Pattern/Texture: Backgrounds, brand patterns, textures
+These are the kinds of questions you should ask (adapt to my brand type):
 
-Upload at least a Logo and one Hero Image for best results.
+**Identity & Positioning:**
+- What exactly does your brand do in one sentence?
+- Who is your primary competitor and how are you different?
+- What's the one thing people should remember about your brand?
+- What's your price positioning — luxury, premium, mid, value?
 
-## COLOR PALETTE
-- Primary Color: Your dominant brand color — used for headlines, CTAs, key elements
-- Secondary Color: Supporting color — used for backgrounds, accents, secondary elements
-- Extra Colors: Add accent, text, background, and CTA colors with descriptive names including usage notes (e.g., "Gold — headings only", "Dark Charcoal — body text")
+**Visual Language:**
+- Do you have existing creatives I can reference? What do you like/dislike about them?
+- What brands (even outside your industry) have the visual style you admire?
+- Are there specific colors, textures, or materials that define your brand?
+- Do you prefer minimal layouts or content-rich designs?
 
-## BRAND BRIEF — IDENTITY (~800 chars)
-This is the who, what, where of your brand.
+**Voice & Messaging:**
+- If your brand were a person, how would they speak?
+- What words do you NEVER want associated with your brand?
+- What's the emotional reaction you want when someone sees your creative?
+- Do you have existing taglines, headlines, or copy that works well?
 
-### Template — Real Estate
+**Practical Requirements:**
+- What legal/compliance text MUST appear on every creative?
+- What contact information is mandatory?
+- Are there specific logo placement rules or brand guidelines?
+- What formats will these creatives be used for (social, print, outdoor)?
+
+---
+
+## 📋 Output Format — Fill Each Section
+
+### BRAND NAME
+Keep it concise. Official brand name only. No taglines or descriptions here.
+
+### BRAND ASSETS GUIDE
+List what images/assets you have and how each should be tagged:
+- **Logo**: Primary logo — preserved exactly, never altered
+- **Hero Image**: Key visual that sets the creative mood
+- **Architecture**: Building renders, elevations, exteriors
+- **Lifestyle**: People, aspirational scenes, amenity shots
+- **Product**: Product photos, close-ups, detail shots
+- **Masterplan**: Site layouts, floor plans, maps
+- **Mascot**: Brand character or illustrated figure
+- **Pattern/Texture**: Backgrounds, brand patterns, textures
+- **Style Reference**: Design language examples showing desired aesthetic
+
+Minimum: Logo + 1 Hero Image. More tagged assets = better results.
+
+### COLOR PALETTE
+- **Primary Color**: Dominant brand color (hex) — used for headlines, CTAs, key elements
+- **Secondary Color**: Supporting color (hex) — used for backgrounds, accents
+- **Extra Colors**: List each with hex code AND usage note (e.g., "Gold #D4AF37 — headings only", "Charcoal #333333 — body text on light backgrounds")
+
+### BRAND BRIEF — IDENTITY (~800 chars max)
+
 \`\`\`
 ## BRAND IDENTITY
 
-Brand Name: [PROJECT NAME]
-Developer: [DEVELOPER NAME] | [Tagline]
-Location: [Area], [City]
+Brand Name: [PROJECT/BRAND NAME]
+Developer/Company: [COMPANY NAME] | [Tagline]
+Location: [Area], [City] (if applicable)
 
 What We Do:
-- [Key offering 1, e.g., "Luxury 3 BHK Residences from 2,594 sq.ft"]
-- [Key offering 2, e.g., "Exclusive 4 BHK Penthouses from 5,116 sq.ft"]
-- [Key offering 3, e.g., "Pet-friendly community with curated lifestyle"]
-- [Amenities, e.g., "Pool, Gymnasium, Kids play area"]
-- [Status, e.g., "Show apartment ready for viewing"]
+- [Key offering 1 with specific details — sizes, prices, quantities]
+- [Key offering 2]
+- [Key offering 3]
 
-Differentiators:
-- [USP 1, e.g., "Largest 3 BHK in the area — 2,594 sq.ft"]
-- [USP 2, e.g., "Only developer with X certification"]
-- [USP 3, e.g., "Zero additional costs — No Stamp Duty, No GST"]
+Differentiators (be brutally specific):
+- [USP 1 with proof point, e.g., "Largest 3 BHK in Science Park — 2,594 sq.ft"]
+- [USP 2 with proof point]
+- [USP 3 with proof point]
 \`\`\`
 
-### Template — Product / Consumer Brand
-\`\`\`
-## BRAND IDENTITY
+### BRAND BRIEF — MUST-INCLUDE ELEMENTS (~600 chars max)
+Mandatory text that MUST appear on every creative. The AI treats these as non-negotiable.
 
-Brand Name: [BRAND NAME]
-Tagline: "[Your tagline]"
-
-What We Do:
-- [Core product/service 1]
-- [Core product/service 2]
-- [Distribution: B2B / B2C / both]
-
-Differentiators:
-- [USP 1, e.g., "In-house manufacturing, end-to-end quality control"]
-- [USP 2, e.g., "Category trendsetters, not just manufacturers"]
-- [Market position, e.g., "#1 in Bihar for stainless steel cutlery"]
-\`\`\`
-
-## BRAND BRIEF — MUST-INCLUDE ELEMENTS (~600 chars)
-Mandatory text that must appear on every creative.
-
-### Template — Real Estate
 \`\`\`
 ## MUST-INCLUDE ELEMENTS
 
-- Project Name: [PROJECT NAME] — always prominent
-- Developer: [Developer Name] with logo
+- Brand/Project Name: [NAME] — always prominent
 - Tagline: "[Your tagline]"
-- RERA: [RERA NUMBER] | [RERA website]
-- Contact: [PHONE NUMBER]
-- Location: [Full address / landmark]
-- Legal: "T&C Apply" in footer
-- Amenity mentions: [Pool, Gym, etc. — lifestyle selling points]
+- Contact: [Phone / Website / Social]
+- Legal: [RERA number, certifications, "T&C Apply", etc.]
+- Location: [Full address or landmark]
+- [Any other mandatory elements]
 \`\`\`
 
-### Template — Product Brand
-\`\`\`
-## MUST-INCLUDE ELEMENTS
-
-- Brand Name: [BRAND NAME] — always prominent
-- Tagline: "[Your tagline]"
-- Contact: [Phone / Website / Social handle]
-- Certifications: [ISO, BIS, etc.]
-- Product range mention: [e.g., "Available in 50+ designs"]
-\`\`\`
-
-## BRAND BRIEF — VISUAL DIRECTION (~600 chars)
-Tell the AI how creatives should look.
+### BRAND BRIEF — VISUAL DIRECTION (~600 chars max)
+Tell the AI exactly how creatives should look. Be hyper-specific.
 
 \`\`\`
 ## VISUAL DIRECTION
 
-Photography Style:
-- [e.g., "Warm golden-hour lighting, natural tones"]
-- [e.g., "Wide-angle architectural shots showing scale"]
-- [e.g., "Lifestyle shots with aspirational families"]
+Photography/Visual Style:
+- [e.g., "Warm golden-hour lighting, natural tones, visible sky"]
+- [e.g., "Wide-angle shots showing full building scale"]
+- [e.g., "100% graphic/typographic — zero photography" for graphic brands]
 
 Layout & Composition:
-- [e.g., "Clean, minimal layouts — generous white space"]
-- [e.g., "Building renders at 60% frame, sky visible"]
-- [e.g., "Logo top-left, CTA bottom-right, contact in footer"]
+- [e.g., "Clean minimal — 40% text / 60% visual split"]
+- [e.g., "Logo top-left, CTA bottom-right, contact in footer band"]
+- [e.g., "Text always on solid color blocks, never over images"]
 
 Textures & Materials:
-- [e.g., "Subtle marble or concrete textures as overlays"]
-- [e.g., "Premium matte finishes, avoid glossy effects"]
+- [e.g., "Subtle marble textures as overlays"]
+- [e.g., "Geometric patterns with brand colors"]
 
 Mood:
 - [e.g., "Serene, premium, nature-led — not flashy or aggressive"]
 \`\`\`
 
-## BRAND BRIEF — EXAMPLE COPY (~500 chars)
-Give the AI sample headlines, CTAs, and taglines to learn your voice.
+### BRAND BRIEF — EXAMPLE COPY (~500 chars max)
+Give the AI sample headlines, CTAs, and taglines so it learns your voice.
 
 \`\`\`
 ## EXAMPLE COPY
 
 Headlines:
-- "[e.g., Where Nature Meets Luxury]"
-- "[e.g., The Largest 3 BHK in Science Park]"
-- "[e.g., Live the Life You Deserve]"
+- "[Actual headline you've used or want]"
+- "[Another headline example]"
 
 Subtext:
-- "[e.g., Spacious residences designed for modern families]"
-- "[e.g., Premium amenities. Uncompromised privacy.]"
+- "[Supporting copy example]"
+- "[Another subtext example]"
 
 CTAs:
 - "[e.g., Book Your Private Viewing]"
-- "[e.g., Visit the Show Apartment Today]"
-- "[e.g., Call 8306 333 777]"
+- "[e.g., Visit Us Today]"
 \`\`\`
 
-## TONE & TARGET AUDIENCE (~1500 chars)
+### TONE & TARGET AUDIENCE (~1500 chars max)
 
 \`\`\`
 ## TONE & VOICE
@@ -229,59 +236,80 @@ CTAs:
 Voice Traits:
 - [e.g., "Confident but not arrogant"]
 - [e.g., "Premium and aspirational, never salesy"]
-- [e.g., "Warm and inviting, grounded in nature"]
 
-Language Style:
-- [e.g., "Use 'curated' not 'selected', 'residences' not 'flats'"]
-- [e.g., "Short, impactful sentences — max 12 words per line"]
+Language Rules:
+- [e.g., "Use 'residences' not 'flats', 'curated' not 'selected'"]
+- [e.g., "Short sentences — max 12 words per line"]
+- [e.g., "Always use 'Hunt' terminology, never 'Competition'"]
 
 ## TARGET AUDIENCE
 
 Demographics:
-- [e.g., "Affluent homebuyers, 35-55 years"]
-- [e.g., "HNI families upgrading from 2 BHK to 3/4 BHK"]
+- [e.g., "Affluent homebuyers, 35-55 years, HNI families"]
 
 Psychographics:
 - [e.g., "Value privacy, open spaces, and nature"]
-- [e.g., "Pet owners seeking pet-friendly communities"]
 
 Desired Emotional Response:
-- [e.g., "Feel that this is THE premium choice in the area"]
-- [e.g., "Sense of exclusivity and belonging"]
+- [e.g., "Feel this is THE premium choice in the area"]
 \`\`\`
 
-## THE NEVER LIST (~1000 chars)
-Split into two clear categories.
+### THE NEVER LIST (~1000 chars max)
+Split into two clear categories — this is critical for avoiding bad outputs.
 
 \`\`\`
 ## VISUAL NEVERS
 
 - Never distort or crop the logo
-- Never alter building render proportions or colors
 - Never use stock photography — only uploaded brand assets
-- Never use dark/moody color schemes
-- Never place text over the building render's key features
-- Never use gradients that clash with brand palette
+- Never [your specific visual constraint]
+- Never [another visual constraint]
 
 ## CONTENT NEVERS
 
 - Never use the word "cheap", "affordable", or "budget"
 - Never use fear-based urgency ("Hurry!", "Last chance!")
-- Never make unverifiable ROI or rental return claims
-- Never omit [RERA number / legal disclaimers]
-- Never omit contact number [PHONE]
-- Never omit location [ADDRESS]
-- Never position as mid-segment or value housing
-- Never use ALL CAPS for body text (headlines OK)
+- Never omit [mandatory legal/contact info]
+- Never [your specific content constraint]
 \`\`\`
 
-## PRO TIPS
-1. Front-load critical info — the AI prioritises content that appears first in each field
-2. Use markdown headers (##) — the AI parses these to separate visual from textual constraints
-3. Be specific, not vague — "Warm golden-hour lighting with visible sky" beats "make it look nice"
-4. Tag every asset — an untagged image is harder for the AI to use correctly
-5. Test with a generation — after setup, run a test generation and refine based on output
-6. Separate Visual from Content rules — use ## VISUAL NEVERS and ## CONTENT NEVERS headers
+---
+
+## ⚡ Prompting Best Practices (for optimal AI creative results)
+
+1. **Front-load critical info** — The AI prioritizes content that appears first in each field. Put the most important instruction at the top.
+2. **Be specific over vague** — "3D chevron pattern in Crimson #C0001A at 45° angle" beats "use brand patterns." Specificity = accuracy.
+3. **Use ## headers liberally** — The AI uses markdown headers to parse and categorize your instructions. Structure = clarity.
+4. **Separate visual from content rules** — Always use ## VISUAL NEVERS and ## CONTENT NEVERS as distinct sections. Mixed rules confuse the AI.
+5. **Tag every asset** — An untagged image is harder for the AI to use correctly. Always label: Logo, Hero, Architecture, Lifestyle, Product, Pattern, Style Reference.
+6. **Include negative examples** — Saying what you DON'T want is as important as what you do. "Never use dark moody tones" is clearer than "keep it bright."
+7. **Give real copy examples** — Don't describe your tone abstractly. Show 3-5 actual headlines/CTAs the AI can pattern-match against.
+8. **One brand = one visual system** — If your brand has very different visual needs (e.g., interior vs exterior shots), consider splitting into separate brand profiles for each.
+9. **Test and iterate** — After setup, generate a test creative immediately. Refine your brief based on what the AI gets wrong.
+10. **Respect character limits** — Each field has a budget (800/600/500/1500/1000 chars). Being concise forces clarity. If you can't fit it, you're not being specific enough.
+11. **Describe color relationships** — Don't just list hex codes. Say how colors interact: "Crimson headlines on Yellow highlight boxes" or "White text on dark gradient overlay."
+12. **Reference spatial relationships** — "Logo at 10% from top-left corner" is better than "logo in the corner." Be precise about placement.
+
+---
+
+## 📌 Final Checklist Before Submitting
+
+- [ ] Brand name is clean and official (no taglines mixed in)
+- [ ] At least Logo + 1 Hero Image uploaded and tagged
+- [ ] Primary and secondary colors set with hex codes
+- [ ] Identity section has specific differentiators with proof points
+- [ ] Must-include elements cover ALL legal/compliance requirements
+- [ ] Visual direction describes lighting, layout, textures, and mood
+- [ ] Example copy has 3+ real headlines and 2+ CTAs
+- [ ] Tone section defines voice traits AND language rules
+- [ ] Target audience includes demographics AND psychographics
+- [ ] Never list is split into Visual Nevers and Content Nevers
+- [ ] All sections are within character limits
+- [ ] You've run a test generation and refined based on output
+
+---
+
+Now give me your raw brand information — documents, notes, bullet points, images, anything you have. I'll ask you detailed questions to extract everything needed, then structure it perfectly for the system.
 `;
 
 export default function BrandGuide() {
