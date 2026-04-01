@@ -584,9 +584,8 @@ export default function BrandForm() {
                 placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className="text-xs text-muted-foreground">{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+              <p className={`text-xs ${briefCopy.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefCopy.length}/600 recommended — Sample headlines, CTAs, taglines the AI can use or adapt</p>
             </div>
           </CardContent>
         </Card>
