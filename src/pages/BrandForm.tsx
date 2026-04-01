@@ -545,9 +545,8 @@ export default function BrandForm() {
                 placeholder="Project name, location, developer, USP, key differentiators..."
                 rows={4}
                 className="text-sm"
-                maxLength={800}
               />
-              <p className="text-xs text-muted-foreground">{briefIdentity.length}/800 — Project name, location, developer, USP</p>
+              <p className={`text-xs ${briefIdentity.length > 800 ? "text-amber-500" : "text-muted-foreground"}`}>{briefIdentity.length}/800 recommended — Project name, location, developer, USP</p>
             </div>
 
             <div className="space-y-2">
@@ -559,9 +558,8 @@ export default function BrandForm() {
                 placeholder="RERA number, contact info, tagline, legal text, website URL..."
                 rows={3}
                 className="text-sm"
-                maxLength={500}
               />
-              <p className="text-xs text-muted-foreground">{briefMandatory.length}/500 — RERA, contact, tagline, legal text</p>
+              <p className={`text-xs ${briefMandatory.length > 500 ? "text-amber-500" : "text-muted-foreground"}`}>{briefMandatory.length}/500 recommended — RERA, contact, tagline, legal text</p>
             </div>
 
             <div className="space-y-2">
@@ -573,9 +571,8 @@ export default function BrandForm() {
                 placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className="text-xs text-muted-foreground">{briefVisual.length}/600 — Mood, lighting, photography style, layout preferences</p>
+              <p className={`text-xs ${briefVisual.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefVisual.length}/600 recommended — Mood, lighting, photography style, layout preferences</p>
             </div>
 
             <div className="space-y-2">
@@ -587,9 +584,8 @@ export default function BrandForm() {
                 placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className="text-xs text-muted-foreground">{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+              <p className={`text-xs ${briefCopy.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefCopy.length}/600 recommended — Sample headlines, CTAs, taglines the AI can use or adapt</p>
             </div>
           </CardContent>
         </Card>
