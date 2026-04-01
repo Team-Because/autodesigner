@@ -223,7 +223,7 @@ export default function Studio() {
         }
         fnData = response?.data;
         fnError = response?.error;
-        fnError = response.error;
+        
         if (!fnError) break;
 
         let errorMessage = fnError.message || "Generation failed";
