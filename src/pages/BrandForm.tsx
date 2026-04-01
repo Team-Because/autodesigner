@@ -558,9 +558,8 @@ export default function BrandForm() {
                 placeholder="RERA number, contact info, tagline, legal text, website URL..."
                 rows={3}
                 className="text-sm"
-                maxLength={500}
               />
-              <p className="text-xs text-muted-foreground">{briefMandatory.length}/500 — RERA, contact, tagline, legal text</p>
+              <p className={`text-xs ${briefMandatory.length > 500 ? "text-amber-500" : "text-muted-foreground"}`}>{briefMandatory.length}/500 recommended — RERA, contact, tagline, legal text</p>
             </div>
 
             <div className="space-y-2">
