@@ -209,9 +209,18 @@ export default function Studio() {
       const maxInvokeAttempts = 3;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
-        const response = await supabase.functions.invoke("generate-creative", {
-          body: { brandId: selectedBrandId, referenceImageUrl: refUrlData.publicUrl, generationId: gen.id, outputFormat },
-        });
+        // Use a 3-minute timeout — generation can take 30-90 seconds
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 180000);
+        let response;
+        try {
+          response = await supabase.functions.invoke("generate-creative", {
+            body: { brandId: selectedBrandId, referenceImageUrl: refUrlData.publicUrl, generationId: gen.id, outputFormat },
+            signal: abortController.signal as AbortSignal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
         fnData = response.data;
         fnError = response.error;
         if (!fnError) break;
