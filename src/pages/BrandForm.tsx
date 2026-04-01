@@ -545,9 +545,8 @@ export default function BrandForm() {
                 placeholder="Project name, location, developer, USP, key differentiators..."
                 rows={4}
                 className="text-sm"
-                maxLength={800}
               />
-              <p className="text-xs text-muted-foreground">{briefIdentity.length}/800 — Project name, location, developer, USP</p>
+              <p className={`text-xs ${briefIdentity.length > 800 ? "text-amber-500" : "text-muted-foreground"}`}>{briefIdentity.length}/800 recommended — Project name, location, developer, USP</p>
             </div>
 
             <div className="space-y-2">
