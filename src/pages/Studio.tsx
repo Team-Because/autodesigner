@@ -221,7 +221,8 @@ export default function Studio() {
         } finally {
           clearTimeout(timeoutId);
         }
-        fnData = response.data;
+        fnData = response?.data;
+        fnError = response?.error;
         fnError = response.error;
         if (!fnError) break;
 
