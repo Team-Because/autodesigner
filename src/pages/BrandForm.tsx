@@ -571,9 +571,8 @@ export default function BrandForm() {
                 placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className="text-xs text-muted-foreground">{briefVisual.length}/600 — Mood, lighting, photography style, layout preferences</p>
+              <p className={`text-xs ${briefVisual.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefVisual.length}/600 recommended — Mood, lighting, photography style, layout preferences</p>
             </div>
 
             <div className="space-y-2">
