@@ -411,6 +411,9 @@ Example of RIGHT composition note: "Information strip with 3-4 short data points
   if (!analyzeResponse.ok) {
     const errText = await analyzeResponse.text();
     console.error("Framework analysis error:", analyzeResponse.status, errText);
+    if (analyzeResponse.status === 402) {
+      throw new Error("CREDITS_EXHAUSTED");
+    }
     throw new Error(`Framework analysis failed (${analyzeResponse.status})`);
   }
 
