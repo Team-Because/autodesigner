@@ -1305,9 +1305,14 @@ serve(async (req) => {
       } catch (err) {
         console.error("Framework analysis failed:", err);
         await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+        const isCredits = err instanceof Error && err.message === "CREDITS_EXHAUSTED";
         return new Response(
-          JSON.stringify({ error: "Failed to analyze reference image layout" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            error: isCredits
+              ? "AI generation credits exhausted. Please contact your admin to add more credits."
+              : "Failed to analyze reference image layout",
+          }),
+          { status: isCredits ? 402 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
