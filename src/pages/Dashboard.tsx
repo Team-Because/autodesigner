@@ -2,10 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CreditCard, TrendingUp, Palette, Sparkles, Download } from "lucide-react";
+import { CreditCard, TrendingUp, Palette, Sparkles, Download, Chrome, MonitorDown, Puzzle, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 export default function Dashboard() {
