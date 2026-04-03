@@ -176,6 +176,18 @@ select:focus { border-color: #6366F1; }
 .progress-text {
   font-size: 13px;
   color: #A1A1AA;
+  margin-bottom: 12px;
+}
+
+.safe-close-hint {
+  font-size: 12px;
+  color: #4ADE80;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 4px;
+  line-height: 1.6;
 }
 
 /* Result */
@@ -192,8 +204,47 @@ select:focus { border-color: #6366F1; }
 .result-actions {
   display: flex;
   gap: 8px;
+  margin-bottom: 10px;
 }
 .result-actions button { flex: 1; }
+
+.success-banner {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #4ADE80;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.history-link {
+  display: inline-block;
+  color: #8B5CF6;
+  font-size: 12px;
+  text-decoration: none;
+  padding: 4px 0;
+}
+.history-link:hover {
+  text-decoration: underline;
+  color: #A78BFA;
+}
+
+/* Error result */
+.error-result {
+  text-align: center;
+  padding: 24px 0;
+}
+.error-result .error-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+.error-result p {
+  color: #FCA5A5;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
 
 /* Error */
 .error-msg {
@@ -214,22 +265,3 @@ select:focus { border-color: #6366F1; }
 }
 .no-image .icon { font-size: 32px; margin-bottom: 8px; }
 .no-image p { font-size: 13px; }
-
-/* Status badge */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 12px;
-}
-.status-badge.connected { background: rgba(34,197,94,0.1); color: #4ADE80; }
-.status-badge .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}

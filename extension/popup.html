@@ -82,17 +82,32 @@
         <div class="progress-container">
           <div class="spinner"></div>
           <div class="progress-text">Generating your creative…<br>This may take up to 60 seconds.</div>
+          <div class="safe-close-hint">
+            ✅ You can safely close this popup.<br>
+            We'll send you a notification when it's ready!
+          </div>
         </div>
       </div>
 
       <!-- Result state -->
       <div id="result-state" style="display:none">
         <div class="result-section">
+          <div class="success-banner">🎉 Creative generated successfully!</div>
           <img id="result-image" class="result-image" src="" alt="Generated creative">
           <div class="result-actions">
             <button class="btn-primary" id="download-btn">⬇ Download</button>
             <button class="btn-secondary" id="new-btn">New</button>
           </div>
+          <a href="#" class="history-link" id="history-link">View in History →</a>
+        </div>
+      </div>
+
+      <!-- Error state (from background) -->
+      <div id="error-state" style="display:none">
+        <div class="error-result">
+          <div class="error-icon">⚠️</div>
+          <p id="error-state-msg">Something went wrong.</p>
+          <button class="btn-secondary" id="retry-btn">Try Again</button>
         </div>
       </div>
     </div>
