@@ -11,6 +11,20 @@ import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [showExtensionDialog, setShowExtensionDialog] = useState(false);
+
+  const downloadExtension = () => {
+    fetch("/brandtonic-extension.zip")
+      .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
+      .then(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "brandtonic-extension.zip";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(err => alert(err.message));
+  };
 
   const { data: profile } = useQuery({
     queryKey: ["my-profile"],
