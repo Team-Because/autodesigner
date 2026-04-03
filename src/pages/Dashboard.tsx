@@ -114,23 +114,70 @@ export default function Dashboard() {
           variant="outline"
           size="sm"
           className="gap-2 shrink-0"
-          onClick={() => {
-            fetch("/brandtonic-extension.zip")
-              .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
-              .then(blob => {
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = "brandtonic-extension.zip";
-                a.click();
-                URL.revokeObjectURL(a.href);
-              })
-              .catch(err => alert(err.message));
-          }}
+          onClick={() => setShowExtensionDialog(true)}
         >
-          <Download className="h-4 w-4" />
+          <Chrome className="h-4 w-4" />
           Chrome Extension
         </Button>
       </div>
+
+      <Dialog open={showExtensionDialog} onOpenChange={setShowExtensionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Chrome className="h-5 w-5" />
+              Install BrandTonic Extension
+            </DialogTitle>
+            <DialogDescription>
+              Generate on-brand creatives from any image on the web with a right-click.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <Button className="w-full gap-2" onClick={downloadExtension}>
+              <Download className="h-4 w-4" />
+              Download Extension (.zip)
+            </Button>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Installation Steps:</p>
+              <div className="space-y-3">
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">1</div>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground flex items-center gap-1.5"><FolderOpen className="h-3.5 w-3.5" /> Unzip</span>
+                    Extract the downloaded ZIP file to a folder.
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">2</div>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground flex items-center gap-1.5"><MonitorDown className="h-3.5 w-3.5" /> Open Extensions</span>
+                    Go to <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">chrome://extensions</code> in Chrome.
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">3</div>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground flex items-center gap-1.5"><Puzzle className="h-3.5 w-3.5" /> Developer Mode</span>
+                    Enable <strong>Developer mode</strong> (toggle in top-right corner).
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">4</div>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground flex items-center gap-1.5"><Download className="h-3.5 w-3.5" /> Load Unpacked</span>
+                    Click <strong>"Load unpacked"</strong> and select the unzipped folder.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              Works with Chrome, Edge, Brave, Arc, and all Chromium browsers.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Credits overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
