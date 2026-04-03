@@ -1,30 +1,68 @@
 
 
-# Add Video/GIF Walkthrough Placeholder to Brand Setup Guide
+# Simplify Brand Setup Guide + Update Master Prompt
 
-## What We're Building
+## Two Changes
 
-A visual walkthrough section inserted between the "How It Works" overview and Step 1, showing an animated placeholder that illustrates the Claude workflow. Since we don't have an actual video/GIF yet, we'll create a polished placeholder with an animated step-by-step visual that mimics the workflow.
+### 1. Master Prompt Update (small)
 
-## Implementation
+Line 84 currently says: *"Do NOT ask me questions. Analyze everything I've provided and generate the complete profile in one shot."*
 
-### File: `src/pages/BrandGuide.tsx`
+Change to instruct Claude to **ask 10-15 clarifying questions first** before generating the profile. Add a short paragraph after the task description explaining this requirement — ask about gaps in brand data, visual preferences, tone ambiguities, etc. Then generate the profile after the user answers.
 
-Insert a new section after the "How It Works" card (after line ~367) and before Step 1:
+### 2. Page Redesign (big) — Simplify Everything
 
-- **Animated walkthrough card** with a mock browser/Claude interface illustration built in CSS/HTML:
-  - Frame 1: "Paste prompt into Claude" — shows a chat bubble with prompt text
-  - Frame 2: "Upload your brand files" — shows file attachment icons
-  - Frame 3: "Hit Enter — get your brand profile" — shows structured output
-- Uses a simple CSS animation (fade between 3 states on a loop) to simulate a slideshow
-- Styled as a dark card (mimicking a Claude-like dark UI) with subtle transitions
-- Includes a "Watch Walkthrough" label and a Play icon overlay
-- Below the animation, a note: "Replace with your own video — drop a .mp4 or .gif into the public folder"
+**Remove entirely:**
+- Animated walkthrough section (lines 369-478) + its CSS keyframes in `index.css`
+- Collapsible `Section` component — replace with simple flat content
+- Pro Tips section (6 tips is too much)
+- Step 3 "Upload & Generate in Claude" as a separate section (merge into flow)
 
-### Technical Details
+**New simplified structure (~200 lines):**
 
-- Pure CSS animation with `@keyframes` — no external dependencies
-- Three animated "slides" cycling every 4 seconds using opacity transitions
-- Responsive — scales with the container width
-- Uses existing design tokens (colors, fonts, border-radius) from the app
+```text
+┌─────────────────────────────────┐
+│ ← Back                         │
+│ Brand Setup Guide               │
+│ Create your brand in 3 steps    │
+├─────────────────────────────────┤
+│                                 │
+│  ┌──────┐ ┌──────┐ ┌──────┐   │
+│  │  📄  │ │  ✨  │ │  🎨  │   │
+│  │Gather│ │Paste │ │Setup │   │
+│  │ raw  │ │prompt│ │brand │   │
+│  │ data │ │+ run │ │here  │   │
+│  └──────┘ └──────┘ └──────┘   │
+│                                 │
+├─────────────────────────────────┤
+│ Master Prompt         [Copy]   │
+│ ┌─────────────────────────┐    │
+│ │ # Brand Setup Master... │    │
+│ │ (scrollable code block) │    │
+│ └─────────────────────────┘    │
+│              [Open Claude →]   │
+├─────────────────────────────────┤
+│ Where to Paste                  │
+│                                 │
+│ Claude Output    →  BrandTonic │
+│ BRAND NAME       →  Brand Name │
+│ COLOR PALETTE    →  Colors     │
+│ BRAND BRIEF      →  Brief     │
+│ TONE             →  Voice     │
+│ NEVER LIST       →  Negatives │
+├─────────────────────────────────┤
+│  [Copy Prompt]  [Create Brand] │
+└─────────────────────────────────┘
+```
+
+- 3 steps shown as a simple horizontal icon row (no cards, no descriptions)
+- Master prompt block with copy button + Claude link
+- Compact mapping table (5 rows, not 7)
+- Bottom CTA buttons
+- No collapsibles, no verbose explanations, no walkthrough animation
+
+### Files Changed
+
+- `src/pages/BrandGuide.tsx` — rewrite with simplified layout
+- `src/index.css` — remove walkthrough animation keyframes (~30 lines)
 
