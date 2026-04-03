@@ -366,6 +366,117 @@ export default function BrandGuide() {
         </CardContent>
       </Card>
 
+      {/* Visual Walkthrough */}
+      <Card className="border-border/50 overflow-hidden">
+        <CardContent className="p-0">
+          <div className="bg-muted/30 p-4 border-b border-border/50 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-display font-semibold text-foreground">See It In Action</h3>
+            <Badge variant="secondary" className="text-[10px] ml-auto">Auto-playing</Badge>
+          </div>
+
+          {/* Animated walkthrough mock */}
+          <div className="relative bg-[hsl(var(--card))] p-6 min-h-[280px]">
+            {/* Mock Claude-like dark UI */}
+            <div className="max-w-lg mx-auto rounded-xl border border-border bg-background shadow-lg overflow-hidden">
+              {/* Mock browser bar */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/50 border-b border-border">
+                <div className="flex gap-1.5">
+                  <div className="h-2.5 w-2.5 rounded-full bg-destructive/40" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/40" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500/40" />
+                </div>
+                <div className="flex-1 mx-4">
+                  <div className="bg-muted rounded-md px-3 py-1 text-[10px] text-muted-foreground text-center">claude.ai</div>
+                </div>
+              </div>
+
+              {/* Animated frames container */}
+              <div className="relative h-[180px] overflow-hidden">
+                {/* Frame 1: Paste Prompt */}
+                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame1_12s_ease-in-out_infinite]">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                      <MessageSquare className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">Step 1: Paste Master Prompt</span>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 border border-border/50 space-y-1.5">
+                    <p className="text-[10px] text-primary font-mono font-medium"># 🚀 Brand Setup Master Prompt</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">You are a brand strategist...</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">Analyze ALL visual materials...</p>
+                    <div className="flex gap-1 mt-1">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-1 flex-1 rounded-full bg-primary/20" />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic text-center">Copy the prompt from Step 2 below ↓</p>
+                </div>
+
+                {/* Frame 2: Upload Files */}
+                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame2_12s_ease-in-out_infinite]">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Upload className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">Step 2: Upload Brand Materials</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Brand Doc", icon: "📄" },
+                      { label: "Logo.png", icon: "🎨" },
+                      { label: "Creative1.jpg", icon: "🖼️" },
+                      { label: "Creative2.jpg", icon: "🖼️" },
+                      { label: "Reference.png", icon: "✨" },
+                      { label: "Guidelines.pdf", icon: "📋" },
+                    ].map((file) => (
+                      <div key={file.label} className="bg-muted/50 rounded-md p-2 border border-border/50 text-center">
+                        <span className="text-sm">{file.icon}</span>
+                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">{file.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic text-center">Upload raw data + old creatives + references</p>
+                </div>
+
+                {/* Frame 3: Get Output */}
+                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame3_12s_ease-in-out_infinite]">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Zap className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">Step 3: Get Your Brand Profile</span>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 border border-primary/30 space-y-1.5">
+                    <p className="text-[10px] font-mono font-semibold text-primary">### BRAND NAME</p>
+                    <p className="text-[10px] font-mono text-foreground/80">Luxe Residences</p>
+                    <p className="text-[10px] font-mono font-semibold text-primary mt-1">### COLOR PALETTE</p>
+                    <div className="flex gap-1.5 items-center">
+                      <div className="h-3 w-3 rounded-full bg-[hsl(220,70%,30%)]" />
+                      <p className="text-[10px] font-mono text-foreground/80">#1A3A6B — Headlines</p>
+                    </div>
+                    <p className="text-[10px] font-mono font-semibold text-primary mt-1">### VISUAL DIRECTION</p>
+                    <p className="text-[10px] font-mono text-foreground/80">Warm golden-hour lighting...</p>
+                  </div>
+                  <p className="text-[10px] text-primary font-medium text-center">✅ Copy each section into BrandTonic</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Step indicators */}
+            <div className="flex justify-center gap-2 mt-4">
+              {["Paste Prompt", "Upload Files", "Get Profile"].map((label, i) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <div className={`h-1.5 w-1.5 rounded-full animate-[walkthrough-dot${i + 1}_12s_ease-in-out_infinite] bg-muted-foreground/30`} />
+                  <span className="text-[10px] text-muted-foreground">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Step 1: Gather Materials */}
       <Section icon={ClipboardList} title="Step 1 — Gather Your Materials" badge="Before you start" defaultOpen>
         <p>Collect everything you have about your brand. The more you give Claude, the better the output.</p>
