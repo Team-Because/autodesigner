@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=360">
+  <link rel="stylesheet" href="popup.css">
+  <title>BrandTonic Studio</title>
+</head>
+<body>
+  <div class="container" id="app">
+    <!-- Login View -->
+    <div id="login-view" style="display:none">
+      <div class="login-section">
+        <h2>🎨 BrandTonic</h2>
+        <p>Sign in to generate creatives</p>
+        <div id="login-error" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+          <label for="login-email">Username or Email</label>
+          <input type="text" id="login-email" placeholder="your username">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••">
+        </div>
+        <button class="btn-primary" id="login-btn">Sign In</button>
+      </div>
+    </div>
+
+    <!-- Main View -->
+    <div id="main-view" style="display:none">
+      <div class="header">
+        <h1>🎨 BrandTonic</h1>
+        <button class="logout-btn" id="logout-btn">Sign Out</button>
+      </div>
+
+      <div id="main-error" class="error-msg" style="display:none"></div>
+
+      <!-- No image state -->
+      <div id="no-image-state" style="display:none">
+        <div class="no-image">
+          <div class="icon">🖼️</div>
+          <p>Right-click any image on the web and select<br><strong>"Generate Creative with BrandTonic"</strong></p>
+        </div>
+      </div>
+
+      <!-- Generate form -->
+      <div id="generate-form" style="display:none">
+        <img id="preview-image" class="image-preview" src="" alt="Selected image">
+
+        <div class="form-group">
+          <label for="brand-select">Brand</label>
+          <select id="brand-select">
+            <option value="">Loading brands…</option>
+          </select>
+        </div>
+
+        <label>Output Format</label>
+        <div class="format-grid" id="format-grid">
+          <div class="format-option active" data-format="square">
+            <div class="format-name">Square</div>
+            <div class="format-size">1080×1080</div>
+          </div>
+          <div class="format-option" data-format="landscape">
+            <div class="format-name">Landscape</div>
+            <div class="format-size">1920×1080</div>
+          </div>
+          <div class="format-option" data-format="portrait">
+            <div class="format-name">Portrait</div>
+            <div class="format-size">1080×1350</div>
+          </div>
+          <div class="format-option" data-format="story">
+            <div class="format-name">Story</div>
+            <div class="format-size">1080×1920</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="generate-btn">✨ Generate Creative</button>
+      </div>
+
+      <!-- Generating state -->
+      <div id="generating-state" style="display:none">
+        <div class="progress-container">
+          <div class="spinner"></div>
+          <div class="progress-text">Generating your creative…<br>This may take up to 60 seconds.</div>
+        </div>
+      </div>
+
+      <!-- Result state -->
+      <div id="result-state" style="display:none">
+        <div class="result-section">
+          <img id="result-image" class="result-image" src="" alt="Generated creative">
+          <div class="result-actions">
+            <button class="btn-primary" id="download-btn">⬇ Download</button>
+            <button class="btn-secondary" id="new-btn">New</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

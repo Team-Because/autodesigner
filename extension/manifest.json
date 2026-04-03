@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "BrandTonic Studio",
+  "version": "1.0.0",
+  "description": "Right-click any image to generate on-brand creatives with BrandTonic Studio.",
+  "permissions": ["contextMenus", "activeTab", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
