@@ -1,71 +1,66 @@
 
 
-# Chrome Extension for BrandTonic Studio
+# Fix Chrome Extension UX — Persist Generation Across Popup Close
 
-## What We're Building
+## The Problem
 
-A Chrome extension that lets you right-click any image on the web, select a brand from your account, pick an output format, and trigger creative generation — all without leaving the page you're browsing.
+Chrome extension popups close the moment you click outside them. Since generation takes ~60 seconds, the popup closes mid-generation and the result is lost forever.
 
-## How It Works
+## Solution
+
+Move the generation logic into the **background service worker** so it runs independently of the popup. Use **Chrome notifications** to alert when done. Store results in `chrome.storage.local` so reopening the popup shows the latest result.
+
+## How It Will Work
 
 ```text
-User right-clicks image → Context menu "Generate Creative" →
-Popup opens with brand selector + format picker →
-User clicks "Generate" → Extension sends image URL to edge function →
-Result shown in popup with download option
+User clicks Generate → popup sends message to background.js →
+popup can close safely → background.js calls edge function →
+on completion: Chrome notification "Creative ready!" →
+user clicks notification OR reopens popup → sees result with download
 ```
 
-## Architecture
+## Changes
 
-### 1. Extension Files (in `extension/` directory)
+### 1. `extension/background.js` — Handle generation in background
 
-- **manifest.json** — Manifest V3 with `contextMenus`, `activeTab`, `storage` permissions
-- **background.js** — Service worker that creates the right-click context menu item ("Generate Creative with BrandTonic"), captures the clicked image URL, and opens the popup
-- **popup.html / popup.js / popup.css** — UI for:
-  - Login form (email + password, authenticates against your backend)
-  - Brand selector (fetches brands from the database using the user's session)
-  - Output format picker (Landscape / Square / Portrait / Story)
-  - Generate button + progress indicator
-  - Result display with download button
-- **icon.png** — Extension icon (48px and 128px variants)
+- Listen for a `"generate"` message from popup with `{brandId, imageUrl, format, session}`
+- Call the `generate-creative` edge function
+- Store the result (image URL, status, timestamp) in `chrome.storage.local` under `bt_lastResult`
+- Fire a Chrome notification: "Your creative is ready! Click to view."
+- On notification click, open the popup via `chrome.action.openPopup()`
+- Add `"notifications"` permission to manifest
 
-### 2. Authentication Flow
+### 2. `extension/manifest.json` — Add notifications permission
 
-The extension stores the user's session token in `chrome.storage.local` after login. All API calls use this token. No secrets are hardcoded.
+- Add `"notifications"` to the permissions array
 
-### 3. Generation Flow
+### 3. `extension/popup.js` — Delegate generation, restore state on open
 
-1. User right-clicks an image → context menu fires → image URL is stored
-2. Popup opens, loads brands from the database via REST API
-3. User selects brand + format, clicks Generate
-4. Extension calls the existing `generate-creative` edge function with the image URL as `referenceImageUrl`
-5. Progress and result are shown in the popup
+- Instead of calling the edge function directly, send a message to background: `chrome.runtime.sendMessage({type: "generate", ...})`
+- Show the spinner, but also show a message: "You can close this — we'll notify you when it's ready"
+- On popup boot, check `chrome.storage.local` for `bt_lastResult` — if present and recent, show the result state immediately
+- Listen for `chrome.runtime.onMessage` for a `"generation_complete"` event so if the popup is still open, it updates live
+- Add a "View in History" link that opens the main app's History page
 
-### 4. Edge Function — Minor Update
+### 4. `extension/popup.html` — Minor UI additions
 
-The existing `generate-creative` function already accepts a `referenceImageUrl`. No changes needed if the image URL is publicly accessible. If the image requires fetching (e.g., behind auth), we'll add a small path to download and re-upload the image to the storage bucket first.
+- Add a dismissible hint below the spinner: "Feel free to close — you'll get a notification when ready"
+- Add a "View in History →" link in the result section
+- Add a "Last Creative" section visible when reopening popup with a stored result
 
-### 5. Packaging
+### 5. `extension/popup.css` — Style new elements
 
-The extension is zipped and placed in `public/` for download from the app. A download link will be added to the Dashboard or Settings page.
+- Style the "safe to close" hint text
+- Style the "View in History" link
+- Style the notification/success banner
 
-## Files to Create/Modify
+## Summary of UX Improvements
 
-| File | Action |
-|------|--------|
-| `extension/manifest.json` | Create — MV3 config |
-| `extension/background.js` | Create — Context menu + message handling |
-| `extension/popup.html` | Create — Login, brand picker, generate UI |
-| `extension/popup.js` | Create — All popup logic |
-| `extension/popup.css` | Create — Styling matching app theme |
-| `extension/icon.png` | Create — Generated icon |
-| Build script | Zip extension to `public/brandtonic-extension.zip` |
-| `src/pages/Dashboard.tsx` or Settings | Add download link for the extension |
-
-## Key Technical Decisions
-
-- **Auth**: Email/password login stored in `chrome.storage.local` — the extension authenticates directly against the backend auth API
-- **API calls**: Direct REST calls to the database (using the anon key + auth token) for fetching brands, and `supabase.functions.invoke` equivalent via fetch for generation
-- **Image handling**: If the right-clicked image URL is publicly accessible, it's passed directly. Otherwise, the extension fetches the image as a blob, uploads it to the `brand-assets` bucket, then passes the public URL
-- **No new edge functions needed** — reuses the existing `generate-creative` function entirely
+| Before | After |
+|--------|-------|
+| Generation dies if popup closes | Generation runs in background, survives close |
+| No notification when done | Chrome notification: "Creative ready!" |
+| Result lost on close | Result persisted, shown when popup reopens |
+| No way to find result later | "View in History" link opens main app |
+| Anxious wait — must keep popup open | Clear message: "You can close this" |
 
