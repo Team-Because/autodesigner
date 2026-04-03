@@ -88,11 +88,34 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">
-          Welcome back, {displayName} 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">Your creative generation overview.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-foreground">
+              Welcome back, {displayName} 👋
+            </h1>
+            <p className="text-muted-foreground mt-1">Your creative generation overview.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 shrink-0"
+            onClick={() => {
+              fetch("/brandtonic-extension.zip")
+                .then(res => { if (!res.ok) throw new Error("Download failed"); return res.blob(); })
+                .then(blob => {
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = "brandtonic-extension.zip";
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                })
+                .catch(err => alert(err.message));
+            }}
+          >
+            <Download className="h-4 w-4" />
+            Chrome Extension
+          </Button>
+        </div>
       </div>
 
       {/* Credits overview */}
