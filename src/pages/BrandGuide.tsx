@@ -1,5 +1,5 @@
-import { BookOpen, Copy, Check, ArrowLeft, Palette, Image, Type, MessageSquare, Ban, Zap, FileText } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { BookOpen, Copy, Check, ArrowLeft, Zap, Upload, MessageSquare, Paintbrush, ClipboardList, Sparkles, ExternalLink } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,7 +20,7 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
   return (
     <div className="relative group">
       {label && <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>}
-      <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+      <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto">
         {text}
       </pre>
       <Button
@@ -79,153 +79,155 @@ function Section({
   );
 }
 
-const FULL_PROMPT = `# 🚀 Brand Setup Power Prompt — AI Creative System
+const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — One-Shot Brand Profile Generator
 
-You are a brand strategist and prompt engineer. Your job is to help me structure my raw brand information into a perfectly optimized brand profile for an AI creative generation system.
-
-## How This Works
-
-I will provide you with raw, unstructured information about my brand — documents, notes, bullet points, images descriptions, whatever I have. Your job is to:
-
-1. **Ask me at least 10-15 clarifying questions** before writing anything. Don't assume — ask. The more context you extract from me, the better the output.
-2. **Organize my raw data** into the structured format below.
-3. **Fill gaps** — if I'm missing critical information, tell me what's missing and why it matters.
-4. **Be specific, not vague** — "Warm golden-hour lighting with visible sky at 60% frame" is 10x better than "make it look nice." Push me for specifics.
-5. **Front-load critical info** in every section — the AI system prioritizes content that appears first.
-6. **Use markdown headers (##)** — the AI parses these to separate different types of instructions.
-7. **Stay within character limits** — each section has a budget. Be concise but complete.
+You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for an AI creative generation system. Do NOT ask me questions. Analyze everything I've provided and generate the complete profile in one shot.
 
 ---
 
-## 🔍 Before You Start — Questions to Ask Me
+## YOUR TASK
 
-These are the kinds of questions you should ask (adapt to my brand type):
+### Step 1: Analyze All Visual Materials
 
-**Identity & Positioning:**
-- What exactly does your brand do in one sentence?
-- Who is your primary competitor and how are you different?
-- What's the one thing people should remember about your brand?
-- What's your price positioning — luxury, premium, mid, value?
+Look at EVERY image I've uploaded (old creatives, references, style examples). For each, analyze:
 
-**Visual Language:**
-- Do you have existing creatives I can reference? What do you like/dislike about them?
-- What brands (even outside your industry) have the visual style you admire?
-- Are there specific colors, textures, or materials that define your brand?
-- Do you prefer minimal layouts or content-rich designs?
+- **Color palette**: Dominant colors, accent colors, background tones, gradient usage
+- **Typography style**: Font weight (bold/light), serif vs sans-serif, size hierarchy, spacing
+- **Logo placement**: Where is the logo? What size relative to the canvas? Top-left, center, bottom?
+- **Photo vs Illustration**: Are visuals photographic, illustrated, flat graphic, 3D, mixed?
+- **Illustration style** (if any): Flat vector, hand-drawn, geometric, isometric, collage?
+- **Photo style** (if any): Studio, lifestyle, outdoor, close-up, aerial? Lighting — warm, cool, natural, dramatic?
+- **Layout structure**: Grid-based, freeform, centered, asymmetric? Text-to-visual ratio?
+- **Text treatment**: How is text placed — over images, on solid blocks, in containers, floating?
+- **Mood/energy**: Minimal and calm, bold and loud, playful, corporate, rebellious, premium?
+- **Recurring patterns**: Any repeated design elements — borders, shapes, textures, overlays?
 
-**Voice & Messaging:**
-- If your brand were a person, how would they speak?
-- What words do you NEVER want associated with your brand?
-- What's the emotional reaction you want when someone sees your creative?
-- Do you have existing taglines, headlines, or copy that works well?
+### Step 2: Synthesize a Visual Language
 
-**Practical Requirements:**
-- What legal/compliance text MUST appear on every creative?
-- What contact information is mandatory?
-- Are there specific logo placement rules or brand guidelines?
-- What formats will these creatives be used for (social, print, outdoor)?
+From all the visuals analyzed, create a generalized visual language description that captures:
+- The consistent design DNA across all materials
+- What makes this brand visually recognizable
+- How a designer would recreate this "feel" for a new creative without copying any specific layout
+
+### Step 3: Read All Raw Brand Data
+
+Process all text documents, notes, bullet points, and any other information I've provided. Extract:
+- Brand name, company/developer info
+- What the brand does / offers
+- Target audience
+- Key differentiators / USPs
+- Mandatory elements (legal, contact, taglines)
+- Tone and voice characteristics
+- Any "never do this" rules mentioned
+
+### Step 4: Generate the Complete Brand Profile
+
+Using the visual analysis + raw data, fill out EVERY section below. Be hyper-specific. Front-load the most critical information in each section. Use markdown headers (##) exactly as shown.
 
 ---
 
-## 📋 Output Format — Fill Each Section
+## 📋 OUTPUT FORMAT — Fill Every Section
 
 ### BRAND NAME
-Keep it concise. Official brand name only. No taglines or descriptions here.
+Official brand name only. No taglines. No descriptions.
 
 ### BRAND ASSETS GUIDE
-List what images/assets you have and how each should be tagged:
-- **Logo**: Primary logo — preserved exactly, never altered
-- **Hero Image**: Key visual that sets the creative mood
-- **Architecture**: Building renders, elevations, exteriors
-- **Lifestyle**: People, aspirational scenes, amenity shots
-- **Product**: Product photos, close-ups, detail shots
-- **Masterplan**: Site layouts, floor plans, maps
-- **Mascot**: Brand character or illustrated figure
-- **Pattern/Texture**: Backgrounds, brand patterns, textures
-- **Style Reference**: Design language examples showing desired aesthetic
+List the images/assets I've provided and recommend how each should be tagged:
+- **Logo**: Primary logo file
+- **Hero Image**: Key visual for creative mood
+- **Architecture**: Building renders, exteriors
+- **Lifestyle**: People, aspirational scenes
+- **Product**: Product photos, close-ups
+- **Masterplan**: Site layouts, floor plans
+- **Mascot**: Brand character/figure
+- **Pattern/Texture**: Backgrounds, brand patterns
+- **Style Reference**: Design language examples
 
-Minimum: Logo + 1 Hero Image. More tagged assets = better results.
+Minimum: Logo + 1 Hero. More = better.
 
 ### COLOR PALETTE
-- **Primary Color**: Dominant brand color (hex) — used for headlines, CTAs, key elements
-- **Secondary Color**: Supporting color (hex) — used for backgrounds, accents
-- **Extra Colors**: List each with hex code AND usage note (e.g., "Gold #D4AF37 — headings only", "Charcoal #333333 — body text on light backgrounds")
+From the visual analysis, extract:
+- **Primary Color**: Hex code + usage (headlines, CTAs)
+- **Secondary Color**: Hex code + usage (backgrounds, accents)
+- **Extra Colors**: Each with hex + specific usage note
+- **Color relationships**: How colors interact (e.g., "White text on dark navy blocks", "Gold accents on cream backgrounds")
 
 ### BRAND BRIEF — IDENTITY (~800 chars max)
 
 \`\`\`
 ## BRAND IDENTITY
 
-Brand Name: [PROJECT/BRAND NAME]
-Developer/Company: [COMPANY NAME] | [Tagline]
-Location: [Area], [City] (if applicable)
+Brand Name: [extracted]
+Developer/Company: [extracted] | [tagline if found]
+Location: [if applicable]
 
 What We Do:
-- [Key offering 1 with specific details — sizes, prices, quantities]
-- [Key offering 2]
-- [Key offering 3]
+- [Offering 1 with specifics]
+- [Offering 2]
+- [Offering 3]
 
-Differentiators (be brutally specific):
-- [USP 1 with proof point, e.g., "Largest 3 BHK in Science Park — 2,594 sq.ft"]
+Differentiators:
+- [USP 1 with proof point]
 - [USP 2 with proof point]
 - [USP 3 with proof point]
 \`\`\`
 
 ### BRAND BRIEF — MUST-INCLUDE ELEMENTS (~600 chars max)
-Mandatory text that MUST appear on every creative. The AI treats these as non-negotiable.
 
 \`\`\`
 ## MUST-INCLUDE ELEMENTS
 
-- Brand/Project Name: [NAME] — always prominent
-- Tagline: "[Your tagline]"
-- Contact: [Phone / Website / Social]
-- Legal: [RERA number, certifications, "T&C Apply", etc.]
-- Location: [Full address or landmark]
-- [Any other mandatory elements]
+- Brand Name: [NAME] — always prominent
+- Tagline: "[extracted tagline]"
+- Contact: [extracted contact info]
+- Legal: [RERA, certifications, T&C — whatever is mandatory]
+- Location: [extracted address]
+- [Any other mandatory elements found in the data]
 \`\`\`
 
 ### BRAND BRIEF — VISUAL DIRECTION (~600 chars max)
-Tell the AI exactly how creatives should look. Be hyper-specific.
+
+THIS IS THE MOST CRITICAL SECTION. Use your visual analysis from Step 1 & 2 to fill this. Be extremely specific.
 
 \`\`\`
 ## VISUAL DIRECTION
 
-Photography/Visual Style:
-- [e.g., "Warm golden-hour lighting, natural tones, visible sky"]
-- [e.g., "Wide-angle shots showing full building scale"]
-- [e.g., "100% graphic/typographic — zero photography" for graphic brands]
+Visual Style:
+- [Extracted from analysis: lighting, color treatment, photo vs graphic]
+- [Layout structure and composition rules]
+- [Text treatment — how copy sits relative to visuals]
 
-Layout & Composition:
-- [e.g., "Clean minimal — 40% text / 60% visual split"]
-- [e.g., "Logo top-left, CTA bottom-right, contact in footer band"]
-- [e.g., "Text always on solid color blocks, never over images"]
+Typography:
+- [Font style observations: weight, spacing, hierarchy]
+- [Headline treatment vs body text]
 
-Textures & Materials:
-- [e.g., "Subtle marble textures as overlays"]
-- [e.g., "Geometric patterns with brand colors"]
+Textures & Elements:
+- [Recurring patterns, shapes, borders, overlays observed]
+- [Background treatments]
 
 Mood:
-- [e.g., "Serene, premium, nature-led — not flashy or aggressive"]
+- [Overall energy synthesized from all visuals]
 \`\`\`
 
 ### BRAND BRIEF — EXAMPLE COPY (~500 chars max)
-Give the AI sample headlines, CTAs, and taglines so it learns your voice.
+
+Extract real headlines, taglines, CTAs from the provided materials. If none exist, create examples that match the brand voice.
 
 \`\`\`
 ## EXAMPLE COPY
 
 Headlines:
-- "[Actual headline you've used or want]"
-- "[Another headline example]"
+- "[Real or recommended headline 1]"
+- "[Real or recommended headline 2]"
+- "[Real or recommended headline 3]"
 
 Subtext:
 - "[Supporting copy example]"
 - "[Another subtext example]"
 
 CTAs:
-- "[e.g., Book Your Private Viewing]"
-- "[e.g., Visit Us Today]"
+- "[CTA 1]"
+- "[CTA 2]"
 \`\`\`
 
 ### TONE & TARGET AUDIENCE (~1500 chars max)
@@ -235,89 +237,83 @@ CTAs:
 
 Voice Traits:
 - [e.g., "Confident but not arrogant"]
-- [e.g., "Premium and aspirational, never salesy"]
+- [Extracted from copy analysis and brand data]
 
 Language Rules:
-- [e.g., "Use 'residences' not 'flats', 'curated' not 'selected'"]
-- [e.g., "Short sentences — max 12 words per line"]
-- [e.g., "Always use 'Hunt' terminology, never 'Competition'"]
+- [Specific word choices: use X not Y]
+- [Sentence length, formality level]
+- [Any language patterns observed in existing copy]
 
 ## TARGET AUDIENCE
 
 Demographics:
-- [e.g., "Affluent homebuyers, 35-55 years, HNI families"]
+- [Age, income, profession, location]
 
 Psychographics:
-- [e.g., "Value privacy, open spaces, and nature"]
+- [Values, aspirations, lifestyle]
 
 Desired Emotional Response:
-- [e.g., "Feel this is THE premium choice in the area"]
+- [How should someone feel seeing this creative?]
 \`\`\`
 
 ### THE NEVER LIST (~1000 chars max)
-Split into two clear categories — this is critical for avoiding bad outputs.
+
+Split into two categories. Include anything explicitly mentioned in brand data PLUS anything that would contradict the visual language you analyzed.
 
 \`\`\`
 ## VISUAL NEVERS
 
 - Never distort or crop the logo
 - Never use stock photography — only uploaded brand assets
-- Never [your specific visual constraint]
-- Never [another visual constraint]
+- [Visual constraints from analysis — e.g., "Never use dark moody tones" if brand is bright]
+- [Layout constraints — e.g., "Never place text directly over key product imagery"]
+- [Color constraints — e.g., "Never use gradients outside the brand palette"]
 
 ## CONTENT NEVERS
 
-- Never use the word "cheap", "affordable", or "budget"
-- Never use fear-based urgency ("Hurry!", "Last chance!")
-- Never omit [mandatory legal/contact info]
-- Never [your specific content constraint]
+- [Word/phrase bans extracted from data]
+- [Tone violations — e.g., "Never use fear-based urgency"]
+- [Mandatory element omissions — "Never omit RERA number"]
+- [Positioning constraints — "Never position as budget/value"]
 \`\`\`
 
 ---
 
-## ⚡ Prompting Best Practices (for optimal AI creative results)
+## ⚡ QUALITY RULES FOR YOUR OUTPUT
 
-1. **Front-load critical info** — The AI prioritizes content that appears first in each field. Put the most important instruction at the top.
-2. **Be specific over vague** — "3D chevron pattern in Crimson #C0001A at 45° angle" beats "use brand patterns." Specificity = accuracy.
-3. **Use ## headers liberally** — The AI uses markdown headers to parse and categorize your instructions. Structure = clarity.
-4. **Separate visual from content rules** — Always use ## VISUAL NEVERS and ## CONTENT NEVERS as distinct sections. Mixed rules confuse the AI.
-5. **Tag every asset** — An untagged image is harder for the AI to use correctly. Always label: Logo, Hero, Architecture, Lifestyle, Product, Pattern, Style Reference.
-6. **Include negative examples** — Saying what you DON'T want is as important as what you do. "Never use dark moody tones" is clearer than "keep it bright."
-7. **Give real copy examples** — Don't describe your tone abstractly. Show 3-5 actual headlines/CTAs the AI can pattern-match against.
-8. **One brand = one visual system** — If your brand has very different visual needs (e.g., interior vs exterior shots), consider splitting into separate brand profiles for each.
-9. **Test and iterate** — After setup, generate a test creative immediately. Refine your brief based on what the AI gets wrong.
-10. **Respect character limits** — Each field has a budget (800/600/500/1500/1000 chars). Being concise forces clarity. If you can't fit it, you're not being specific enough.
-11. **Describe color relationships** — Don't just list hex codes. Say how colors interact: "Crimson headlines on Yellow highlight boxes" or "White text on dark gradient overlay."
-12. **Reference spatial relationships** — "Logo at 10% from top-left corner" is better than "logo in the corner." Be precise about placement.
+1. **Front-load**: Most important instruction first in every section
+2. **Specificity over vagueness**: "Warm golden-hour lighting with visible sky at 60% frame" not "make it look nice"
+3. **Use ## headers**: The AI system parses markdown headers to categorize instructions
+4. **Real copy > abstract tone descriptions**: Show actual headlines, don't just say "professional tone"
+5. **Visual analysis is king**: The visual direction section must reflect what you actually see in the uploaded creatives, not generic design advice
+6. **Color relationships matter**: Don't just list hex codes — describe how colors interact in layouts
+7. **Spatial precision**: "Logo at 10% from top-left" is better than "logo in corner"
+8. **Respect character limits**: Each section has a budget. Be concise but complete
+9. **Separate visual from content rules**: Never mix image constraints with text constraints in the Never List
 
 ---
 
-## 📌 Final Checklist Before Submitting
+## CONTEXT ABOUT THE SYSTEM
 
-- [ ] Brand name is clean and official (no taglines mixed in)
-- [ ] At least Logo + 1 Hero Image uploaded and tagged
-- [ ] Primary and secondary colors set with hex codes
-- [ ] Identity section has specific differentiators with proof points
-- [ ] Must-include elements cover ALL legal/compliance requirements
-- [ ] Visual direction describes lighting, layout, textures, and mood
-- [ ] Example copy has 3+ real headlines and 2+ CTAs
-- [ ] Tone section defines voice traits AND language rules
-- [ ] Target audience includes demographics AND psychographics
-- [ ] Never list is split into Visual Nevers and Content Nevers
-- [ ] All sections are within character limits
-- [ ] You've run a test generation and refined based on output
+This brand profile will be used in an AI creative generation system that works like this:
+1. User sets up a brand profile (what you're generating)
+2. User uploads brand assets (logo, images, etc.) tagged by category
+3. User uploads a reference image for a new creative
+4. The system analyzes the reference image layout
+5. The system combines the brand profile + assets + reference layout to generate an on-brand creative
+
+Your job is to make the brand profile SO GOOD that the system produces on-point, on-brand creatives every time, regardless of what reference image is used. The brand profile is the "DNA" — it must be complete, specific, and unambiguous.
 
 ---
 
-Now give me your raw brand information — documents, notes, bullet points, images, anything you have. I'll ask you detailed questions to extract everything needed, then structure it perfectly for the system.
-`;
+Now analyze everything I've provided and generate the complete brand profile. No questions. Just output.`;
 
 export default function BrandGuide() {
   const navigate = useNavigate();
   const [pageCopied, setPageCopied] = useState(false);
 
-  const handleCopyPage = () => {
-    navigator.clipboard.writeText(FULL_PROMPT);
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(MASTER_PROMPT);
     setPageCopied(true);
     setTimeout(() => setPageCopied(false), 3000);
   };
@@ -336,264 +332,163 @@ export default function BrandGuide() {
             </div>
             <div>
               <h1 className="text-2xl font-display font-bold text-foreground">Brand Setup Guide</h1>
-              <p className="text-sm text-muted-foreground">Everything you need to create a perfect brand profile</p>
+              <p className="text-sm text-muted-foreground">Create a perfect brand profile in 3 minutes using Claude</p>
             </div>
           </div>
-          <Button onClick={handleCopyPage} variant="outline" size="sm" className="gap-2 shrink-0">
-            {pageCopied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
-            {pageCopied ? "Copied!" : "Copy Full Prompt"}
-          </Button>
         </div>
       </div>
 
-      {/* Overview */}
+      {/* How It Works — Overview */}
       <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-6 space-y-3">
+        <CardContent className="pt-6 space-y-4">
+          <h2 className="text-lg font-display font-semibold text-foreground">How It Works</h2>
           <p className="text-sm text-foreground/90 leading-relaxed">
-            Your brand profile is the <strong>single source of truth</strong> that powers every AI-generated creative.
-            The more structured and specific your inputs, the more accurate and on-brand the outputs.
+            Instead of filling out every field manually, you use <strong>Claude AI</strong> to analyze your brand materials and generate a perfectly structured brand profile. One prompt, one click — done.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="text-[10px]">~2500 chars for Brand Brief</Badge>
-            <Badge variant="outline" className="text-[10px]">~1500 chars for Tone & Audience</Badge>
-            <Badge variant="outline" className="text-[10px]">~1000 chars for Never List</Badge>
+          <div className="grid gap-3">
+            {[
+              { step: "1", title: "Gather your materials", desc: "Raw brand data (docs, notes, bullet points) + old creatives or reference images" },
+              { step: "2", title: "Open Claude & paste the Master Prompt", desc: "Copy the prompt below and paste it into Claude (claude.ai)" },
+              { step: "3", title: "Upload everything & hit Enter", desc: "Claude analyzes visuals + data and outputs a complete brand profile" },
+              { step: "4", title: "Copy sections into BrandTonic", desc: "Paste each section into the corresponding field in your brand setup" },
+            ].map((item) => (
+              <div key={item.step} className="flex gap-3 items-start">
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-xs font-bold text-primary">{item.step}</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            💡 Front-load the most important information in each field — the AI prioritises content that appears first.
-          </p>
         </CardContent>
       </Card>
 
-      {/* Section 1: Brand Name */}
-      <Section icon={Type} title="Brand Name" badge="Required" defaultOpen>
-        <p>Keep it concise. This appears on every generated creative as a reference label.</p>
-        <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-          <li>Use the official brand name, not abbreviations</li>
-          <li>Include the project/product name if applicable (e.g., "ANANTARA ALORA")</li>
-          <li>Avoid taglines or descriptions here — those go in the Brand Brief</li>
-        </ul>
+      {/* Step 1: Gather Materials */}
+      <Section icon={ClipboardList} title="Step 1 — Gather Your Materials" badge="Before you start" defaultOpen>
+        <p>Collect everything you have about your brand. The more you give Claude, the better the output.</p>
+        
+        <div className="space-y-3">
+          <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-2">
+            <p className="text-sm font-semibold text-foreground">📄 Raw Brand Data</p>
+            <p className="text-xs text-muted-foreground">Any of these work — you don't need all of them:</p>
+            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
+              <li>Brand documents, pitch decks, presentations</li>
+              <li>Website copy, about pages, brochure text</li>
+              <li>Unstructured notes, bullet points, WhatsApp messages</li>
+              <li>Product descriptions, pricing info, USPs</li>
+              <li>Legal/compliance text (RERA, certifications, disclaimers)</li>
+              <li>Contact details, social handles, addresses</li>
+            </ul>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-2">
+            <p className="text-sm font-semibold text-foreground">🎨 Visual Materials (Critical!)</p>
+            <p className="text-xs text-muted-foreground">Upload at least 3-5 images for best results:</p>
+            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
+              <li><strong>Old creatives</strong> — social media posts, ads, banners you've made before</li>
+              <li><strong>Reference images</strong> — designs from other brands whose visual style you admire</li>
+              <li><strong>Logo files</strong> — your primary logo in high resolution</li>
+              <li><strong>Brand guideline PDFs</strong> — if you have existing guidelines</li>
+              <li><strong>Product/building photos</strong> — your actual visual assets</li>
+            </ul>
+            <p className="text-xs text-primary font-medium mt-2">
+              💡 Claude will analyze these to extract your visual language — colors, typography, layout patterns, mood.
+            </p>
+          </div>
+        </div>
       </Section>
 
-      {/* Section 2: Brand Assets */}
-      <Section icon={Image} title="Brand Assets" badge="Important">
-        <p>Upload all visual materials the AI should reference. <strong>Tagging is critical</strong> — it tells the AI how to use each image.</p>
-        <div className="grid grid-cols-2 gap-3">
+      {/* Step 2: The Master Prompt */}
+      <Section icon={Sparkles} title="Step 2 — Copy the Master Prompt" badge="The magic" defaultOpen>
+        <p>
+          This single prompt tells Claude to analyze everything you upload and generate a complete brand profile — no back-and-forth needed.
+        </p>
+        
+        <div className="flex items-center gap-2 mb-2">
+          <Button onClick={handleCopyPrompt} className="gap-2">
+            {pageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {pageCopied ? "Copied!" : "Copy Master Prompt"}
+          </Button>
+          <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              Open Claude <ExternalLink className="h-3 w-3" />
+            </Button>
+          </a>
+        </div>
+
+        <CopyBlock label="Master Prompt — Copy this entire block" text={MASTER_PROMPT} />
+      </Section>
+
+      {/* Step 3: How to Use in Claude */}
+      <Section icon={Upload} title="Step 3 — Upload & Generate in Claude" badge="3 minutes">
+        <p>Here's exactly what to do in Claude:</p>
+
+        <div className="space-y-3">
+          <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+            <p className="text-sm font-semibold text-foreground mb-2">In the Claude chat window:</p>
+            <ol className="list-decimal list-inside text-xs text-muted-foreground space-y-2 ml-2">
+              <li><strong>Paste the Master Prompt</strong> — this goes first in the message box</li>
+              <li><strong>Attach your raw data files</strong> — drag & drop documents, PDFs, text files</li>
+              <li><strong>Attach your visual materials</strong> — drag & drop 3-10 old creatives, references, or brand images</li>
+              <li><strong>Hit Enter</strong> — Claude will analyze everything and output the full brand profile</li>
+            </ol>
+          </div>
+
+          <div className="bg-secondary/10 rounded-lg p-4 border border-secondary/30">
+            <p className="text-sm font-semibold text-foreground mb-1">⚡ Pro tip: One message, everything attached</p>
+            <p className="text-xs text-muted-foreground">
+              Paste the prompt + attach ALL files in a single message. Don't send the prompt first and files later — Claude works best when it sees everything at once.
+            </p>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+            <p className="text-sm font-semibold text-foreground mb-2">What Claude will output:</p>
+            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
+              <li><strong>Brand Name</strong> → paste into the "Brand Name" field</li>
+              <li><strong>Color Palette</strong> → set Primary, Secondary, and Extra Colors</li>
+              <li><strong>Brand Brief sections</strong> → paste each into the corresponding Brand Brief field</li>
+              <li><strong>Tone & Target Audience</strong> → paste into "Brand Voice Rules"</li>
+              <li><strong>The Never List</strong> → paste into "Negative Prompts"</li>
+              <li><strong>Asset tagging recommendations</strong> → use when uploading assets to BrandTonic</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      {/* Step 4: Paste into BrandTonic */}
+      <Section icon={Paintbrush} title="Step 4 — Paste into BrandTonic" badge="Final step">
+        <p>Take Claude's output and paste each section into the matching field in your brand setup form.</p>
+
+        <div className="space-y-2">
           {[
-            { tag: "Logo", desc: "Primary logo — preserved exactly, never altered" },
-            { tag: "Hero Image", desc: "Key visual that sets the creative mood" },
-            { tag: "Architecture", desc: "Building renders, elevations, exteriors" },
-            { tag: "Lifestyle", desc: "People, aspirational scenes, amenity shots" },
-            { tag: "Product", desc: "Product photos, close-ups, detail shots" },
-            { tag: "Masterplan", desc: "Site layouts, floor plans, maps" },
-            { tag: "Mascot", desc: "Brand character or illustrated figure" },
-            { tag: "Pattern/Texture", desc: "Backgrounds, brand patterns, textures" },
-          ].map((item) => (
-            <div key={item.tag} className="bg-muted/30 rounded-lg p-3 border border-border/50">
-              <p className="text-xs font-semibold text-foreground">{item.tag}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{item.desc}</p>
+            { from: "BRAND NAME", to: "Brand Name field", note: "Just the name, no tagline" },
+            { from: "COLOR PALETTE → Primary", to: "Primary Color picker", note: "Use the hex code" },
+            { from: "COLOR PALETTE → Secondary", to: "Secondary Color picker", note: "Use the hex code" },
+            { from: "COLOR PALETTE → Extra Colors", to: "'Add Color' button", note: "Add each with name + hex" },
+            { from: "BRAND BRIEF (Identity + Must-Include + Visual Direction + Example Copy)", to: "Brand Brief textarea", note: "Paste all four sections together" },
+            { from: "TONE & TARGET AUDIENCE", to: "Brand Voice Rules textarea", note: "Full tone section" },
+            { from: "THE NEVER LIST", to: "Negative Prompts textarea", note: "Both Visual + Content Nevers" },
+          ].map((item, i) => (
+            <div key={i} className="bg-muted/30 rounded-lg p-3 border border-border/50 flex items-start gap-3">
+              <span className="text-xs font-bold text-primary mt-0.5 shrink-0">{i + 1}.</span>
+              <div className="min-w-0">
+                <p className="text-xs text-foreground">
+                  <span className="font-mono text-[11px] bg-accent/50 px-1 py-0.5 rounded">{item.from}</span>
+                  {" → "}
+                  <span className="font-semibold">{item.to}</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{item.note}</p>
+              </div>
             </div>
           ))}
         </div>
+
         <p className="text-xs text-muted-foreground">
-          💡 Upload at least a <strong>Logo</strong> and one <strong>Hero Image</strong> for best results. More assets = more creative variety.
+          💡 After pasting, upload your logo and key images as Brand Assets with the tags Claude recommended.
         </p>
-      </Section>
-
-      {/* Section 3: Color Palette */}
-      <Section icon={Palette} title="Color Palette" badge="Required">
-        <p>Define your full color system. The AI uses these to ensure on-brand color usage.</p>
-        <div className="space-y-2">
-          <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
-            <p className="text-xs font-semibold">Primary Color</p>
-            <p className="text-[11px] text-muted-foreground">Your dominant brand color — used for headlines, CTAs, key elements</p>
-          </div>
-          <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
-            <p className="text-xs font-semibold">Secondary Color</p>
-            <p className="text-[11px] text-muted-foreground">Supporting color — used for backgrounds, accents, secondary elements</p>
-          </div>
-          <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
-            <p className="text-xs font-semibold">Extra Colors (via "Add Color")</p>
-            <p className="text-[11px] text-muted-foreground">Add accent, text, background, and CTA colors with descriptive names. Include usage notes in the name (e.g., "Gold — headings only", "Dark Charcoal — body text")</p>
-          </div>
-        </div>
-      </Section>
-
-      {/* Section 4: Brand Brief — Identity */}
-      <Section icon={FileText} title="Brand Brief — Identity" badge="~800 chars">
-        <p>This is the <strong>who, what, where</strong> of your brand. Include project facts, location, developer name, and key differentiators.</p>
-        <CopyBlock
-          label="Template — Real Estate"
-          text={`## BRAND IDENTITY
-
-Brand Name: [PROJECT NAME]
-Developer: [DEVELOPER NAME] | [Tagline]
-Location: [Area], [City]
-
-What We Do:
-- [Key offering 1, e.g., "Luxury 3 BHK Residences from 2,594 sq.ft"]
-- [Key offering 2, e.g., "Exclusive 4 BHK Penthouses from 5,116 sq.ft"]
-- [Key offering 3, e.g., "Pet-friendly community with curated lifestyle"]
-- [Amenities, e.g., "Pool, Gymnasium, Kids play area"]
-- [Status, e.g., "Show apartment ready for viewing"]
-
-Differentiators:
-- [USP 1, e.g., "Largest 3 BHK in the area — 2,594 sq.ft"]
-- [USP 2, e.g., "Only developer with X certification"]
-- [USP 3, e.g., "Zero additional costs — No Stamp Duty, No GST"]`}
-        />
-        <CopyBlock
-          label="Template — Product / Consumer Brand"
-          text={`## BRAND IDENTITY
-
-Brand Name: [BRAND NAME]
-Tagline: "[Your tagline]"
-
-What We Do:
-- [Core product/service 1]
-- [Core product/service 2]
-- [Distribution: B2B / B2C / both]
-
-Differentiators:
-- [USP 1, e.g., "In-house manufacturing, end-to-end quality control"]
-- [USP 2, e.g., "Category trendsetters, not just manufacturers"]
-- [Market position, e.g., "#1 in Bihar for stainless steel cutlery"]`}
-        />
-      </Section>
-
-      {/* Section 5: Brand Brief — Must-Include */}
-      <Section icon={FileText} title="Brand Brief — Must-Include Elements" badge="~600 chars">
-        <p>Mandatory text that <strong>must appear</strong> on every creative. The AI treats these as non-negotiable.</p>
-        <CopyBlock
-          label="Template — Real Estate"
-          text={`## MUST-INCLUDE ELEMENTS
-
-- Project Name: [PROJECT NAME] — always prominent
-- Developer: [Developer Name] with logo
-- Tagline: "[Your tagline]"
-- RERA: [RERA NUMBER] | [RERA website]
-- Contact: [PHONE NUMBER]
-- Location: [Full address / landmark]
-- Legal: "T&C Apply" in footer
-- Amenity mentions: [Pool, Gym, etc. — lifestyle selling points]`}
-        />
-        <CopyBlock
-          label="Template — Product Brand"
-          text={`## MUST-INCLUDE ELEMENTS
-
-- Brand Name: [BRAND NAME] — always prominent
-- Tagline: "[Your tagline]"
-- Contact: [Phone / Website / Social handle]
-- Certifications: [ISO, BIS, etc.]
-- Product range mention: [e.g., "Available in 50+ designs"]`}
-        />
-      </Section>
-
-      {/* Section 6: Brand Brief — Visual Direction */}
-      <Section icon={FileText} title="Brand Brief — Visual Direction" badge="~600 chars">
-        <p>Tell the AI <strong>how creatives should look</strong> — mood, lighting, textures, composition style.</p>
-        <CopyBlock
-          label="Template"
-          text={`## VISUAL DIRECTION
-
-Photography Style:
-- [e.g., "Warm golden-hour lighting, natural tones"]
-- [e.g., "Wide-angle architectural shots showing scale"]
-- [e.g., "Lifestyle shots with aspirational families"]
-
-Layout & Composition:
-- [e.g., "Clean, minimal layouts — generous white space"]
-- [e.g., "Building renders at 60% frame, sky visible"]
-- [e.g., "Logo top-left, CTA bottom-right, contact in footer"]
-
-Textures & Materials:
-- [e.g., "Subtle marble or concrete textures as overlays"]
-- [e.g., "Premium matte finishes, avoid glossy effects"]
-
-Mood:
-- [e.g., "Serene, premium, nature-led — not flashy or aggressive"]`}
-        />
-      </Section>
-
-      {/* Section 7: Brand Brief — Example Copy */}
-      <Section icon={FileText} title="Brand Brief — Example Copy" badge="~500 chars">
-        <p>Give the AI <strong>sample headlines, CTAs, and taglines</strong> to learn your voice and style.</p>
-        <CopyBlock
-          label="Template"
-          text={`## EXAMPLE COPY
-
-Headlines:
-- "[e.g., Where Nature Meets Luxury]"
-- "[e.g., The Largest 3 BHK in Science Park]"
-- "[e.g., Live the Life You Deserve]"
-
-Subtext:
-- "[e.g., Spacious residences designed for modern families]"
-- "[e.g., Premium amenities. Uncompromised privacy.]"
-
-CTAs:
-- "[e.g., Book Your Private Viewing]"
-- "[e.g., Visit the Show Apartment Today]"
-- "[e.g., Call 8306 333 777]"`}
-        />
-      </Section>
-
-      {/* Section 8: Tone & Target Audience */}
-      <Section icon={MessageSquare} title="Tone & Target Audience" badge="~1500 chars">
-        <p>Define your brand's <strong>voice personality</strong> and <strong>who you're talking to</strong>.</p>
-        <CopyBlock
-          label="Template"
-          text={`## TONE & VOICE
-
-Voice Traits:
-- [e.g., "Confident but not arrogant"]
-- [e.g., "Premium and aspirational, never salesy"]
-- [e.g., "Warm and inviting, grounded in nature"]
-
-Language Style:
-- [e.g., "Use 'curated' not 'selected', 'residences' not 'flats'"]
-- [e.g., "Short, impactful sentences — max 12 words per line"]
-
-## TARGET AUDIENCE
-
-Demographics:
-- [e.g., "Affluent homebuyers, 35-55 years"]
-- [e.g., "HNI families upgrading from 2 BHK to 3/4 BHK"]
-
-Psychographics:
-- [e.g., "Value privacy, open spaces, and nature"]
-- [e.g., "Pet owners seeking pet-friendly communities"]
-
-Desired Emotional Response:
-- [e.g., "Feel that this is THE premium choice in the area"]
-- [e.g., "Sense of exclusivity and belonging"]`}
-        />
-      </Section>
-
-      {/* Section 9: The Never List */}
-      <Section icon={Ban} title="The Never List" badge="~1000 chars">
-        <p>Critical constraints the AI must <strong>never violate</strong>. Split into two clear categories for best results.</p>
-        <CopyBlock
-          label="Template"
-          text={`## VISUAL NEVERS
-
-- Never distort or crop the logo
-- Never alter building render proportions or colors
-- Never use stock photography — only uploaded brand assets
-- Never use dark/moody color schemes
-- Never place text over the building render's key features
-- Never use gradients that clash with brand palette
-
-## CONTENT NEVERS
-
-- Never use the word "cheap", "affordable", or "budget"
-- Never use fear-based urgency ("Hurry!", "Last chance!")
-- Never make unverifiable ROI or rental return claims
-- Never omit [RERA number / legal disclaimers]
-- Never omit contact number [PHONE]
-- Never omit location [ADDRESS]
-- Never position as mid-segment or value housing
-- Never use ALL CAPS for body text (headlines OK)`}
-        />
       </Section>
 
       {/* Pro Tips */}
@@ -606,12 +501,12 @@ Desired Emotional Response:
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {[
-            { tip: "Front-load critical info", desc: "The AI prioritises content that appears first in each field. Put your most important rules at the top." },
-            { tip: "Use markdown headers (##)", desc: "Structure your brief with ## headers. The AI parses these to separate visual from textual constraints." },
-            { tip: "Be specific, not vague", desc: "'Warm golden-hour lighting with visible sky' beats 'make it look nice'. Precision = consistency." },
-            { tip: "Tag every asset", desc: "An untagged image is harder for the AI to use correctly. Always select a category from the dropdown." },
-            { tip: "Test with a generation", desc: "After setting up your brand, run a test generation immediately. Review the output and refine your brief based on what's missing." },
-            { tip: "Separate Visual from Content rules", desc: "In the Never List, use ## VISUAL NEVERS and ## CONTENT NEVERS headers. This prevents the AI from confusing image rules with text rules." },
+            { tip: "More visuals = better analysis", desc: "Upload 5-10 old creatives or references. Claude extracts your visual DNA — typography, colors, layout patterns, mood — from these images." },
+            { tip: "Include what you DON'T want", desc: "If certain creatives didn't work, upload those too and tell Claude 'I don't want this style.' Negative examples are powerful." },
+            { tip: "Mix old creatives + aspirational references", desc: "Upload both your existing work AND designs from brands you admire. Claude will blend your identity with the style you aspire to." },
+            { tip: "Test immediately after setup", desc: "Create a brand → go to Studio → upload a reference image → generate. Review the output and refine your brand brief based on what's off." },
+            { tip: "Iterate the brief, not the prompt", desc: "If outputs aren't perfect, tweak the Brand Brief and Negative Prompts fields directly in BrandTonic. Small changes compound into big improvements." },
+            { tip: "One brand = one visual system", desc: "If your brand has very different visual needs (e.g., interior vs exterior), consider creating separate brand profiles for each." },
           ].map((item, i) => (
             <div key={i} className="flex gap-2.5">
               <span className="text-secondary font-bold text-xs mt-0.5 shrink-0">{i + 1}.</span>
@@ -625,9 +520,13 @@ Desired Emotional Response:
       </Card>
 
       {/* CTA */}
-      <div className="flex justify-center pt-4">
+      <div className="flex justify-center gap-3 pt-4">
+        <Button onClick={handleCopyPrompt} variant="outline" className="gap-2">
+          {pageCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {pageCopied ? "Copied!" : "Copy Master Prompt"}
+        </Button>
         <Button onClick={() => navigate("/brands/new")} className="gap-2">
-          <Palette className="h-4 w-4" /> Create a Brand Now
+          <Paintbrush className="h-4 w-4" /> Create a Brand
         </Button>
       </div>
     </div>
