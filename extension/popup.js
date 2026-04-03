@@ -1,6 +1,7 @@
 // --- Config ---
 const SUPABASE_URL = "https://jibbeetyogbfkjvazysy.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppYmJlZXR5b2diZmtqdmF6eXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzUwNzYsImV4cCI6MjA4ODgxMTA3Nn0.C20BJLWyo9A3c2ouT097uddJrrJJwM-K09RhEQ3bf0E";
+const APP_URL = "https://autodesigner.lovable.app";
 
 // --- DOM refs ---
 const loginView = document.getElementById("login-view");
@@ -15,6 +16,9 @@ const noImageState = document.getElementById("no-image-state");
 const generateForm = document.getElementById("generate-form");
 const generatingState = document.getElementById("generating-state");
 const resultState = document.getElementById("result-state");
+const errorState = document.getElementById("error-state");
+const errorStateMsg = document.getElementById("error-state-msg");
+const retryBtn = document.getElementById("retry-btn");
 const previewImage = document.getElementById("preview-image");
 const brandSelect = document.getElementById("brand-select");
 const formatGrid = document.getElementById("format-grid");
@@ -22,6 +26,7 @@ const generateBtn = document.getElementById("generate-btn");
 const resultImage = document.getElementById("result-image");
 const downloadBtn = document.getElementById("download-btn");
 const newBtn = document.getElementById("new-btn");
+const historyLink = document.getElementById("history-link");
 
 let selectedFormat = "square";
 let session = null;
@@ -39,6 +44,7 @@ function showMainSection(section) {
   generateForm.style.display = "none";
   generatingState.style.display = "none";
   resultState.style.display = "none";
+  errorState.style.display = "none";
   section.style.display = "block";
 }
 
@@ -57,13 +63,11 @@ async function supabaseRequest(path, options = {}) {
   if (session?.access_token) {
     headers["Authorization"] = `Bearer ${session.access_token}`;
   }
-  const res = await fetch(`${SUPABASE_URL}${path}`, { ...options, headers });
-  return res;
+  return fetch(`${SUPABASE_URL}${path}`, { ...options, headers });
 }
 
 // --- Auth ---
 async function signIn(email, password) {
-  // Support username login (append @internal.brandtonic if no @)
   if (!email.includes("@")) {
     email = `${email}@internal.brandtonic`;
   }
@@ -81,10 +85,8 @@ async function loadSession() {
   const stored = await chrome.storage.local.get(["bt_session"]);
   if (stored.bt_session) {
     session = stored.bt_session;
-    // Check if token is expired
     const exp = session.expires_at * 1000;
     if (Date.now() > exp) {
-      // Try refresh
       try {
         const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
           method: "POST",
@@ -133,7 +135,7 @@ formatGrid.addEventListener("click", (e) => {
   selectedFormat = option.dataset.format;
 });
 
-// --- Generate ---
+// --- Generate (delegate to background) ---
 async function generateCreative() {
   const brandId = brandSelect.value;
   if (!brandId) { showError(mainError, "Please select a brand."); return; }
@@ -141,28 +143,31 @@ async function generateCreative() {
 
   showMainSection(generatingState);
 
-  try {
-    const res = await supabaseRequest("/functions/v1/generate-creative", {
-      method: "POST",
-      body: JSON.stringify({
-        brandId,
-        referenceImageUrl: selectedImageUrl,
-        outputFormat: selectedFormat,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Generation failed");
-
-    if (data.imageUrl) {
-      resultImage.src = data.imageUrl;
-      showMainSection(resultState);
-    } else {
-      throw new Error("No image returned");
+  chrome.runtime.sendMessage({
+    type: "generate",
+    payload: {
+      brandId,
+      imageUrl: selectedImageUrl,
+      format: selectedFormat,
+      session: { access_token: session.access_token }
     }
-  } catch (err) {
-    showMainSection(generateForm);
-    showError(mainError, err.message);
+  });
+}
+
+// --- Listen for results from background ---
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "generation_complete") {
+    handleResult(message.result);
+  }
+});
+
+function handleResult(result) {
+  if (result.status === "complete" && result.imageUrl) {
+    resultImage.src = result.imageUrl;
+    showMainSection(resultState);
+  } else if (result.status === "error") {
+    errorStateMsg.textContent = result.error || "Something went wrong.";
+    showMainSection(errorState);
   }
 }
 
@@ -184,8 +189,20 @@ downloadBtn.addEventListener("click", async () => {
 });
 
 // --- New ---
-newBtn.addEventListener("click", () => {
+newBtn.addEventListener("click", async () => {
+  await chrome.storage.local.remove(["bt_lastResult"]);
   showMainSection(generateForm);
+});
+
+// --- Retry ---
+retryBtn.addEventListener("click", () => {
+  showMainSection(generateForm);
+});
+
+// --- History link ---
+historyLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: `${APP_URL}/history` });
 });
 
 // --- Login handler ---
@@ -210,7 +227,7 @@ loginBtn.addEventListener("click", async () => {
 // --- Logout ---
 logoutBtn.addEventListener("click", async () => {
   session = null;
-  await chrome.storage.local.remove(["bt_session"]);
+  await chrome.storage.local.remove(["bt_session", "bt_lastResult"]);
   showView(loginView);
 });
 
@@ -219,13 +236,34 @@ async function initMainView() {
   showView(mainView);
   await populateBrands();
 
+  // Check for in-progress or completed result from background
+  const { bt_lastResult } = await chrome.storage.local.get(["bt_lastResult"]);
+  if (bt_lastResult) {
+    const age = Date.now() - (bt_lastResult.timestamp || 0);
+    const isRecent = age < 10 * 60 * 1000; // 10 minutes
+
+    if (bt_lastResult.status === "generating" && isRecent) {
+      showMainSection(generatingState);
+      return;
+    }
+    if (bt_lastResult.status === "complete" && bt_lastResult.imageUrl && isRecent) {
+      resultImage.src = bt_lastResult.imageUrl;
+      showMainSection(resultState);
+      return;
+    }
+    if (bt_lastResult.status === "error" && isRecent) {
+      errorStateMsg.textContent = bt_lastResult.error || "Something went wrong.";
+      showMainSection(errorState);
+      return;
+    }
+  }
+
   // Check for stored image URL from context menu
   const stored = await chrome.storage.local.get(["selectedImageUrl"]);
   if (stored.selectedImageUrl) {
     selectedImageUrl = stored.selectedImageUrl;
     previewImage.src = selectedImageUrl;
     showMainSection(generateForm);
-    // Clear it so next open shows fresh state
     await chrome.storage.local.remove(["selectedImageUrl"]);
   } else {
     showMainSection(noImageState);
