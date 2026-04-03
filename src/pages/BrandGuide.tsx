@@ -1,91 +1,32 @@
-import { BookOpen, Copy, Check, ArrowLeft, Zap, Upload, MessageSquare, Paintbrush, ClipboardList, Sparkles, ExternalLink } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Copy, Check, ArrowLeft, FileText, Sparkles, Paintbrush, ExternalLink, ArrowRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-function CopyBlock({ label, text }: { label: string; text: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <div className="relative group">
-      {label && <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>}
-      <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto">
-        {text}
-      </pre>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleCopy}
-        className="absolute top-2 right-2 h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
-        <span className="text-[10px] ml-1">{copied ? "Copied" : "Copy"}</span>
-      </Button>
-    </div>
-  );
-}
+const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — AI Brand Profile Generator
 
-function Section({
-  icon: Icon,
-  title,
-  badge,
-  children,
-  defaultOpen = false,
-}: {
-  icon: React.ElementType;
-  title: string;
-  badge?: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="border-border/50">
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-accent/30 transition-colors">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Icon className="h-4 w-4 text-primary" />
-                </div>
-                <CardTitle className="text-base font-display">{title}</CardTitle>
-                {badge && <Badge variant="secondary" className="text-[10px]">{badge}</Badge>}
-              </div>
-              <div className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}>
-                ▾
-              </div>
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="space-y-4 text-sm text-foreground/90 leading-relaxed">
-            {children}
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
-  );
-}
-
-const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — One-Shot Brand Profile Generator
-
-You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for an AI creative generation system. Do NOT ask me questions. Analyze everything I've provided and generate the complete profile in one shot.
+You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for an AI creative generation system.
 
 ---
 
-## YOUR TASK
+## IMPORTANT: ASK QUESTIONS FIRST
+
+Before generating anything, you MUST ask me 10-15 clarifying questions to fill gaps in what I've provided. Ask about:
+
+- **Missing brand data**: Company history, target audience details, USPs I haven't mentioned
+- **Visual preferences**: Do I prefer minimal or bold? Photo-heavy or graphic? Warm or cool tones?
+- **Tone ambiguities**: Formal vs casual? Playful vs serious? Any words/phrases I love or hate?
+- **Asset gaps**: Are there logos, images, or materials I forgot to upload?
+- **Competitive context**: Who are my competitors? What should I look different from?
+- **Mandatory elements**: Legal disclaimers, contact info, taglines that MUST appear?
+- **What's NOT working**: Any past creatives or styles I want to avoid?
+
+Only AFTER I answer your questions, proceed to generate the complete brand profile using the format below.
+
+---
+
+## YOUR TASK (after Q&A)
 
 ### Step 1: Analyze All Visual Materials
 
@@ -306,7 +247,7 @@ Your job is to make the brand profile SO GOOD that the system produces on-point,
 
 ---
 
-Now analyze everything I've provided and generate the complete brand profile. No questions. Just output.`;
+Now start by asking me 10-15 clarifying questions based on what I've provided. After I answer, generate the complete brand profile.`;
 
 export default function BrandGuide() {
   const navigate = useNavigate();
@@ -318,323 +259,92 @@ export default function BrandGuide() {
     setTimeout(() => setPageCopied(false), 3000);
   };
 
+  const steps = [
+    { icon: FileText, label: "Gather", desc: "Brand docs, logos, old creatives" },
+    { icon: Sparkles, label: "Prompt", desc: "Paste in Claude + attach files" },
+    { icon: Paintbrush, label: "Setup", desc: "Copy output into BrandTonic" },
+  ];
+
+  const mapping = [
+    { from: "BRAND NAME", to: "Brand Name" },
+    { from: "COLOR PALETTE", to: "Primary / Secondary / Extra Colors" },
+    { from: "BRAND BRIEF (all sections)", to: "Brand Brief" },
+    { from: "TONE & TARGET AUDIENCE", to: "Brand Voice Rules" },
+    { from: "THE NEVER LIST", to: "Negative Prompts" },
+  ];
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-16">
+    <div className="max-w-2xl mx-auto space-y-8 pb-16">
       {/* Header */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5 -ml-2 text-muted-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </Button>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground">Brand Setup Guide</h1>
-              <p className="text-sm text-muted-foreground">Create a perfect brand profile in 3 minutes using Claude</p>
-            </div>
-          </div>
-        </div>
+        <h1 className="text-2xl font-display font-bold text-foreground">Brand Setup Guide</h1>
+        <p className="text-sm text-muted-foreground">Create your brand profile in 3 steps</p>
       </div>
 
-      {/* How It Works — Overview */}
-      <Card className="border-primary/20 bg-primary/5">
+      {/* 3-Step Strip */}
+      <div className="grid grid-cols-3 gap-4">
+        {steps.map((step, i) => (
+          <div key={step.label} className="text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <step.icon className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                <span className="text-primary mr-1">{i + 1}.</span>{step.label}
+              </p>
+              <p className="text-xs text-muted-foreground">{step.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Master Prompt */}
+      <Card className="border-border/50">
         <CardContent className="pt-6 space-y-4">
-          <h2 className="text-lg font-display font-semibold text-foreground">How It Works</h2>
-          <p className="text-sm text-foreground/90 leading-relaxed">
-            Instead of filling out every field manually, you use <strong>Claude AI</strong> to analyze your brand materials and generate a perfectly structured brand profile. One prompt, one click — done.
-          </p>
-          <div className="grid gap-3">
-            {[
-              { step: "1", title: "Gather your materials", desc: "Raw brand data (docs, notes, bullet points) + old creatives or reference images" },
-              { step: "2", title: "Open Claude & paste the Master Prompt", desc: "Copy the prompt below and paste it into Claude (claude.ai)" },
-              { step: "3", title: "Upload everything & hit Enter", desc: "Claude analyzes visuals + data and outputs a complete brand profile" },
-              { step: "4", title: "Copy sections into BrandTonic", desc: "Paste each section into the corresponding field in your brand setup" },
-            ].map((item) => (
-              <div key={item.step} className="flex gap-3 items-start">
-                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-xs font-bold text-primary">{item.step}</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
-                </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-display font-semibold text-foreground">Master Prompt</h2>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleCopyPrompt} className="gap-1.5">
+                {pageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {pageCopied ? "Copied!" : "Copy"}
+              </Button>
+              <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  Open Claude <ExternalLink className="h-3 w-3" />
+                </Button>
+              </a>
+            </div>
+          </div>
+          <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs text-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto">
+            {MASTER_PROMPT}
+          </pre>
+        </CardContent>
+      </Card>
+
+      {/* Where to Paste */}
+      <Card className="border-border/50">
+        <CardContent className="pt-6 space-y-3">
+          <h2 className="text-lg font-display font-semibold text-foreground">Where to Paste</h2>
+          <div className="divide-y divide-border">
+            {mapping.map((item, i) => (
+              <div key={i} className="flex items-center gap-3 py-2.5">
+                <span className="font-mono text-xs bg-muted px-2 py-1 rounded text-foreground shrink-0">{item.from}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-sm text-foreground font-medium">{item.to}</span>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Visual Walkthrough */}
-      <Card className="border-border/50 overflow-hidden">
-        <CardContent className="p-0">
-          <div className="bg-muted/30 p-4 border-b border-border/50 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-display font-semibold text-foreground">See It In Action</h3>
-            <Badge variant="secondary" className="text-[10px] ml-auto">Auto-playing</Badge>
-          </div>
-
-          {/* Animated walkthrough mock */}
-          <div className="relative bg-[hsl(var(--card))] p-6 min-h-[280px]">
-            {/* Mock Claude-like dark UI */}
-            <div className="max-w-lg mx-auto rounded-xl border border-border bg-background shadow-lg overflow-hidden">
-              {/* Mock browser bar */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/50 border-b border-border">
-                <div className="flex gap-1.5">
-                  <div className="h-2.5 w-2.5 rounded-full bg-destructive/40" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/40" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-green-500/40" />
-                </div>
-                <div className="flex-1 mx-4">
-                  <div className="bg-muted rounded-md px-3 py-1 text-[10px] text-muted-foreground text-center">claude.ai</div>
-                </div>
-              </div>
-
-              {/* Animated frames container */}
-              <div className="relative h-[180px] overflow-hidden">
-                {/* Frame 1: Paste Prompt */}
-                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame1_12s_ease-in-out_infinite]">
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                      <MessageSquare className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-xs font-semibold text-foreground">Step 1: Paste Master Prompt</span>
-                  </div>
-                  <div className="bg-muted/50 rounded-lg p-3 border border-border/50 space-y-1.5">
-                    <p className="text-[10px] text-primary font-mono font-medium"># 🚀 Brand Setup Master Prompt</p>
-                    <p className="text-[10px] text-muted-foreground font-mono">You are a brand strategist...</p>
-                    <p className="text-[10px] text-muted-foreground font-mono">Analyze ALL visual materials...</p>
-                    <div className="flex gap-1 mt-1">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-1 flex-1 rounded-full bg-primary/20" />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground italic text-center">Copy the prompt from Step 2 below ↓</p>
-                </div>
-
-                {/* Frame 2: Upload Files */}
-                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame2_12s_ease-in-out_infinite]">
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Upload className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-xs font-semibold text-foreground">Step 2: Upload Brand Materials</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: "Brand Doc", icon: "📄" },
-                      { label: "Logo.png", icon: "🎨" },
-                      { label: "Creative1.jpg", icon: "🖼️" },
-                      { label: "Creative2.jpg", icon: "🖼️" },
-                      { label: "Reference.png", icon: "✨" },
-                      { label: "Guidelines.pdf", icon: "📋" },
-                    ].map((file) => (
-                      <div key={file.label} className="bg-muted/50 rounded-md p-2 border border-border/50 text-center">
-                        <span className="text-sm">{file.icon}</span>
-                        <p className="text-[9px] text-muted-foreground mt-0.5 truncate">{file.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground italic text-center">Upload raw data + old creatives + references</p>
-                </div>
-
-                {/* Frame 3: Get Output */}
-                <div className="absolute inset-0 p-4 flex flex-col gap-3 animate-[walkthrough-frame3_12s_ease-in-out_infinite]">
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Zap className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-xs font-semibold text-foreground">Step 3: Get Your Brand Profile</span>
-                  </div>
-                  <div className="bg-muted/50 rounded-lg p-3 border border-primary/30 space-y-1.5">
-                    <p className="text-[10px] font-mono font-semibold text-primary">### BRAND NAME</p>
-                    <p className="text-[10px] font-mono text-foreground/80">Luxe Residences</p>
-                    <p className="text-[10px] font-mono font-semibold text-primary mt-1">### COLOR PALETTE</p>
-                    <div className="flex gap-1.5 items-center">
-                      <div className="h-3 w-3 rounded-full bg-[hsl(220,70%,30%)]" />
-                      <p className="text-[10px] font-mono text-foreground/80">#1A3A6B — Headlines</p>
-                    </div>
-                    <p className="text-[10px] font-mono font-semibold text-primary mt-1">### VISUAL DIRECTION</p>
-                    <p className="text-[10px] font-mono text-foreground/80">Warm golden-hour lighting...</p>
-                  </div>
-                  <p className="text-[10px] text-primary font-medium text-center">✅ Copy each section into BrandTonic</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step indicators */}
-            <div className="flex justify-center gap-2 mt-4">
-              {["Paste Prompt", "Upload Files", "Get Profile"].map((label, i) => (
-                <div key={label} className="flex items-center gap-1.5">
-                  <div className={`h-1.5 w-1.5 rounded-full animate-[walkthrough-dot${i + 1}_12s_ease-in-out_infinite] bg-muted-foreground/30`} />
-                  <span className="text-[10px] text-muted-foreground">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Step 1: Gather Materials */}
-      <Section icon={ClipboardList} title="Step 1 — Gather Your Materials" badge="Before you start" defaultOpen>
-        <p>Collect everything you have about your brand. The more you give Claude, the better the output.</p>
-        
-        <div className="space-y-3">
-          <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-2">
-            <p className="text-sm font-semibold text-foreground">📄 Raw Brand Data</p>
-            <p className="text-xs text-muted-foreground">Any of these work — you don't need all of them:</p>
-            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
-              <li>Brand documents, pitch decks, presentations</li>
-              <li>Website copy, about pages, brochure text</li>
-              <li>Unstructured notes, bullet points, WhatsApp messages</li>
-              <li>Product descriptions, pricing info, USPs</li>
-              <li>Legal/compliance text (RERA, certifications, disclaimers)</li>
-              <li>Contact details, social handles, addresses</li>
-            </ul>
-          </div>
-
-          <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-2">
-            <p className="text-sm font-semibold text-foreground">🎨 Visual Materials (Critical!)</p>
-            <p className="text-xs text-muted-foreground">Upload at least 3-5 images for best results:</p>
-            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
-              <li><strong>Old creatives</strong> — social media posts, ads, banners you've made before</li>
-              <li><strong>Reference images</strong> — designs from other brands whose visual style you admire</li>
-              <li><strong>Logo files</strong> — your primary logo in high resolution</li>
-              <li><strong>Brand guideline PDFs</strong> — if you have existing guidelines</li>
-              <li><strong>Product/building photos</strong> — your actual visual assets</li>
-            </ul>
-            <p className="text-xs text-primary font-medium mt-2">
-              💡 Claude will analyze these to extract your visual language — colors, typography, layout patterns, mood.
-            </p>
-          </div>
-        </div>
-      </Section>
-
-      {/* Step 2: The Master Prompt */}
-      <Section icon={Sparkles} title="Step 2 — Copy the Master Prompt" badge="The magic" defaultOpen>
-        <p>
-          This single prompt tells Claude to analyze everything you upload and generate a complete brand profile — no back-and-forth needed.
-        </p>
-        
-        <div className="flex items-center gap-2 mb-2">
-          <Button onClick={handleCopyPrompt} className="gap-2">
-            {pageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {pageCopied ? "Copied!" : "Copy Master Prompt"}
-          </Button>
-          <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              Open Claude <ExternalLink className="h-3 w-3" />
-            </Button>
-          </a>
-        </div>
-
-        <CopyBlock label="Master Prompt — Copy this entire block" text={MASTER_PROMPT} />
-      </Section>
-
-      {/* Step 3: How to Use in Claude */}
-      <Section icon={Upload} title="Step 3 — Upload & Generate in Claude" badge="3 minutes">
-        <p>Here's exactly what to do in Claude:</p>
-
-        <div className="space-y-3">
-          <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-            <p className="text-sm font-semibold text-foreground mb-2">In the Claude chat window:</p>
-            <ol className="list-decimal list-inside text-xs text-muted-foreground space-y-2 ml-2">
-              <li><strong>Paste the Master Prompt</strong> — this goes first in the message box</li>
-              <li><strong>Attach your raw data files</strong> — drag & drop documents, PDFs, text files</li>
-              <li><strong>Attach your visual materials</strong> — drag & drop 3-10 old creatives, references, or brand images</li>
-              <li><strong>Hit Enter</strong> — Claude will analyze everything and output the full brand profile</li>
-            </ol>
-          </div>
-
-          <div className="bg-secondary/10 rounded-lg p-4 border border-secondary/30">
-            <p className="text-sm font-semibold text-foreground mb-1">⚡ Pro tip: One message, everything attached</p>
-            <p className="text-xs text-muted-foreground">
-              Paste the prompt + attach ALL files in a single message. Don't send the prompt first and files later — Claude works best when it sees everything at once.
-            </p>
-          </div>
-
-          <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-            <p className="text-sm font-semibold text-foreground mb-2">What Claude will output:</p>
-            <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 ml-2">
-              <li><strong>Brand Name</strong> → paste into the "Brand Name" field</li>
-              <li><strong>Color Palette</strong> → set Primary, Secondary, and Extra Colors</li>
-              <li><strong>Brand Brief sections</strong> → paste each into the corresponding Brand Brief field</li>
-              <li><strong>Tone & Target Audience</strong> → paste into "Brand Voice Rules"</li>
-              <li><strong>The Never List</strong> → paste into "Negative Prompts"</li>
-              <li><strong>Asset tagging recommendations</strong> → use when uploading assets to BrandTonic</li>
-            </ul>
-          </div>
-        </div>
-      </Section>
-
-      {/* Step 4: Paste into BrandTonic */}
-      <Section icon={Paintbrush} title="Step 4 — Paste into BrandTonic" badge="Final step">
-        <p>Take Claude's output and paste each section into the matching field in your brand setup form.</p>
-
-        <div className="space-y-2">
-          {[
-            { from: "BRAND NAME", to: "Brand Name field", note: "Just the name, no tagline" },
-            { from: "COLOR PALETTE → Primary", to: "Primary Color picker", note: "Use the hex code" },
-            { from: "COLOR PALETTE → Secondary", to: "Secondary Color picker", note: "Use the hex code" },
-            { from: "COLOR PALETTE → Extra Colors", to: "'Add Color' button", note: "Add each with name + hex" },
-            { from: "BRAND BRIEF (Identity + Must-Include + Visual Direction + Example Copy)", to: "Brand Brief textarea", note: "Paste all four sections together" },
-            { from: "TONE & TARGET AUDIENCE", to: "Brand Voice Rules textarea", note: "Full tone section" },
-            { from: "THE NEVER LIST", to: "Negative Prompts textarea", note: "Both Visual + Content Nevers" },
-          ].map((item, i) => (
-            <div key={i} className="bg-muted/30 rounded-lg p-3 border border-border/50 flex items-start gap-3">
-              <span className="text-xs font-bold text-primary mt-0.5 shrink-0">{i + 1}.</span>
-              <div className="min-w-0">
-                <p className="text-xs text-foreground">
-                  <span className="font-mono text-[11px] bg-accent/50 px-1 py-0.5 rounded">{item.from}</span>
-                  {" → "}
-                  <span className="font-semibold">{item.to}</span>
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{item.note}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          💡 After pasting, upload your logo and key images as Brand Assets with the tags Claude recommended.
-        </p>
-      </Section>
-
-      {/* Pro Tips */}
-      <Card className="border-secondary/30 bg-secondary/5">
-        <CardHeader>
-          <div className="flex items-center gap-2.5">
-            <Zap className="h-5 w-5 text-secondary" />
-            <CardTitle className="text-base font-display">Pro Tips</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {[
-            { tip: "More visuals = better analysis", desc: "Upload 5-10 old creatives or references. Claude extracts your visual DNA — typography, colors, layout patterns, mood — from these images." },
-            { tip: "Include what you DON'T want", desc: "If certain creatives didn't work, upload those too and tell Claude 'I don't want this style.' Negative examples are powerful." },
-            { tip: "Mix old creatives + aspirational references", desc: "Upload both your existing work AND designs from brands you admire. Claude will blend your identity with the style you aspire to." },
-            { tip: "Test immediately after setup", desc: "Create a brand → go to Studio → upload a reference image → generate. Review the output and refine your brand brief based on what's off." },
-            { tip: "Iterate the brief, not the prompt", desc: "If outputs aren't perfect, tweak the Brand Brief and Negative Prompts fields directly in BrandTonic. Small changes compound into big improvements." },
-            { tip: "One brand = one visual system", desc: "If your brand has very different visual needs (e.g., interior vs exterior), consider creating separate brand profiles for each." },
-          ].map((item, i) => (
-            <div key={i} className="flex gap-2.5">
-              <span className="text-secondary font-bold text-xs mt-0.5 shrink-0">{i + 1}.</span>
-              <div>
-                <p className="font-medium text-foreground text-sm">{item.tip}</p>
-                <p className="text-muted-foreground text-xs mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
       {/* CTA */}
-      <div className="flex justify-center gap-3 pt-4">
+      <div className="flex justify-center gap-3">
         <Button onClick={handleCopyPrompt} variant="outline" className="gap-2">
           {pageCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {pageCopied ? "Copied!" : "Copy Master Prompt"}
+          {pageCopied ? "Copied!" : "Copy Prompt"}
         </Button>
         <Button onClick={() => navigate("/brands/new")} className="gap-2">
           <Paintbrush className="h-4 w-4" /> Create a Brand

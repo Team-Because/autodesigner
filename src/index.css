@@ -148,34 +148,3 @@
   }
 }
 
-/* Walkthrough animation keyframes */
-@keyframes walkthrough-frame1 {
-  0%, 8% { opacity: 1; }
-  30%, 33% { opacity: 0; }
-  96%, 100% { opacity: 1; }
-}
-@keyframes walkthrough-frame2 {
-  0%, 28% { opacity: 0; }
-  33%, 41% { opacity: 1; }
-  63%, 66% { opacity: 0; }
-  100% { opacity: 0; }
-}
-@keyframes walkthrough-frame3 {
-  0%, 61% { opacity: 0; }
-  66%, 74% { opacity: 1; }
-  96%, 100% { opacity: 0; }
-}
-@keyframes walkthrough-dot1 {
-  0%, 8% { background-color: hsl(var(--primary)); }
-  30%, 100% { background-color: hsl(var(--muted-foreground) / 0.3); }
-}
-@keyframes walkthrough-dot2 {
-  0%, 28% { background-color: hsl(var(--muted-foreground) / 0.3); }
-  33%, 61% { background-color: hsl(var(--primary)); }
-  66%, 100% { background-color: hsl(var(--muted-foreground) / 0.3); }
-}
-@keyframes walkthrough-dot3 {
-  0%, 61% { background-color: hsl(var(--muted-foreground) / 0.3); }
-  66%, 96% { background-color: hsl(var(--primary)); }
-  100% { background-color: hsl(var(--muted-foreground) / 0.3); }
-}
