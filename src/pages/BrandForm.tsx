@@ -450,7 +450,7 @@ export default function BrandForm() {
                           <SelectValue placeholder="Select category…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {ASSET_CATEGORIES.map((cat) => (
+                          {getAssetCategories(industry).map((cat) => (
                             <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                           ))}
                         </SelectContent>
