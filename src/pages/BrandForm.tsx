@@ -457,9 +457,9 @@ export default function BrandForm() {
                         Thumbnail
                       </span>
                     )}
-                    {asset.label && (
+                    {asset.label && asset.label !== "Other:" && (
                       <Badge variant="secondary" className="absolute top-1.5 right-8 text-[10px] bg-background/80 backdrop-blur-sm group-hover:hidden">
-                        {asset.label}
+                        {asset.label.startsWith("Other: ") ? asset.label.replace("Other: ", "") : asset.label}
                       </Badge>
                     )}
                     <button
