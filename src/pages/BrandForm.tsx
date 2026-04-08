@@ -557,7 +557,7 @@ export default function BrandForm() {
                         <Input
                           className="text-xs h-7"
                           placeholder="Describe this asset…"
-                          value={asset.label === "Other:" ? "" : asset.label.replace("Other: ", "")}
+                          value={asset.label.replace(/^Other:\s*/, "")}
                           onChange={(e) => {
                             const customLabel = e.target.value ? `Other: ${e.target.value}` : "Other:";
                             handleLabelChange(index, customLabel);
@@ -571,6 +571,12 @@ export default function BrandForm() {
                                 .then(({ error }) => {
                                   if (error) toast.error("Failed to save tag.");
                                 });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
                             }
                           }}
                         />
