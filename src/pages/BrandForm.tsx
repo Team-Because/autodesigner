@@ -428,6 +428,7 @@ export default function BrandForm() {
               </Select>
               <p className="text-xs text-muted-foreground">Adds industry-specific asset tags (e.g., Floor Plan for Real Estate, Lookbook for Fashion)</p>
             </div>
+          </CardContent>
         </Card>
 
         {/* Multi-Image Asset Gallery */}
