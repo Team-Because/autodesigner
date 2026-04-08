@@ -104,6 +104,7 @@ export default function BrandForm() {
   const [briefVisual, setBriefVisual] = useState("");
   const [briefCopy, setBriefCopy] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [industry, setIndustry] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
