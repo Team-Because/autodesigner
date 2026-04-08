@@ -44,21 +44,103 @@ const BASE_CATEGORIES = [
   "Illustration",
   "Mood Board",
   "Certificate/Badge",
+  "Packaging",
+  "Behind the Scenes",
+  "Before/After",
+  "Data Visualization",
   "Other",
 ];
 
 const INDUSTRY_CATEGORIES: Record<string, string[]> = {
-  "Real Estate": ["Architecture", "Interior", "Exterior", "Elevation", "Floor Plan", "Masterplan", "Amenity", "Render", "Location Map", "Site Photo"],
-  "Education": ["Campus", "Classroom", "Student Life", "Faculty", "Curriculum", "Activity"],
-  "Fashion": ["Lookbook", "Swatch", "Flat Lay", "On-Model", "Fabric Close-up", "Collection"],
-  "Healthcare": ["Facility", "Medical Equipment", "Patient Care", "Lab", "Wellness"],
-  "Food & Beverage": ["Dish/Menu Item", "Packaging", "Restaurant/Venue", "Ingredient", "Behind the Scenes"],
-  "Retail": ["Store/Venue", "Packaging", "Catalogue", "Display/Shelf", "Unboxing"],
-  "Technology": ["Screenshot", "UI Mockup", "Device Render", "Dashboard", "Feature Highlight"],
-  "Hospitality": ["Room/Suite", "Amenity", "Dining", "Spa/Wellness", "Aerial View", "Guest Experience"],
-  "Automotive": ["Exterior Shot", "Interior Shot", "Detail/Close-up", "On Road", "Showroom"],
-  "Beauty & Personal Care": ["Before/After", "Swatch", "Packaging", "Application", "Ingredient"],
-  "Finance": ["Data Visualization", "Office/Branch", "Customer Success", "Compliance Badge"],
+  "Real Estate": [
+    "Architecture", "Interior", "Exterior", "Elevation", "Floor Plan",
+    "Masterplan", "Amenity", "Render", "Location Map", "Site Photo",
+    "Aerial View", "Model Unit", "Clubhouse", "Landscape", "Night View",
+    "Construction Progress", "Neighbourhood", "Street View",
+  ],
+  "Education": [
+    "Campus", "Classroom", "Student Life", "Faculty", "Curriculum",
+    "Activity", "Lab", "Library", "Playground", "Graduation",
+    "Workshop", "Sports", "Cultural Event", "Parent Interaction",
+    "Digital Learning", "App Screenshot",
+  ],
+  "EdTech": [
+    "App Screenshot", "UI Mockup", "Dashboard", "Feature Highlight",
+    "Student Engagement", "Learning Module", "Gamification",
+    "Chat Interface", "Progress Report", "Onboarding Flow",
+    "Character/Avatar", "Festive/Topical", "Parent View", "Teacher View",
+  ],
+  "Fashion": [
+    "Lookbook", "Swatch", "Flat Lay", "On-Model", "Fabric Close-up",
+    "Collection", "Runway", "Detail Shot", "Accessories", "Styling",
+    "Size Guide", "Outfit Composition", "Backstage",
+  ],
+  "Healthcare": [
+    "Facility", "Medical Equipment", "Patient Care", "Lab", "Wellness",
+    "Doctor/Staff", "Pharmacy", "Diagnostic", "Therapy", "Surgical",
+    "Hospital Exterior", "Waiting Area", "Ambulance",
+  ],
+  "Food & Beverage": [
+    "Dish/Menu Item", "Packaging", "Restaurant/Venue", "Ingredient",
+    "Behind the Scenes", "Plating", "Drink", "Kitchen", "Chef/Staff",
+    "Menu Card", "Delivery", "Table Setting", "Recipe Card",
+  ],
+  "Retail": [
+    "Store/Venue", "Packaging", "Catalogue", "Display/Shelf", "Unboxing",
+    "Price Tag", "Shopping Bag", "Window Display", "E-commerce Shot",
+    "Customer in Store", "Loyalty Card",
+  ],
+  "Technology": [
+    "Screenshot", "UI Mockup", "Device Render", "Dashboard",
+    "Feature Highlight", "Architecture Diagram", "Code Snippet",
+    "Integration Flow", "API Documentation", "Server/Hardware",
+    "Mobile View", "Desktop View",
+  ],
+  "Hospitality": [
+    "Room/Suite", "Amenity", "Dining", "Spa/Wellness", "Aerial View",
+    "Guest Experience", "Pool", "Lobby", "Conference Room",
+    "Beach/Garden", "Reception", "Night Ambiance",
+  ],
+  "Automotive": [
+    "Exterior Shot", "Interior Shot", "Detail/Close-up", "On Road",
+    "Showroom", "Engine", "Dashboard View", "Colour Options",
+    "Off-Road", "Aerial/Drone", "Comparison",
+  ],
+  "Beauty & Personal Care": [
+    "Before/After", "Swatch", "Packaging", "Application", "Ingredient",
+    "Shade Range", "Skin Close-up", "Tutorial Frame", "Routine",
+    "Model Close-up", "Texture Shot",
+  ],
+  "Finance": [
+    "Data Visualization", "Office/Branch", "Customer Success",
+    "Compliance Badge", "Card/Product", "Mobile Banking",
+    "Investment Chart", "Insurance Illustration", "Team Photo",
+  ],
+  "FMCG": [
+    "Packaging", "Shelf Display", "Ingredient", "Usage Shot",
+    "Family/Consumer", "Size Variants", "Recipe/Application",
+    "Rural/Urban Context", "Festive Pack", "Combo Pack",
+  ],
+  "Sports & Fitness": [
+    "Action Shot", "Equipment", "Facility", "Athlete/Model",
+    "Training", "Transformation", "Nutrition", "Event/Competition",
+    "Merchandise", "Gym Interior",
+  ],
+  "Travel & Tourism": [
+    "Destination", "Hotel/Stay", "Activity/Experience", "Aerial View",
+    "Local Culture", "Food/Cuisine", "Transport", "Itinerary",
+    "Map", "Sunset/Sunrise", "Adventure",
+  ],
+  "Non-Profit / NGO": [
+    "Impact Photo", "Beneficiary", "Fieldwork", "Event",
+    "Volunteer", "Report/Data", "Campaign Visual", "Partner Logo",
+    "Donation CTA", "Community",
+  ],
+  "Entertainment & Media": [
+    "Poster", "Still Frame", "Behind the Scenes", "Character Art",
+    "Key Art", "Trailer Thumbnail", "Venue", "Stage Setup",
+    "Fan Art", "Merchandise",
+  ],
 };
 
 const INDUSTRIES = Object.keys(INDUSTRY_CATEGORIES);
@@ -66,7 +148,6 @@ const INDUSTRIES = Object.keys(INDUSTRY_CATEGORIES);
 const getAssetCategories = (industry: string | null) => {
   if (!industry || !INDUSTRY_CATEGORIES[industry]) return BASE_CATEGORIES;
   const industryTags = INDUSTRY_CATEGORIES[industry];
-  // Insert industry-specific tags before "Other"
   const base = BASE_CATEGORIES.filter((c) => c !== "Other");
   const merged = [...base, ...industryTags.filter((t) => !base.includes(t)), "Other"];
   return merged;
@@ -476,7 +557,7 @@ export default function BrandForm() {
                         <Input
                           className="text-xs h-7"
                           placeholder="Describe this asset…"
-                          value={asset.label === "Other:" ? "" : asset.label.replace("Other: ", "")}
+                          value={asset.label.replace(/^Other:\s*/, "")}
                           onChange={(e) => {
                             const customLabel = e.target.value ? `Other: ${e.target.value}` : "Other:";
                             handleLabelChange(index, customLabel);
@@ -490,6 +571,12 @@ export default function BrandForm() {
                                 .then(({ error }) => {
                                   if (error) toast.error("Failed to save tag.");
                                 });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
                             }
                           }}
                         />
