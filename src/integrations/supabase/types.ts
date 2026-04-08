@@ -87,6 +87,7 @@ export type Database = {
           created_at: string
           extra_colors: Json | null
           id: string
+          industry: string | null
           logo_url: string | null
           name: string
           negative_prompts: string | null
@@ -102,6 +103,7 @@ export type Database = {
           created_at?: string
           extra_colors?: Json | null
           id?: string
+          industry?: string | null
           logo_url?: string | null
           name: string
           negative_prompts?: string | null
@@ -117,6 +119,7 @@ export type Database = {
           created_at?: string
           extra_colors?: Json | null
           id?: string
+          industry?: string | null
           logo_url?: string | null
           name?: string
           negative_prompts?: string | null
