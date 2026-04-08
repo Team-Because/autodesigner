@@ -35,6 +35,15 @@ const ASSET_CATEGORIES = [
   "Mascot",
   "Pattern/Texture",
   "Icon",
+  "Amenity",
+  "Floor Plan",
+  "Elevation",
+  "Interior",
+  "Exterior",
+  "Render",
+  "Infographic",
+  "Style Reference",
+  "Location Map",
   "Other",
 ];
 
