@@ -176,6 +176,8 @@ export default function BrandForm() {
           if (ec && Array.isArray(ec)) {
             setExtraColors(ec);
           }
+          // Load industry
+          setIndustry((data as any).industry || null);
         }
         if (assetsRes.data) {
           setAssets(assetsRes.data.map((a: any) => ({ id: a.id, image_url: a.image_url, label: a.label || "" })));
