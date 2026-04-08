@@ -35,6 +35,15 @@ const ASSET_CATEGORIES = [
   "Mascot",
   "Pattern/Texture",
   "Icon",
+  "Amenity",
+  "Floor Plan",
+  "Elevation",
+  "Interior",
+  "Exterior",
+  "Render",
+  "Infographic",
+  "Style Reference",
+  "Location Map",
   "Other",
 ];
 
@@ -394,16 +403,16 @@ export default function BrandForm() {
                     <div className="aspect-square">
                       <img src={asset.image_url} alt={asset.label || `Asset ${index + 1}`} className="h-full w-full object-cover" />
                     </div>
-                    <div className="p-2">
+                    <div className="p-2 space-y-1">
                       <Select
-                        value={asset.label || ""}
+                        value={asset.label?.startsWith("Other:") ? "Other" : (asset.label || "")}
                         onValueChange={(val) => {
-                          handleLabelChange(index, val);
-                          // Auto-save for existing assets
-                          if (asset.id && isEditing) {
+                          const newLabel = val === "Other" ? "Other:" : val;
+                          handleLabelChange(index, newLabel);
+                          if (val !== "Other" && asset.id && isEditing) {
                             supabase
                               .from("brand_assets")
-                              .update({ label: val })
+                              .update({ label: newLabel })
                               .eq("id", asset.id)
                               .then(({ error }) => {
                                 if (error) toast.error("Failed to save tag.");
@@ -420,15 +429,37 @@ export default function BrandForm() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {(asset.label === "Other:" || asset.label?.startsWith("Other:")) && (
+                        <Input
+                          className="text-xs h-7"
+                          placeholder="Describe this asset…"
+                          value={asset.label === "Other:" ? "" : asset.label.replace("Other: ", "")}
+                          onChange={(e) => {
+                            const customLabel = e.target.value ? `Other: ${e.target.value}` : "Other:";
+                            handleLabelChange(index, customLabel);
+                          }}
+                          onBlur={() => {
+                            if (asset.id && isEditing) {
+                              supabase
+                                .from("brand_assets")
+                                .update({ label: asset.label })
+                                .eq("id", asset.id)
+                                .then(({ error }) => {
+                                  if (error) toast.error("Failed to save tag.");
+                                });
+                            }
+                          }}
+                        />
+                      )}
                     </div>
                     {index === 0 && (
                       <span className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">
                         Thumbnail
                       </span>
                     )}
-                    {asset.label && (
+                    {asset.label && asset.label !== "Other:" && (
                       <Badge variant="secondary" className="absolute top-1.5 right-8 text-[10px] bg-background/80 backdrop-blur-sm group-hover:hidden">
-                        {asset.label}
+                        {asset.label.startsWith("Other: ") ? asset.label.replace("Other: ", "") : asset.label}
                       </Badge>
                     )}
                     <button
