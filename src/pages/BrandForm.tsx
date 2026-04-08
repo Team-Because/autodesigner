@@ -414,7 +414,20 @@ export default function BrandForm() {
               <Label htmlFor="name">Brand Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Shanti Juniors" />
             </div>
-          </CardContent>
+            <div className="space-y-2">
+              <Label>Industry</Label>
+              <Select value={industry || ""} onValueChange={(val) => setIndustry(val || null)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select industry for smart asset tags…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map((ind) => (
+                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Adds industry-specific asset tags (e.g., Floor Plan for Real Estate, Lookbook for Fashion)</p>
+            </div>
         </Card>
 
         {/* Multi-Image Asset Gallery */}
