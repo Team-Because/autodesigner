@@ -1403,8 +1403,10 @@ serve(async (req) => {
       if (err.message === "UPSTREAM_OVERLOADED") {
         return new Response(
           JSON.stringify({
+            code: "UPSTREAM_OVERLOADED",
             error:
               "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step.",
+            fallback: true,
             retryable: true,
             retryAfterSeconds: 45,
             analysisReused: !!existingFramework,
@@ -1412,7 +1414,7 @@ serve(async (req) => {
             cachedCaption: existingCaption || undefined,
           }),
           {
-            status: 503,
+            status: 200,
             headers: {
               ...corsHeaders,
               "Content-Type": "application/json",
