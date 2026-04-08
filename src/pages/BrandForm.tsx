@@ -25,8 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ASSET_CATEGORIES = [
-  // Universal
+const BASE_CATEGORIES = [
   "Logo",
   "Hero Image",
   "Product",
@@ -37,25 +36,41 @@ const ASSET_CATEGORIES = [
   "Infographic",
   "Style Reference",
   "Banner",
-  "Packaging",
   "Team/People",
   "Testimonial",
-  "Store/Venue",
   "Event",
-  "Before/After",
-  "Behind the Scenes",
-  "User Generated",
   "Social Media Asset",
   "Ad Reference",
   "Illustration",
-  "Typography Sample",
-  "Color Palette",
   "Mood Board",
-  "Catalogue",
   "Certificate/Badge",
-  // Other — with custom text input
   "Other",
 ];
+
+const INDUSTRY_CATEGORIES: Record<string, string[]> = {
+  "Real Estate": ["Architecture", "Interior", "Exterior", "Elevation", "Floor Plan", "Masterplan", "Amenity", "Render", "Location Map", "Site Photo"],
+  "Education": ["Campus", "Classroom", "Student Life", "Faculty", "Curriculum", "Activity"],
+  "Fashion": ["Lookbook", "Swatch", "Flat Lay", "On-Model", "Fabric Close-up", "Collection"],
+  "Healthcare": ["Facility", "Medical Equipment", "Patient Care", "Lab", "Wellness"],
+  "Food & Beverage": ["Dish/Menu Item", "Packaging", "Restaurant/Venue", "Ingredient", "Behind the Scenes"],
+  "Retail": ["Store/Venue", "Packaging", "Catalogue", "Display/Shelf", "Unboxing"],
+  "Technology": ["Screenshot", "UI Mockup", "Device Render", "Dashboard", "Feature Highlight"],
+  "Hospitality": ["Room/Suite", "Amenity", "Dining", "Spa/Wellness", "Aerial View", "Guest Experience"],
+  "Automotive": ["Exterior Shot", "Interior Shot", "Detail/Close-up", "On Road", "Showroom"],
+  "Beauty & Personal Care": ["Before/After", "Swatch", "Packaging", "Application", "Ingredient"],
+  "Finance": ["Data Visualization", "Office/Branch", "Customer Success", "Compliance Badge"],
+};
+
+const INDUSTRIES = Object.keys(INDUSTRY_CATEGORIES);
+
+const getAssetCategories = (industry: string | null) => {
+  if (!industry || !INDUSTRY_CATEGORIES[industry]) return BASE_CATEGORIES;
+  const industryTags = INDUSTRY_CATEGORIES[industry];
+  // Insert industry-specific tags before "Other"
+  const base = BASE_CATEGORIES.filter((c) => c !== "Other");
+  const merged = [...base, ...industryTags.filter((t) => !base.includes(t)), "Other"];
+  return merged;
+};
 
 interface AssetItem {
   id?: string;
