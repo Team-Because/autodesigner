@@ -25,8 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ASSET_CATEGORIES = [
-  // Universal
+const BASE_CATEGORIES = [
   "Logo",
   "Hero Image",
   "Product",
@@ -37,25 +36,41 @@ const ASSET_CATEGORIES = [
   "Infographic",
   "Style Reference",
   "Banner",
-  "Packaging",
   "Team/People",
   "Testimonial",
-  "Store/Venue",
   "Event",
-  "Before/After",
-  "Behind the Scenes",
-  "User Generated",
   "Social Media Asset",
   "Ad Reference",
   "Illustration",
-  "Typography Sample",
-  "Color Palette",
   "Mood Board",
-  "Catalogue",
   "Certificate/Badge",
-  // Other — with custom text input
   "Other",
 ];
+
+const INDUSTRY_CATEGORIES: Record<string, string[]> = {
+  "Real Estate": ["Architecture", "Interior", "Exterior", "Elevation", "Floor Plan", "Masterplan", "Amenity", "Render", "Location Map", "Site Photo"],
+  "Education": ["Campus", "Classroom", "Student Life", "Faculty", "Curriculum", "Activity"],
+  "Fashion": ["Lookbook", "Swatch", "Flat Lay", "On-Model", "Fabric Close-up", "Collection"],
+  "Healthcare": ["Facility", "Medical Equipment", "Patient Care", "Lab", "Wellness"],
+  "Food & Beverage": ["Dish/Menu Item", "Packaging", "Restaurant/Venue", "Ingredient", "Behind the Scenes"],
+  "Retail": ["Store/Venue", "Packaging", "Catalogue", "Display/Shelf", "Unboxing"],
+  "Technology": ["Screenshot", "UI Mockup", "Device Render", "Dashboard", "Feature Highlight"],
+  "Hospitality": ["Room/Suite", "Amenity", "Dining", "Spa/Wellness", "Aerial View", "Guest Experience"],
+  "Automotive": ["Exterior Shot", "Interior Shot", "Detail/Close-up", "On Road", "Showroom"],
+  "Beauty & Personal Care": ["Before/After", "Swatch", "Packaging", "Application", "Ingredient"],
+  "Finance": ["Data Visualization", "Office/Branch", "Customer Success", "Compliance Badge"],
+};
+
+const INDUSTRIES = Object.keys(INDUSTRY_CATEGORIES);
+
+const getAssetCategories = (industry: string | null) => {
+  if (!industry || !INDUSTRY_CATEGORIES[industry]) return BASE_CATEGORIES;
+  const industryTags = INDUSTRY_CATEGORIES[industry];
+  // Insert industry-specific tags before "Other"
+  const base = BASE_CATEGORIES.filter((c) => c !== "Other");
+  const merged = [...base, ...industryTags.filter((t) => !base.includes(t)), "Other"];
+  return merged;
+};
 
 interface AssetItem {
   id?: string;
@@ -89,6 +104,7 @@ export default function BrandForm() {
   const [briefVisual, setBriefVisual] = useState("");
   const [briefCopy, setBriefCopy] = useState("");
   const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [industry, setIndustry] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
@@ -160,6 +176,8 @@ export default function BrandForm() {
           if (ec && Array.isArray(ec)) {
             setExtraColors(ec);
           }
+          // Load industry
+          setIndustry((data as any).industry || null);
         }
         if (assetsRes.data) {
           setAssets(assetsRes.data.map((a: any) => ({ id: a.id, image_url: a.image_url, label: a.label || "" })));
@@ -260,6 +278,7 @@ export default function BrandForm() {
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
       brand_brief: combineBrief(),
+      industry: industry,
       user_id: user.id,
     };
 
@@ -396,6 +415,20 @@ export default function BrandForm() {
               <Label htmlFor="name">Brand Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Shanti Juniors" />
             </div>
+            <div className="space-y-2">
+              <Label>Industry</Label>
+              <Select value={industry || ""} onValueChange={(val) => setIndustry(val || null)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select industry for smart asset tags…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map((ind) => (
+                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Adds industry-specific asset tags (e.g., Floor Plan for Real Estate, Lookbook for Fashion)</p>
+            </div>
           </CardContent>
         </Card>
 
@@ -434,7 +467,7 @@ export default function BrandForm() {
                           <SelectValue placeholder="Select category…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {ASSET_CATEGORIES.map((cat) => (
+                          {getAssetCategories(industry).map((cat) => (
                             <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                           ))}
                         </SelectContent>
