@@ -206,7 +206,7 @@ export default function Studio() {
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
-      const maxInvokeAttempts = 3;
+      const maxInvokeAttempts = 5;
 
       for (let invokeAttempt = 1; invokeAttempt <= maxInvokeAttempts; invokeAttempt++) {
         // Use a 3-minute timeout — generation can take 30-90 seconds
@@ -240,11 +240,15 @@ export default function Studio() {
           } catch {}
         }
 
-        const isRetryableOverload = (context?.status === 503 || context?.status === 429) && retryable;
+        const isRetryableOverload = (context?.status === 503 || context?.status === 429 || context?.status === 502) && retryable;
         if (isRetryableOverload && invokeAttempt < maxInvokeAttempts) {
-          const waitMs = Math.max(retryAfterSeconds * 1000, 45000);
-          setProgressPhase(`AI providers are busy — retrying in ${Math.ceil(waitMs / 1000)}s...`);
+          // Progressive backoff: 30s, 45s, 60s, 75s
+          const waitMs = Math.max(retryAfterSeconds * 1000, 30000 + (invokeAttempt - 1) * 15000);
+          const waitSec = Math.ceil(waitMs / 1000);
+          setProgressPhase(`AI providers are busy — retry ${invokeAttempt}/${maxInvokeAttempts - 1} in ${waitSec}s...`);
+          toast.info(`AI providers are busy. Auto-retrying in ${waitSec}s (attempt ${invokeAttempt}/${maxInvokeAttempts - 1})...`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
+          setProgressPhase("Retrying generation...");
           continue;
         }
         invokeErrorMessage = errorMessage;

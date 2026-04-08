@@ -1093,10 +1093,11 @@ async function generateCreative(
     }
   }
 
+  // Each model gets up to 3 attempts with increasing backoff
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000 },
-    { model: "google/gemini-2.5-flash-image", timeoutMs: 80000 },
-    { model: "google/gemini-3-pro-image-preview", timeoutMs: 95000 },
+    { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000, maxAttempts: 3 },
+    { model: "google/gemini-2.5-flash-image", timeoutMs: 80000, maxAttempts: 3 },
+    { model: "google/gemini-3-pro-image-preview", timeoutMs: 95000, maxAttempts: 2 },
   ];
   const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
@@ -1105,79 +1106,110 @@ async function generateCreative(
   let sawAnyFailure = false;
   let lastStatus: number | null = null;
 
-  for (const { model, timeoutMs } of modelPlan) {
-    console.log(`Using model: ${model}`);
+  for (const { model, timeoutMs, maxAttempts } of modelPlan) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`Using model: ${model} (attempt ${attempt}/${maxAttempts})`);
 
-    const aiResponse = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-          modalities: ["image", "text"],
-          aspect_ratio: spec.aspectRatio,
-          size: `${spec.width}x${spec.height}`,
-          image_size: { width: spec.width, height: spec.height },
-        }),
-        signal: AbortSignal.timeout(timeoutMs),
+      let aiResponse: Response;
+      try {
+        aiResponse = await fetch(
+          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userContent },
+              ],
+              modalities: ["image", "text"],
+              aspect_ratio: spec.aspectRatio,
+              size: `${spec.width}x${spec.height}`,
+              image_size: { width: spec.width, height: spec.height },
+            }),
+            signal: AbortSignal.timeout(timeoutMs),
+          }
+        );
+      } catch (fetchErr: any) {
+        sawAnyFailure = true;
+        console.warn(`[${model}] fetch error (attempt ${attempt}):`, fetchErr.message || fetchErr);
+        if (attempt < maxAttempts) {
+          await sleep(3000 * attempt);
+          continue;
+        }
+        break; // move to next model
       }
-    );
 
-    if (!aiResponse.ok) {
+      if (!aiResponse.ok) {
+        sawAnyFailure = true;
+        lastStatus = aiResponse.status;
+        const errText = await aiResponse.text().catch(() => "");
+        console.error(`[${model}] AI error ${aiResponse.status}:`, errText);
+
+        if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
+
+        if (aiResponse.status === 429) {
+          sawOverload = true;
+          // Wait longer for rate limits, then retry same model
+          if (attempt < maxAttempts) {
+            const waitMs = 5000 * attempt;
+            console.warn(`[${model}] rate limited, waiting ${waitMs}ms before retry...`);
+            await sleep(waitMs);
+            continue;
+          }
+          break;
+        }
+
+        const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
+        if (isOverloaded) sawOverload = true;
+
+        if (transientStatuses.has(aiResponse.status)) {
+          if (attempt < maxAttempts) {
+            // Exponential backoff: 3s, 6s, 9s
+            const delay = isOverloaded ? 3000 * attempt : 1500 * attempt;
+            console.warn(`[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`);
+            await sleep(delay);
+            continue;
+          }
+          break; // exhausted attempts for this model, move to next
+        }
+        break; // non-transient error, move to next model
+      }
+
+      let aiData: any;
+      try {
+        aiData = await aiResponse.json();
+      } catch {
+        sawAnyFailure = true;
+        sawTruncated = true;
+        console.warn(`[${model}] Truncated response body`);
+        if (attempt < maxAttempts) {
+          await sleep(2000);
+          continue;
+        }
+        break;
+      }
+
+      const imageBase64 = extractImagePayload(aiData);
+      const captionText = extractCaptionText(aiData);
+
+      console.log(`[${model}] response:`, JSON.stringify({ hasImage: !!imageBase64 }));
+
+      if (imageBase64) {
+        return { imageBase64, captionText };
+      }
+
       sawAnyFailure = true;
-      lastStatus = aiResponse.status;
-      const errText = await aiResponse.text().catch(() => "");
-      console.error(`[${model}] AI error ${aiResponse.status}:`, errText);
-
-      if (aiResponse.status === 429) {
-        sawOverload = true;
+      console.warn(`[${model}] No image payload returned`);
+      if (attempt < maxAttempts) {
+        await sleep(1500);
         continue;
       }
-      if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-
-      const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
-      if (isOverloaded) sawOverload = true;
-
-      if (transientStatuses.has(aiResponse.status)) {
-        const delay = isOverloaded ? 2500 : 1200;
-        console.warn(`[${model}] transient error (${aiResponse.status}), pausing ${delay}ms...`);
-        await sleep(delay);
-        continue;
-      }
-      break;
     }
-
-    let aiData: any;
-    try {
-      aiData = await aiResponse.json();
-    } catch {
-      sawAnyFailure = true;
-      sawTruncated = true;
-      console.warn(`[${model}] Truncated response body`);
-      await sleep(1000);
-      continue;
-    }
-
-    const imageBase64 = extractImagePayload(aiData);
-    const captionText = extractCaptionText(aiData);
-
-    console.log(`[${model}] response:`, JSON.stringify({ hasImage: !!imageBase64 }));
-
-    if (imageBase64) {
-      return { imageBase64, captionText };
-    }
-
-    sawAnyFailure = true;
-    console.warn(`[${model}] No image payload returned`);
-    await sleep(800);
   }
 
   if (sawOverload) throw new Error("UPSTREAM_OVERLOADED");
