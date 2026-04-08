@@ -221,8 +221,30 @@ export default function Studio() {
         } finally {
           clearTimeout(timeoutId);
         }
-        fnData = response?.data;
-        fnError = response?.error;
+        fnData = response?.data ?? null;
+        fnError = response?.error ?? null;
+
+        const fallbackPayload =
+          fnData && typeof fnData === "object" && fnData.fallback ? fnData : null;
+
+        if (fallbackPayload) {
+          const errorMessage = fallbackPayload.error || "Generation failed";
+          const retryable = !!fallbackPayload.retryable;
+          const retryAfterSeconds = Number(fallbackPayload.retryAfterSeconds || 0);
+
+          if (retryable && invokeAttempt < maxInvokeAttempts) {
+            const waitMs = Math.max(retryAfterSeconds * 1000, 30000 + (invokeAttempt - 1) * 15000);
+            const waitSec = Math.ceil(waitMs / 1000);
+            setProgressPhase(`AI providers are busy — retry ${invokeAttempt}/${maxInvokeAttempts - 1} in ${waitSec}s...`);
+            toast.info(`AI providers are busy. Auto-retrying in ${waitSec}s (attempt ${invokeAttempt}/${maxInvokeAttempts - 1})...`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            setProgressPhase("Retrying generation...");
+            continue;
+          }
+
+          invokeErrorMessage = errorMessage;
+          break;
+        }
         
         if (!fnError) break;
 
@@ -259,7 +281,9 @@ export default function Studio() {
       clearTimeout(adaptTimeout);
       clearTimeout(generateTimeout);
 
-      if (invokeErrorMessage || fnError) throw new Error(invokeErrorMessage || "Generation failed");
+      if (invokeErrorMessage || fnError || fnData?.fallback) {
+        throw new Error(invokeErrorMessage || fnData?.error || "Generation failed");
+      }
       if (fnData?.error) throw new Error(fnData.error);
 
       setProgress(100);
