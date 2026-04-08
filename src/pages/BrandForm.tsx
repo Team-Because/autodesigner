@@ -278,7 +278,7 @@ export default function BrandForm() {
       brand_voice_rules: voiceRules,
       negative_prompts: negativePrompts,
       brand_brief: combineBrief(),
-      user_id: user.id,
+      industry: industry,
     };
 
     let brandId = id;
