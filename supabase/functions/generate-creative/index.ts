@@ -777,7 +777,7 @@ function buildDirectivePrompt(
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
   // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. The output image MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. Aspect ratio: ${aspectRatioLabel}. Do NOT use any other dimensions. IGNORE the dimensions of the reference image — output MUST be ${spec.width}x${spec.height}.
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${spec.aspectRatio}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
@@ -803,7 +803,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. Generate the image at exactly ${spec.width}x${spec.height} now.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${spec.aspectRatio}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
 }
 
 function buildFallbackPrompt(
@@ -864,7 +864,7 @@ function buildFallbackPrompt(
 
   const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
-  return `MANDATORY OUTPUT: ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). No other size.
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}×${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies from it. ALL text comes from brand data below.
 
@@ -898,7 +898,7 @@ CHECKLIST:
 ✅ Text on clean backgrounds, not on imagery
 ✅ Professional quality
 
-Output: ${spec.width}×${spec.height} pixels. Generate now.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate NOW at exactly ${spec.width}×${spec.height}.`;
 }
 
 // ─────────────────────────────────────────────────────
@@ -1092,6 +1092,12 @@ async function generateCreative(
       );
     }
   }
+
+  // FINAL size enforcement — the last thing the model reads
+  userContent.push({
+    type: "text",
+    text: `⚠️ FINAL REMINDER — OUTPUT DIMENSIONS: This image MUST be ${spec.aspectRatio} aspect ratio (${spec.width}×${spec.height} pixels). Do NOT match the reference image dimensions. The output canvas is ${spec.width} wide × ${spec.height} tall. This is non-negotiable.`,
+  });
 
   // Each model gets up to 3 attempts with increasing backoff
   const modelPlan = [
