@@ -778,12 +778,7 @@ function buildDirectivePrompt(
   selectedAssets: any[],
   spec: { width: number; height: number; label: string; aspectRatio: string }
 ): string {
-  const aspectRatioLabel =
-    spec.width === spec.height
-      ? "1:1 SQUARE"
-      : spec.width > spec.height
-        ? `${spec.width}:${spec.height} LANDSCAPE`
-        : `${spec.width}:${spec.height} PORTRAIT`;
+  const aspectRatioLabel = spec.aspectRatio;
 
   // Build concise asset placement lines with role-specific hints
   const assetRoleLines = directive.selected_assets
@@ -800,7 +795,7 @@ function buildDirectivePrompt(
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
   // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${spec.aspectRatio}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
@@ -826,7 +821,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${spec.aspectRatio}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
 }
 
 function buildFallbackPrompt(
@@ -878,12 +873,7 @@ function buildFallbackPrompt(
     ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Asset"}" — Use in appropriate zone.`),
   ].join("\n");
 
-  const aspectRatioLabel =
-    spec.width === spec.height
-      ? "1:1 SQUARE"
-      : spec.width > spec.height
-        ? `${spec.width}:${spec.height} LANDSCAPE`
-        : `${spec.width}:${spec.height} PORTRAIT`;
+  const aspectRatioLabel = spec.aspectRatio;
 
   const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
