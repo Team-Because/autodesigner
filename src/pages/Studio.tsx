@@ -39,6 +39,13 @@ import { cn } from "@/lib/utils";
 type StudioState = "idle" | "generating" | "complete";
 type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
+const FORMAT_SPECS: Record<OutputFormat, { width: number; height: number; aspectRatio: string }> = {
+  landscape: { width: 1920, height: 1080, aspectRatio: "16:9" },
+  square: { width: 1080, height: 1080, aspectRatio: "1:1" },
+  story: { width: 1080, height: 1920, aspectRatio: "9:16" },
+  portrait: { width: 1080, height: 1350, aspectRatio: "4:5" },
+};
+
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
   { value: "landscape", label: "Landscape", description: "1920×1080", icon: RectangleHorizontal, aspect: "aspect-video" },
   { value: "square", label: "Square", description: "1080×1080", icon: Square, aspect: "aspect-square" },
@@ -175,7 +182,16 @@ export default function Studio() {
 
       const { data: gen, error: insertError } = await supabase
         .from("generations")
-        .insert({ user_id: user.id, brand_id: selectedBrandId, reference_image_url: refUrlData.publicUrl, status: "processing" })
+        .insert({
+          user_id: user.id,
+          brand_id: selectedBrandId,
+          reference_image_url: refUrlData.publicUrl,
+          status: "processing",
+          output_format: outputFormat,
+          requested_aspect_ratio: FORMAT_SPECS[outputFormat].aspectRatio,
+          requested_width: FORMAT_SPECS[outputFormat].width,
+          requested_height: FORMAT_SPECS[outputFormat].height,
+        } as any)
         .select()
         .single();
 
@@ -437,7 +453,7 @@ export default function Studio() {
             <CardContent>
               {referencePreview ? (
                 <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img src={referencePreview} alt="Reference" className="w-full aspect-video object-cover" />
+                  <img src={referencePreview} alt="Reference" className="w-full object-contain max-h-[400px]" />
                   <Button variant="secondary" size="sm" className="absolute top-2 right-2" onClick={() => { setReferenceFile(null); setReferencePreview(""); }} disabled={isGenerating}>
                     Change
                   </Button>
@@ -514,7 +530,7 @@ export default function Studio() {
               )}
               {studioState === "generating" && (
                 <div className="w-full space-y-6 py-8">
-                  <div className="relative w-full aspect-video rounded-lg bg-muted overflow-hidden">
+                  <div className={`relative w-full ${FORMAT_OPTIONS.find(f => f.value === outputFormat)?.aspect || "aspect-video"} rounded-lg bg-muted overflow-hidden`}>
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer" />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center px-4">

@@ -16,6 +16,29 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Extract width/height from PNG header bytes (first 24 bytes contain IHDR)
+function extractPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  // PNG signature: 137 80 78 71 13 10 26 10
+  if (bytes.length < 24) return null;
+  if (bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71) return null;
+  // IHDR chunk starts at byte 8, width at 16, height at 20 (big-endian uint32)
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16, false);
+  const height = view.getUint32(20, false);
+  return { width, height };
+}
+
+// Check if actual dimensions match requested aspect ratio within tolerance
+function isAspectRatioMatch(
+  actual: { width: number; height: number },
+  requested: { width: number; height: number },
+  tolerance = 0.05
+): boolean {
+  const expectedRatio = requested.width / requested.height;
+  const actualRatio = actual.width / actual.height;
+  return Math.abs(actualRatio - expectedRatio) / expectedRatio <= tolerance;
+}
+
 // ─── Fixed vocabulary for zone normalization ───
 const NORM_ZONE_MAP: Record<string, string> = {
   // Logo variants
@@ -755,12 +778,7 @@ function buildDirectivePrompt(
   selectedAssets: any[],
   spec: { width: number; height: number; label: string; aspectRatio: string }
 ): string {
-  const aspectRatioLabel =
-    spec.width === spec.height
-      ? "1:1 SQUARE"
-      : spec.width > spec.height
-        ? `${spec.width}:${spec.height} LANDSCAPE`
-        : `${spec.width}:${spec.height} PORTRAIT`;
+  const aspectRatioLabel = spec.aspectRatio;
 
   // Build concise asset placement lines with role-specific hints
   const assetRoleLines = directive.selected_assets
@@ -777,7 +795,7 @@ function buildDirectivePrompt(
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
   // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${spec.aspectRatio}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
@@ -803,7 +821,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${spec.aspectRatio}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
 }
 
 function buildFallbackPrompt(
@@ -855,12 +873,7 @@ function buildFallbackPrompt(
     ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Asset"}" — Use in appropriate zone.`),
   ].join("\n");
 
-  const aspectRatioLabel =
-    spec.width === spec.height
-      ? "1:1 SQUARE"
-      : spec.width > spec.height
-        ? `${spec.width}:${spec.height} LANDSCAPE`
-        : `${spec.width}:${spec.height} PORTRAIT`;
+  const aspectRatioLabel = spec.aspectRatio;
 
   const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
@@ -914,7 +927,8 @@ async function advisoryQC(
   outputImageUrl: string,
   directive: CreativeDirective | null,
   brand: any,
-  apiKey: string
+  apiKey: string,
+  formatInfo?: { requested: { width: number; height: number; aspectRatio: string }; actual: { width: number; height: number } | null; ratioMatch: boolean | null }
 ): Promise<QCResult | null> {
   try {
     const checkItems = [
@@ -923,6 +937,9 @@ async function advisoryQC(
       `Brand name: ${brand.name}`,
       `Brand colors: primary ${brand.primary_color}, secondary ${brand.secondary_color}`,
       brand.negative_prompts ? `Should NOT contain: ${toCompactText(brand.negative_prompts, 500)}` : "",
+      formatInfo ? `Expected aspect ratio: ${formatInfo.requested.aspectRatio} (${formatInfo.requested.width}×${formatInfo.requested.height})` : "",
+      formatInfo?.actual ? `Actual dimensions: ${formatInfo.actual.width}×${formatInfo.actual.height}` : "",
+      formatInfo?.ratioMatch === false ? `⚠️ ASPECT RATIO MISMATCH — expected ${formatInfo.requested.aspectRatio} but got different proportions` : "",
     ].filter(Boolean).join("\n");
 
     const response = await fetch(
@@ -1356,7 +1373,14 @@ serve(async (req) => {
 
       await supabase
         .from("generations")
-        .update({ layout_guide: JSON.stringify(framework), status: "adapting" })
+        .update({
+          layout_guide: JSON.stringify(framework),
+          status: "adapting",
+          output_format: outputFormat,
+          requested_aspect_ratio: spec.aspectRatio,
+          requested_width: spec.width,
+          requested_height: spec.height,
+        })
         .eq("id", generationId);
     }
 
@@ -1460,9 +1484,20 @@ serve(async (req) => {
       );
     }
 
-    // Upload generated image
+    // Upload generated image + extract actual dimensions
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+
+    // Extract actual dimensions from image bytes
+    const actualDims = extractPngDimensions(imageBytes);
+    const ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
+    if (actualDims) {
+      console.log(`Actual image dimensions: ${actualDims.width}×${actualDims.height}, ratio match: ${ratioMatch}`);
+      if (ratioMatch === false) {
+        console.warn(`⚠️ ASPECT RATIO MISMATCH: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims.width}×${actualDims.height}`);
+      }
+    }
+
     const outputPath = `generations/${generationId}.png`;
 
     const { error: uploadError } = await supabase.storage
@@ -1487,20 +1522,34 @@ serve(async (req) => {
         ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
         : "");
 
-    // ── Advisory QC (non-blocking) ──
+    // ── Advisory QC (non-blocking) — includes aspect ratio info ──
+    const formatInfo = {
+      requested: { width: spec.width, height: spec.height, aspectRatio: spec.aspectRatio },
+      actual: actualDims,
+      ratioMatch,
+    };
+
     let qcResult: QCResult | null = null;
     try {
-      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY);
+      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY, formatInfo);
     } catch {
       console.warn("QC step skipped due to error");
     }
 
-    // Build copywriting JSON with optional QC data
+    // Build copywriting JSON with optional QC data + format info
     const copywritingData: Record<string, any> = { caption: finalCaption };
     if (qcResult) {
       copywritingData.qc_score = qcResult.score;
       copywritingData.qc_issues = qcResult.issues;
       copywritingData.qc_strengths = qcResult.strengths;
+    }
+    if (ratioMatch === false) {
+      copywritingData.aspect_ratio_mismatch = true;
+      // Add to QC issues
+      if (!copywritingData.qc_issues) copywritingData.qc_issues = [];
+      copywritingData.qc_issues.push(
+        `Aspect ratio mismatch: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims?.width}×${actualDims?.height}`
+      );
     }
 
     const { error: updateError } = await supabase
@@ -1510,6 +1559,12 @@ serve(async (req) => {
         layout_guide: JSON.stringify(framework),
         copywriting: copywritingData,
         status: "completed",
+        output_format: outputFormat,
+        requested_aspect_ratio: spec.aspectRatio,
+        requested_width: spec.width,
+        requested_height: spec.height,
+        actual_width: actualDims?.width ?? 0,
+        actual_height: actualDims?.height ?? 0,
       })
       .eq("id", generationId);
 
@@ -1533,6 +1588,10 @@ serve(async (req) => {
         caption: finalCaption,
         framework,
         generationId,
+        outputFormat,
+        requestedAspectRatio: spec.aspectRatio,
+        actualDimensions: actualDims ?? undefined,
+        aspectRatioMatch: ratioMatch,
         qc: qcResult ? { score: qcResult.score, issues: qcResult.issues } : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -137,6 +137,15 @@ export default function AdminHistory() {
     return typeof g.copywriting === "string" ? JSON.parse(g.copywriting) : g.copywriting;
   };
 
+  const getAspectClass = (g: any) => {
+    const ar = g.requested_aspect_ratio;
+    if (ar === "1:1") return "aspect-square";
+    if (ar === "9:16") return "aspect-[9/16]";
+    if (ar === "4:5") return "aspect-[4/5]";
+    if (ar === "16:9") return "aspect-video";
+    return "aspect-[4/3]";
+  };
+
   if (adminLoading) {
     return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
@@ -241,10 +250,10 @@ export default function AdminHistory() {
                 className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group"
                 onClick={() => setSelectedGeneration(g)}
               >
-                <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                <div className={`relative ${getAspectClass(g)} bg-muted overflow-hidden`}>
                   {g.output_image_url ? (
                     <>
-                      <img src={g.output_image_url} alt="Generated creative" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                      <img src={g.output_image_url} alt="Generated creative" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                       <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
                         <Eye className="h-8 w-8 text-card opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                       </div>
@@ -262,11 +271,18 @@ export default function AdminHistory() {
                 </div>
 
                 <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <p className="text-sm font-medium text-foreground truncate">{brandMap[g.brand_id] ?? "Unknown"}</p>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      {profileMap[g.user_id] ?? "—"}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {g.requested_aspect_ratio && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {g.requested_aspect_ratio}
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-[10px]">
+                        {profileMap[g.user_id] ?? "—"}
+                      </Badge>
+                    </div>
                   </div>
                   {cw?.caption && (
                     <p className="text-xs text-muted-foreground line-clamp-1">{cw.caption}</p>
