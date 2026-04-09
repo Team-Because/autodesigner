@@ -271,11 +271,18 @@ export default function AdminHistory() {
                 </div>
 
                 <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <p className="text-sm font-medium text-foreground truncate">{brandMap[g.brand_id] ?? "Unknown"}</p>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      {profileMap[g.user_id] ?? "—"}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {g.requested_aspect_ratio && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {g.requested_aspect_ratio}
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-[10px]">
+                        {profileMap[g.user_id] ?? "—"}
+                      </Badge>
+                    </div>
                   </div>
                   {cw?.caption && (
                     <p className="text-xs text-muted-foreground line-clamp-1">{cw.caption}</p>
