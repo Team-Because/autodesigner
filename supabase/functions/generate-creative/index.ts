@@ -1543,14 +1543,13 @@ serve(async (req) => {
 
       try {
         const retryResult = await generateCreative(
-          referenceImageUrl,
-          brandAssets,
-          brand,
           framework,
-          directive,
+          brand,
+          brandAssets,
+          referenceImageUrl,
           spec,
-          outputFormat,
-          LOVABLE_API_KEY
+          LOVABLE_API_KEY,
+          directive
         );
 
         const retryBase64 = retryResult.imageBase64.replace(/^data:image\/\w+;base64,/, "");
