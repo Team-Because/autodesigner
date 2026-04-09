@@ -30,116 +30,65 @@ const BASE_CATEGORIES = [
   "Hero Image",
   "Product",
   "Lifestyle",
-  "Mascot",
   "Icon",
   "Pattern/Texture",
+  "Banner",
   "Infographic",
   "Style Reference",
-  "Banner",
-  "Team/People",
-  "Testimonial",
-  "Event",
-  "Social Media Asset",
-  "Ad Reference",
-  "Illustration",
-  "Mood Board",
-  "Certificate/Badge",
-  "Packaging",
-  "Behind the Scenes",
-  "Before/After",
-  "Data Visualization",
   "Other",
 ];
 
 const INDUSTRY_CATEGORIES: Record<string, string[]> = {
   "Real Estate": [
-    "Architecture", "Interior", "Exterior", "Elevation", "Floor Plan",
-    "Masterplan", "Amenity", "Render", "Location Map", "Site Photo",
-    "Aerial View", "Model Unit", "Clubhouse", "Landscape", "Night View",
-    "Construction Progress", "Neighbourhood", "Street View",
+    "Architecture", "Interior", "Exterior", "Floor Plan",
+    "Render", "Aerial View", "Amenity", "Location Map",
+    "Construction Progress", "Landscape",
   ],
   "Education": [
-    "Campus", "Classroom", "Student Life", "Faculty", "Curriculum",
-    "Activity", "Lab", "Library", "Playground", "Graduation",
-    "Workshop", "Sports", "Cultural Event", "Parent Interaction",
-    "Digital Learning", "App Screenshot",
-  ],
-  "EdTech": [
-    "App Screenshot", "UI Mockup", "Dashboard", "Feature Highlight",
-    "Student Engagement", "Learning Module", "Gamification",
-    "Chat Interface", "Progress Report", "Onboarding Flow",
-    "Character/Avatar", "Festive/Topical", "Parent View", "Teacher View",
-  ],
-  "Fashion": [
-    "Lookbook", "Swatch", "Flat Lay", "On-Model", "Fabric Close-up",
-    "Collection", "Runway", "Detail Shot", "Accessories", "Styling",
-    "Size Guide", "Outfit Composition", "Backstage",
+    "Campus", "Classroom", "Student Life", "Faculty",
+    "Lab", "Library", "Playground", "Graduation",
+    "Sports", "Workshop",
   ],
   "Healthcare": [
-    "Facility", "Medical Equipment", "Patient Care", "Lab", "Wellness",
-    "Doctor/Staff", "Pharmacy", "Diagnostic", "Therapy", "Surgical",
-    "Hospital Exterior", "Waiting Area", "Ambulance",
-  ],
-  "Food & Beverage": [
-    "Dish/Menu Item", "Packaging", "Restaurant/Venue", "Ingredient",
-    "Behind the Scenes", "Plating", "Drink", "Kitchen", "Chef/Staff",
-    "Menu Card", "Delivery", "Table Setting", "Recipe Card",
+    "Facility", "Medical Equipment", "Patient Care",
+    "Doctor/Staff", "Wellness", "Lab", "Pharmacy",
+    "Diagnostic", "Hospital Exterior", "Therapy",
   ],
   "Retail": [
-    "Store/Venue", "Packaging", "Catalogue", "Display/Shelf", "Unboxing",
-    "Price Tag", "Shopping Bag", "Window Display", "E-commerce Shot",
-    "Customer in Store", "Loyalty Card",
+    "Store/Venue", "Packaging", "Catalogue", "Display/Shelf",
+    "Unboxing", "E-commerce Shot", "Shopping Bag",
+    "Window Display", "Customer in Store", "Price Tag",
+  ],
+  "Fashion": [
+    "Lookbook", "On-Model", "Flat Lay", "Swatch",
+    "Fabric Close-up", "Collection", "Runway",
+    "Accessories", "Styling", "Detail Shot",
   ],
   "Technology": [
     "Screenshot", "UI Mockup", "Device Render", "Dashboard",
-    "Feature Highlight", "Architecture Diagram", "Code Snippet",
-    "Integration Flow", "API Documentation", "Server/Hardware",
-    "Mobile View", "Desktop View",
+    "Feature Highlight", "Architecture Diagram",
+    "Mobile View", "Desktop View", "Integration Flow", "API Doc",
   ],
-  "Hospitality": [
-    "Room/Suite", "Amenity", "Dining", "Spa/Wellness", "Aerial View",
-    "Guest Experience", "Pool", "Lobby", "Conference Room",
-    "Beach/Garden", "Reception", "Night Ambiance",
+  "Food & Beverage": [
+    "Dish/Menu Item", "Packaging", "Restaurant/Venue",
+    "Ingredient", "Plating", "Drink", "Kitchen",
+    "Chef/Staff", "Menu Card", "Delivery",
   ],
   "Automotive": [
-    "Exterior Shot", "Interior Shot", "Detail/Close-up", "On Road",
-    "Showroom", "Engine", "Dashboard View", "Colour Options",
-    "Off-Road", "Aerial/Drone", "Comparison",
+    "Exterior Shot", "Interior Shot", "Detail/Close-up",
+    "On Road", "Showroom", "Dashboard View",
+    "Colour Options", "Off-Road", "Aerial/Drone", "Engine",
   ],
-  "Beauty & Personal Care": [
-    "Before/After", "Swatch", "Packaging", "Application", "Ingredient",
-    "Shade Range", "Skin Close-up", "Tutorial Frame", "Routine",
-    "Model Close-up", "Texture Shot",
+  "Hospitality": [
+    "Room/Suite", "Amenity", "Dining", "Spa/Wellness",
+    "Aerial View", "Pool", "Lobby", "Conference Room",
+    "Guest Experience", "Night Ambiance",
   ],
   "Finance": [
     "Data Visualization", "Office/Branch", "Customer Success",
-    "Compliance Badge", "Card/Product", "Mobile Banking",
-    "Investment Chart", "Insurance Illustration", "Team Photo",
-  ],
-  "FMCG": [
-    "Packaging", "Shelf Display", "Ingredient", "Usage Shot",
-    "Family/Consumer", "Size Variants", "Recipe/Application",
-    "Rural/Urban Context", "Festive Pack", "Combo Pack",
-  ],
-  "Sports & Fitness": [
-    "Action Shot", "Equipment", "Facility", "Athlete/Model",
-    "Training", "Transformation", "Nutrition", "Event/Competition",
-    "Merchandise", "Gym Interior",
-  ],
-  "Travel & Tourism": [
-    "Destination", "Hotel/Stay", "Activity/Experience", "Aerial View",
-    "Local Culture", "Food/Cuisine", "Transport", "Itinerary",
-    "Map", "Sunset/Sunrise", "Adventure",
-  ],
-  "Non-Profit / NGO": [
-    "Impact Photo", "Beneficiary", "Fieldwork", "Event",
-    "Volunteer", "Report/Data", "Campaign Visual", "Partner Logo",
-    "Donation CTA", "Community",
-  ],
-  "Entertainment & Media": [
-    "Poster", "Still Frame", "Behind the Scenes", "Character Art",
-    "Key Art", "Trailer Thumbnail", "Venue", "Stage Setup",
-    "Fan Art", "Merchandise",
+    "Card/Product", "Mobile Banking", "Investment Chart",
+    "Insurance Illustration", "Team Photo", "Compliance Badge",
+    "Report",
   ],
 };
 
@@ -149,7 +98,8 @@ const getAssetCategories = (industry: string | null) => {
   if (!industry || !INDUSTRY_CATEGORIES[industry]) return BASE_CATEGORIES;
   const industryTags = INDUSTRY_CATEGORIES[industry];
   const base = BASE_CATEGORIES.filter((c) => c !== "Other");
-  const merged = [...base, ...industryTags.filter((t) => !base.includes(t)), "Other"];
+  const merged = [...new Set([...base, ...industryTags])].slice(0, 10);
+  merged.push("Other");
   return merged;
 };
 
