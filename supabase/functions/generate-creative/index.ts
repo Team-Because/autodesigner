@@ -1484,9 +1484,20 @@ serve(async (req) => {
       );
     }
 
-    // Upload generated image
+    // Upload generated image + extract actual dimensions
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+
+    // Extract actual dimensions from image bytes
+    const actualDims = extractPngDimensions(imageBytes);
+    const ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
+    if (actualDims) {
+      console.log(`Actual image dimensions: ${actualDims.width}×${actualDims.height}, ratio match: ${ratioMatch}`);
+      if (ratioMatch === false) {
+        console.warn(`⚠️ ASPECT RATIO MISMATCH: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims.width}×${actualDims.height}`);
+      }
+    }
+
     const outputPath = `generations/${generationId}.png`;
 
     const { error: uploadError } = await supabase.storage
@@ -1511,20 +1522,34 @@ serve(async (req) => {
         ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
         : "");
 
-    // ── Advisory QC (non-blocking) ──
+    // ── Advisory QC (non-blocking) — includes aspect ratio info ──
+    const formatInfo = {
+      requested: { width: spec.width, height: spec.height, aspectRatio: spec.aspectRatio },
+      actual: actualDims,
+      ratioMatch,
+    };
+
     let qcResult: QCResult | null = null;
     try {
-      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY);
+      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY, formatInfo);
     } catch {
       console.warn("QC step skipped due to error");
     }
 
-    // Build copywriting JSON with optional QC data
+    // Build copywriting JSON with optional QC data + format info
     const copywritingData: Record<string, any> = { caption: finalCaption };
     if (qcResult) {
       copywritingData.qc_score = qcResult.score;
       copywritingData.qc_issues = qcResult.issues;
       copywritingData.qc_strengths = qcResult.strengths;
+    }
+    if (ratioMatch === false) {
+      copywritingData.aspect_ratio_mismatch = true;
+      // Add to QC issues
+      if (!copywritingData.qc_issues) copywritingData.qc_issues = [];
+      copywritingData.qc_issues.push(
+        `Aspect ratio mismatch: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims?.width}×${actualDims?.height}`
+      );
     }
 
     const { error: updateError } = await supabase
@@ -1534,6 +1559,12 @@ serve(async (req) => {
         layout_guide: JSON.stringify(framework),
         copywriting: copywritingData,
         status: "completed",
+        output_format: outputFormat,
+        requested_aspect_ratio: spec.aspectRatio,
+        requested_width: spec.width,
+        requested_height: spec.height,
+        actual_width: actualDims?.width ?? 0,
+        actual_height: actualDims?.height ?? 0,
       })
       .eq("id", generationId);
 
