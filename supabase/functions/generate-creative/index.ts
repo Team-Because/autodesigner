@@ -1588,6 +1588,10 @@ serve(async (req) => {
         caption: finalCaption,
         framework,
         generationId,
+        outputFormat,
+        requestedAspectRatio: spec.aspectRatio,
+        actualDimensions: actualDims ?? undefined,
+        aspectRatioMatch: ratioMatch,
         qc: qcResult ? { score: qcResult.score, issues: qcResult.issues } : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
