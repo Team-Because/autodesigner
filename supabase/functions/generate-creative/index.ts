@@ -517,9 +517,9 @@ async function adaptDirective(
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
-    brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1500)}` : "",
-    brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 2500)}` : "",
-    brand.negative_prompts ? `NEVER include: ${toCompactText(brand.negative_prompts, 1000)}` : "",
+    brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1800)}` : "",
+    brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 3000)}` : "",
+    brand.negative_prompts ? `NEVER include: ${toCompactText(brand.negative_prompts, 1200)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
