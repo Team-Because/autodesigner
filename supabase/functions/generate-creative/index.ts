@@ -231,7 +231,7 @@ async function kieGenerateImage(
         prompt,
         image_input: imageInputs,
         aspect_ratio: aspectRatio,
-        resolution: "1K",
+        resolution: "2K",
         output_format: "png",
       },
     }),
@@ -887,81 +887,6 @@ ${assetRoleDescriptions}` : `No assets. Use "${brand.name}" text with brand colo
 ⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). Generate NOW.`;
 }
 
-// ─────────────────────────────────────────────────────
-// Advisory QC Step (non-blocking)
-// ─────────────────────────────────────────────────────
-interface QCResult {
-  score: number;
-  issues: string[];
-  strengths: string[];
-}
-
-async function advisoryQC(
-  outputImageUrl: string,
-  directive: CreativeDirective | null,
-  brand: any,
-  apiKey: string,
-  formatInfo?: { requested: { width: number; height: number; aspectRatio: string }; actual: { width: number; height: number } | null; ratioMatch: boolean | null }
-): Promise<QCResult | null> {
-  try {
-    const checkItems = [
-      directive ? `Expected headline: "${directive.headline}"` : "",
-      directive ? `Expected CTA: "${directive.cta_text}"` : "",
-      `Brand name: ${brand.name}`,
-      `Brand colors: primary ${brand.primary_color}, secondary ${brand.secondary_color}`,
-      brand.negative_prompts ? `Should NOT contain: ${toCompactText(brand.negative_prompts, 500)}` : "",
-      formatInfo ? `Expected aspect ratio: ${formatInfo.requested.aspectRatio} (${formatInfo.requested.width}×${formatInfo.requested.height})` : "",
-      formatInfo?.actual ? `Actual dimensions: ${formatInfo.actual.width}×${formatInfo.actual.height}` : "",
-      formatInfo?.ratioMatch === false ? `⚠️ ASPECT RATIO MISMATCH` : "",
-    ].filter(Boolean).join("\n");
-
-    const data = await kieChat(apiKey, {
-      messages: [
-        {
-          role: "system",
-          content: `You are a quality control reviewer for generated advertisements. Score the output 1-10 and list specific issues. Be concise. Focus on: logo presence, text legibility, color accuracy, content correctness, overall professionalism.`,
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: `Review this generated ad against these requirements:\n${checkItems}\n\nScore 1-10 and list issues + strengths.` },
-            { type: "image_url", image_url: { url: outputImageUrl } },
-          ],
-        },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "qc_review",
-            description: "Quality control review of generated creative",
-            parameters: {
-              type: "object",
-              properties: {
-                score: { type: "number", description: "Quality score 1-10" },
-                issues: { type: "array", items: { type: "string" } },
-                strengths: { type: "array", items: { type: "string" } },
-              },
-              required: ["score", "issues", "strengths"],
-              additionalProperties: false,
-            },
-          },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "qc_review" } },
-    }, 30000);
-
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) return null;
-
-    const result: QCResult = JSON.parse(toolCall.function.arguments);
-    console.log(`QC score: ${result.score}/10, issues: ${result.issues.length}, strengths: ${result.strengths.length}`);
-    return result;
-  } catch (err) {
-    console.warn("QC step error (non-blocking):", err);
-    return null;
-  }
-}
 
 // ─── Image generation via kie.ai async task API ───
 async function generateCreative(
@@ -1039,8 +964,8 @@ async function generateCreative(
 
   // Model fallback plan for kie.ai
   const modelPlan = [
-    { model: "nano-banana-2", label: "Nano Banana 2" },
     { model: "nano-banana-pro", label: "Nano Banana Pro" },
+    { model: "nano-banana-2", label: "Nano Banana 2" },
     { model: "nano-banana", label: "Nano Banana" },
   ];
 
@@ -1368,33 +1293,13 @@ serve(async (req) => {
         ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
         : "");
 
-    // ── Advisory QC (non-blocking) ──
-    const formatInfo = {
-      requested: { width: spec.width, height: spec.height, aspectRatio: spec.aspectRatio },
-      actual: actualDims,
-      ratioMatch,
-    };
-
-    let qcResult: QCResult | null = null;
-    try {
-      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, apiKey, formatInfo);
-    } catch {
-      console.warn("QC step skipped due to error");
-    }
-
     // Build copywriting JSON
     const copywritingData: Record<string, any> = { caption: finalCaption };
-    if (qcResult) {
-      copywritingData.qc_score = qcResult.score;
-      copywritingData.qc_issues = qcResult.issues;
-      copywritingData.qc_strengths = qcResult.strengths;
-    }
     if (ratioMatch === false) {
       copywritingData.aspect_ratio_mismatch = true;
-      if (!copywritingData.qc_issues) copywritingData.qc_issues = [];
-      copywritingData.qc_issues.push(
+      copywritingData.qc_issues = [
         `Aspect ratio mismatch: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims?.width}×${actualDims?.height}`
-      );
+      ];
     }
 
     const { error: updateError } = await supabase
@@ -1437,7 +1342,7 @@ serve(async (req) => {
         requestedAspectRatio: spec.aspectRatio,
         actualDimensions: actualDims ?? undefined,
         aspectRatioMatch: ratioMatch,
-        qc: qcResult ? { score: qcResult.score, issues: qcResult.issues } : undefined,
+        aspectRatioIssue: ratioMatch === false ? true : undefined,
         provider: usingKie ? "kie.ai" : "lovable",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
