@@ -73,16 +73,17 @@ Using the visual analysis + raw data, fill out EVERY section below. Be hyper-spe
 Official brand name only. No taglines. No descriptions.
 
 ### BRAND ASSETS GUIDE
-List the images/assets I've provided and recommend how each should be tagged:
+List the images/assets I've provided and recommend how each should be tagged using ONLY these categories:
 - **Logo**: Primary logo file
 - **Hero Image**: Key visual for creative mood
-- **Architecture**: Building renders, exteriors
-- **Lifestyle**: People, aspirational scenes
 - **Product**: Product photos, close-ups
-- **Masterplan**: Site layouts, floor plans
-- **Mascot**: Brand character/figure
+- **Lifestyle**: People, aspirational scenes
+- **Icon**: Small graphic elements
 - **Pattern/Texture**: Backgrounds, brand patterns
+- **Banner**: Header/strip visuals
+- **Infographic**: Data/info visuals
 - **Style Reference**: Design language examples
+- **Other**: If none of the above fit, use "Other: [describe what it is]"
 
 Minimum: Logo + 1 Hero. More = better.
 
