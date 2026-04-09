@@ -356,15 +356,108 @@ function getRandomMood(): string {
 // ─────────────────────────────────────────────────────
 // Step 1 — Analyze reference image design framework
 // ─────────────────────────────────────────────────────
+
+// Try to extract framework from a plain text/JSON response (fallback when tool_calls missing)
+function extractFrameworkFromContent(content: string): Record<string, unknown> | null {
+  if (!content) return null;
+  
+  // Try to find JSON block in the content
+  const jsonPatterns = [
+    /```json\s*([\s\S]*?)```/,
+    /```\s*([\s\S]*?)```/,
+    /\{[\s\S]*"layout"[\s\S]*"zones"[\s\S]*\}/,
+  ];
+  
+  for (const pattern of jsonPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1] || match[0]);
+        if (parsed && typeof parsed === "object" && (parsed.layout || parsed.style)) {
+          console.log("Extracted framework from content text (fallback)");
+          return parsed;
+        }
+      } catch { /* continue */ }
+    }
+  }
+  
+  // Try parsing entire content as JSON
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed === "object" && (parsed.layout || parsed.style)) {
+      return parsed;
+    }
+  } catch { /* not JSON */ }
+  
+  return null;
+}
+
+// Build a minimal fallback framework from the format spec
+function buildMinimalFramework(aspectRatio: string): Record<string, unknown> {
+  const orientation = aspectRatio === "1:1" ? "square" 
+    : aspectRatio === "9:16" || aspectRatio === "4:5" ? "portrait" 
+    : "landscape";
+  
+  return {
+    layout: {
+      orientation,
+      zones: [
+        { name: "background", position: "full", size: "full", description: "background zone" },
+        { name: "brand_mark", position: "top-left", size: "small", description: "brand logo placement zone" },
+        { name: "headline", position: "center", size: "large", description: "primary headline text zone" },
+        { name: "subcopy", position: "center-bottom", size: "medium", description: "supporting text zone" },
+        { name: "hero_visual", position: "center", size: "large", description: "primary visual / imagery zone" },
+        { name: "cta", position: "bottom-center", size: "small", description: "call-to-action button or strip" },
+      ],
+    },
+    style: {
+      background_type: "gradient",
+      photography_style: "lifestyle",
+      overlay: "dark-gradient",
+      mood: "professional",
+      color_scheme: "dominant brand primary with neutral accents",
+    },
+    text_elements: [
+      { type: "headline", position: "center", font_style: "bold uppercase sans-serif", approximate_size: "large" },
+      { type: "subcopy", position: "below-headline", font_style: "light sans-serif", approximate_size: "medium" },
+      { type: "cta", position: "bottom-center", font_style: "bold uppercase", approximate_size: "small" },
+    ],
+    composition_notes: "Standard brand layout with clear visual hierarchy, logo prominence, and balanced text placement.",
+  };
+}
+
 async function analyzeFramework(
   referenceImageUrl: string,
-  apiKey: string
+  apiKey: string,
+  aspectRatio = "16:9"
 ): Promise<Record<string, unknown>> {
-  const data = await kieChat(apiKey, {
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert visual design analyst specializing in ABSTRACT DESIGN PRINCIPLES.
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Framework analysis attempt ${attempt}/${maxRetries}...`);
+
+      // For retry attempts, try converting image to base64 data URL
+      let imageContent: any;
+      if (attempt >= 2 && !referenceImageUrl.startsWith("data:")) {
+        try {
+          console.log("Attempting base64 conversion for image input...");
+          const { base64 } = await downloadImageAsBase64(referenceImageUrl);
+          imageContent = { type: "image_url", image_url: { url: base64 } };
+        } catch (dlErr) {
+          console.warn("Base64 conversion failed, using URL:", dlErr);
+          imageContent = { type: "image_url", image_url: { url: referenceImageUrl } };
+        }
+      } else {
+        imageContent = { type: "image_url", image_url: { url: referenceImageUrl } };
+      }
+
+      const data = await kieChat(apiKey, {
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert visual design analyst specializing in ABSTRACT DESIGN PRINCIPLES.
 
 CRITICAL RULES:
 1. Describe layout zones by their DESIGN ROLE — NOT by their content.
@@ -379,110 +472,145 @@ Example of RIGHT zone description: "brand mark placement, white on dark, high co
 
 Example of WRONG composition note: "Open house event with date and venue details"  
 Example of RIGHT composition note: "Information strip with 3-4 short data points, left-aligned"`,
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Extract the ABSTRACT DESIGN FRAMEWORK from this advertisement. Focus on spatial layout, visual hierarchy, typographic style, and compositional principles. Do NOT describe any specific content — only design structure.",
           },
           {
-            type: "image_url",
-            image_url: { url: referenceImageUrl },
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Extract the ABSTRACT DESIGN FRAMEWORK from this advertisement. Focus on spatial layout, visual hierarchy, typographic style, and compositional principles. Do NOT describe any specific content — only design structure.",
+              },
+              imageContent,
+            ],
           },
         ],
-      },
-    ],
-    tools: [
-      {
-        type: "function",
-        function: {
-          name: "extract_design_framework",
-          description:
-            "Extract a reusable, content-agnostic design framework from the reference image.",
-          parameters: {
-            type: "object",
-            properties: {
-              layout: {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_design_framework",
+              description:
+                "Extract a reusable, content-agnostic design framework from the reference image.",
+              parameters: {
                 type: "object",
                 properties: {
-                  orientation: {
-                    type: "string",
-                    description: "landscape, portrait, or square",
+                  layout: {
+                    type: "object",
+                    properties: {
+                      orientation: {
+                        type: "string",
+                        description: "landscape, portrait, or square",
+                      },
+                      zones: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            name: {
+                              type: "string",
+                              enum: [
+                                "background", "brand_mark", "headline", "subcopy",
+                                "hero_visual", "supporting_visual", "info_strip",
+                                "cta", "footer", "accent",
+                              ],
+                              description: "Abstract zone type from the fixed vocabulary",
+                            },
+                            position: { type: "string", description: "Precise position: top-left, center, bottom-right, etc." },
+                            size: { type: "string", description: "Relative size: tiny, small, medium, large, half, full" },
+                            description: { type: "string", description: "DESIGN ROLE description only — NEVER mention specific content." },
+                          },
+                          required: ["name", "position", "size", "description"],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                    required: ["orientation", "zones"],
+                    additionalProperties: false,
                   },
-                  zones: {
+                  style: {
+                    type: "object",
+                    properties: {
+                      background_type: { type: "string", description: "solid, gradient, photo, pattern, split, etc." },
+                      photography_style: { type: "string", description: "lifestyle, product-shot, abstract, illustration, architectural, none" },
+                      overlay: { type: "string", description: "Overlay treatment: none, dark-gradient, light-gradient, color-wash, etc." },
+                      mood: { type: "string", description: "Overall mood: professional, playful, luxurious, energetic, minimalist, etc." },
+                      color_scheme: { type: "string", description: "Color relationships — dominant/accent/neutral distribution, NOT specific brand colors" },
+                    },
+                    required: ["background_type", "photography_style", "overlay", "mood", "color_scheme"],
+                    additionalProperties: false,
+                  },
+                  text_elements: {
                     type: "array",
                     items: {
                       type: "object",
                       properties: {
-                        name: {
-                          type: "string",
-                          enum: [
-                            "background", "brand_mark", "headline", "subcopy",
-                            "hero_visual", "supporting_visual", "info_strip",
-                            "cta", "footer", "accent",
-                          ],
-                          description: "Abstract zone type from the fixed vocabulary",
-                        },
-                        position: { type: "string", description: "Precise position: top-left, center, bottom-right, etc." },
-                        size: { type: "string", description: "Relative size: tiny, small, medium, large, half, full" },
-                        description: { type: "string", description: "DESIGN ROLE description only — NEVER mention specific content." },
+                        type: { type: "string", enum: ["headline", "subcopy", "cta", "tagline", "detail", "footer"] },
+                        position: { type: "string" },
+                        font_style: { type: "string", description: "bold, light, italic, uppercase, condensed, serif, sans-serif, display, etc." },
+                        approximate_size: { type: "string", description: "small, medium, large, extra-large" },
                       },
-                      required: ["name", "position", "size", "description"],
+                      required: ["type", "position", "font_style", "approximate_size"],
                       additionalProperties: false,
                     },
                   },
-                },
-                required: ["orientation", "zones"],
-                additionalProperties: false,
-              },
-              style: {
-                type: "object",
-                properties: {
-                  background_type: { type: "string", description: "solid, gradient, photo, pattern, split, etc." },
-                  photography_style: { type: "string", description: "lifestyle, product-shot, abstract, illustration, architectural, none" },
-                  overlay: { type: "string", description: "Overlay treatment: none, dark-gradient, light-gradient, color-wash, etc." },
-                  mood: { type: "string", description: "Overall mood: professional, playful, luxurious, energetic, minimalist, etc." },
-                  color_scheme: { type: "string", description: "Color relationships — dominant/accent/neutral distribution, NOT specific brand colors" },
-                },
-                required: ["background_type", "photography_style", "overlay", "mood", "color_scheme"],
-                additionalProperties: false,
-              },
-              text_elements: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string", enum: ["headline", "subcopy", "cta", "tagline", "detail", "footer"] },
-                    position: { type: "string" },
-                    font_style: { type: "string", description: "bold, light, italic, uppercase, condensed, serif, sans-serif, display, etc." },
-                    approximate_size: { type: "string", description: "small, medium, large, extra-large" },
+                  composition_notes: {
+                    type: "string",
+                    description: "Abstract design observations about symmetry, focal point, whitespace, visual flow, contrast strategy. NEVER mention specific content.",
                   },
-                  required: ["type", "position", "font_style", "approximate_size"],
-                  additionalProperties: false,
                 },
-              },
-              composition_notes: {
-                type: "string",
-                description: "Abstract design observations about symmetry, focal point, whitespace, visual flow, contrast strategy. NEVER mention specific content.",
+                required: ["layout", "style", "text_elements", "composition_notes"],
+                additionalProperties: false,
               },
             },
-            required: ["layout", "style", "text_elements", "composition_notes"],
-            additionalProperties: false,
           },
-        },
-      },
-    ],
-    tool_choice: { type: "function", function: { name: "extract_design_framework" } },
-  });
+        ],
+        tool_choice: { type: "function", function: { name: "extract_design_framework" } },
+      }, 90000); // increased timeout for image analysis
 
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall?.function?.arguments) {
-    throw new Error("No framework extracted from reference image");
+      // Try extracting from tool_calls first
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        const framework = JSON.parse(toolCall.function.arguments);
+        console.log("Framework extracted via tool_calls successfully");
+        return framework;
+      }
+
+      // Fallback: try extracting from message content
+      const messageContent = data.choices?.[0]?.message?.content;
+      if (messageContent) {
+        console.warn("No tool_calls in response, trying content extraction fallback...");
+        console.log("Response content preview:", typeof messageContent === "string" ? messageContent.slice(0, 200) : JSON.stringify(messageContent).slice(0, 200));
+        const extracted = extractFrameworkFromContent(
+          typeof messageContent === "string" ? messageContent : JSON.stringify(messageContent)
+        );
+        if (extracted) return extracted;
+      }
+
+      // Log the actual response structure for debugging
+      console.error(`Attempt ${attempt}: No framework in response. Keys: ${JSON.stringify(Object.keys(data || {}))}`);
+      if (data.choices?.[0]?.message) {
+        const msg = data.choices[0].message;
+        console.error(`Message keys: ${JSON.stringify(Object.keys(msg))}, role: ${msg.role}, has content: ${!!msg.content}, has tool_calls: ${!!msg.tool_calls}`);
+      }
+      
+      lastError = new Error("No framework extracted from reference image");
+    } catch (err: any) {
+      lastError = err;
+      console.error(`Framework analysis attempt ${attempt} error:`, err.message);
+      
+      if (err.message === "CREDITS_EXHAUSTED" || err.message === "KIE_RATE_LIMITED") throw err;
+      
+      if (attempt < maxRetries) {
+        const waitMs = 3000 * attempt;
+        console.log(`Waiting ${waitMs}ms before retry...`);
+        await sleep(waitMs);
+      }
+    }
   }
 
-  return JSON.parse(toolCall.function.arguments);
+  // Final fallback: use a minimal generic framework so generation can still proceed
+  console.warn("⚠️ All framework analysis attempts failed. Using minimal fallback framework.");
+  return buildMinimalFramework(aspectRatio);
 }
 
 // ─────────────────────────────────────────────────────
@@ -666,66 +794,93 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     );
   }
 
-  const data = await kieChat(apiKey, {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userContent },
-    ],
-    tools: [
-      {
-        type: "function",
-        function: {
-          name: "creative_directive",
-          description: "Output the complete creative directive mapping the reference concept to the brand.",
-          parameters: {
-            type: "object",
-            properties: {
-              headline: { type: "string", description: "Exact headline text, ≤8 words" },
-              subcopy: { type: "string", description: "Exact subcopy text, ≤20 words" },
-              cta_text: { type: "string", description: "Exact CTA text" },
-              selected_assets: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    index: { type: "number" },
-                    role: { type: "string" },
-                    placement: { type: "string" },
-                    reason: { type: "string" },
-                  },
-                  required: ["index", "role", "placement", "reason"],
-                  additionalProperties: false,
-                },
-              },
-              color_usage: {
+  // Retry adapt step up to 2 times
+  let lastAdaptError: Error | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) console.log(`Adapt step retry attempt ${attempt}...`);
+      
+      const data = await kieChat(apiKey, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "creative_directive",
+              description: "Output the complete creative directive mapping the reference concept to the brand.",
+              parameters: {
                 type: "object",
                 properties: {
-                  background: { type: "string" },
-                  headline_color: { type: "string" },
-                  subcopy_color: { type: "string" },
-                  cta_background: { type: "string" },
-                  cta_text: { type: "string" },
+                  headline: { type: "string", description: "Exact headline text, ≤8 words" },
+                  subcopy: { type: "string", description: "Exact subcopy text, ≤20 words" },
+                  cta_text: { type: "string", description: "Exact CTA text" },
+                  selected_assets: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        index: { type: "number" },
+                        role: { type: "string" },
+                        placement: { type: "string" },
+                        reason: { type: "string" },
+                      },
+                      required: ["index", "role", "placement", "reason"],
+                      additionalProperties: false,
+                    },
+                  },
+                  color_usage: {
+                    type: "object",
+                    properties: {
+                      background: { type: "string" },
+                      headline_color: { type: "string" },
+                      subcopy_color: { type: "string" },
+                      cta_background: { type: "string" },
+                      cta_text: { type: "string" },
+                    },
+                    required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
+                    additionalProperties: false,
+                  },
+                  concept_adaptation: { type: "string" },
+                  logo_treatment: { type: "string" },
+                  compliance_notes: { type: "string" },
                 },
-                required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
+                required: ["headline", "subcopy", "cta_text", "selected_assets", "color_usage", "concept_adaptation", "logo_treatment", "compliance_notes"],
                 additionalProperties: false,
               },
-              concept_adaptation: { type: "string" },
-              logo_treatment: { type: "string" },
-              compliance_notes: { type: "string" },
             },
-            required: ["headline", "subcopy", "cta_text", "selected_assets", "color_usage", "concept_adaptation", "logo_treatment", "compliance_notes"],
-            additionalProperties: false,
           },
-        },
-      },
-    ],
-    tool_choice: { type: "function", function: { name: "creative_directive" } },
-  });
+        ],
+        tool_choice: { type: "function", function: { name: "creative_directive" } },
+      }, 90000);
 
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall?.function?.arguments) {
-    throw new Error("No directive extracted from Adapt step");
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall?.function?.arguments) {
+        // Try content fallback
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          console.warn("Adapt: No tool_calls, trying content extraction...");
+          const extracted = extractFrameworkFromContent(typeof content === "string" ? content : JSON.stringify(content));
+          if (extracted && extracted.headline) {
+            return extracted as unknown as CreativeDirective;
+          }
+        }
+        throw new Error("No directive extracted from Adapt step");
+      }
+
+      const directive: CreativeDirective = JSON.parse(toolCall.function.arguments);
+      return directive; // success — break out of retry loop
+    } catch (err: any) {
+      lastAdaptError = err;
+      console.error(`Adapt attempt ${attempt} failed:`, err.message);
+      if (err.message === "CREDITS_EXHAUSTED" || err.message === "KIE_RATE_LIMITED") throw err;
+      if (attempt < 2) await sleep(3000);
+    }
   }
+
+  throw lastAdaptError || new Error("Adapt step failed");
 
   const directive: CreativeDirective = JSON.parse(toolCall.function.arguments);
   console.log("Adapt directive:", JSON.stringify({
@@ -1140,7 +1295,7 @@ serve(async (req) => {
 
       console.log("Step 1: Analyzing reference image framework...");
       try {
-        framework = await analyzeFramework(referenceImageUrl, apiKey);
+        framework = await analyzeFramework(referenceImageUrl, apiKey, spec.aspectRatio);
         console.log("Framework extracted successfully");
       } catch (err) {
         console.error("Framework analysis failed:", err);
