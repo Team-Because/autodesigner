@@ -164,6 +164,8 @@ export type Database = {
       }
       generations: {
         Row: {
+          actual_height: number | null
+          actual_width: number | null
           brand_id: string
           campaign_id: string | null
           campaign_message: string | null
@@ -171,13 +173,19 @@ export type Database = {
           created_at: string
           id: string
           layout_guide: string | null
+          output_format: string | null
           output_image_url: string | null
           reference_image_url: string | null
+          requested_aspect_ratio: string | null
+          requested_height: number | null
+          requested_width: number | null
           status: string
           target_audience: string | null
           user_id: string
         }
         Insert: {
+          actual_height?: number | null
+          actual_width?: number | null
           brand_id: string
           campaign_id?: string | null
           campaign_message?: string | null
@@ -185,13 +193,19 @@ export type Database = {
           created_at?: string
           id?: string
           layout_guide?: string | null
+          output_format?: string | null
           output_image_url?: string | null
           reference_image_url?: string | null
+          requested_aspect_ratio?: string | null
+          requested_height?: number | null
+          requested_width?: number | null
           status?: string
           target_audience?: string | null
           user_id: string
         }
         Update: {
+          actual_height?: number | null
+          actual_width?: number | null
           brand_id?: string
           campaign_id?: string | null
           campaign_message?: string | null
@@ -199,8 +213,12 @@ export type Database = {
           created_at?: string
           id?: string
           layout_guide?: string | null
+          output_format?: string | null
           output_image_url?: string | null
           reference_image_url?: string | null
+          requested_aspect_ratio?: string | null
+          requested_height?: number | null
+          requested_width?: number | null
           status?: string
           target_audience?: string | null
           user_id?: string
