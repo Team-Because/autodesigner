@@ -1127,9 +1127,9 @@ async function generateCreative(
 
   let lastError: Error | null = null;
 
-  for (const { model, label } of modelPlan) {
+  for (const { model, label, resolution } of modelPlan) {
     for (let attempt = 1; attempt <= 2; attempt++) {
-      console.log(`Using model: ${label} (attempt ${attempt}/2)`);
+      console.log(`Using model: ${label} @ ${resolution} (attempt ${attempt}/2)`);
 
       try {
         const resultUrl = await kieGenerateImage(
@@ -1137,7 +1137,8 @@ async function generateCreative(
           fullPrompt,
           imageInputUrls,
           spec.aspectRatio,
-          model
+          model,
+          resolution
         );
 
         // Download the generated image
