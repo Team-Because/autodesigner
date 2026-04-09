@@ -73,16 +73,17 @@ Using the visual analysis + raw data, fill out EVERY section below. Be hyper-spe
 Official brand name only. No taglines. No descriptions.
 
 ### BRAND ASSETS GUIDE
-List the images/assets I've provided and recommend how each should be tagged:
+List the images/assets I've provided and recommend how each should be tagged using ONLY these categories:
 - **Logo**: Primary logo file
 - **Hero Image**: Key visual for creative mood
-- **Architecture**: Building renders, exteriors
-- **Lifestyle**: People, aspirational scenes
 - **Product**: Product photos, close-ups
-- **Masterplan**: Site layouts, floor plans
-- **Mascot**: Brand character/figure
+- **Lifestyle**: People, aspirational scenes
+- **Icon**: Small graphic elements
 - **Pattern/Texture**: Backgrounds, brand patterns
+- **Banner**: Header/strip visuals
+- **Infographic**: Data/info visuals
 - **Style Reference**: Design language examples
+- **Other**: If none of the above fit, use "Other: [describe what it is]"
 
 Minimum: Logo + 1 Hero. More = better.
 
@@ -93,7 +94,7 @@ From the visual analysis, extract:
 - **Extra Colors**: Each with hex + specific usage note
 - **Color relationships**: How colors interact (e.g., "White text on dark navy blocks", "Gold accents on cream backgrounds")
 
-### BRAND BRIEF — IDENTITY (~800 chars max)
+### BRAND BRIEF — IDENTITY (HARD LIMIT: 1,000 chars max)
 
 \`\`\`
 ## BRAND IDENTITY
@@ -113,7 +114,7 @@ Differentiators:
 - [USP 3 with proof point]
 \`\`\`
 
-### BRAND BRIEF — MUST-INCLUDE ELEMENTS (~600 chars max)
+### BRAND BRIEF — MUST-INCLUDE ELEMENTS (HARD LIMIT: 600 chars max)
 
 \`\`\`
 ## MUST-INCLUDE ELEMENTS
@@ -126,7 +127,7 @@ Differentiators:
 - [Any other mandatory elements found in the data]
 \`\`\`
 
-### BRAND BRIEF — VISUAL DIRECTION (~600 chars max)
+### BRAND BRIEF — VISUAL DIRECTION (HARD LIMIT: 800 chars max)
 
 THIS IS THE MOST CRITICAL SECTION. Use your visual analysis from Step 1 & 2 to fill this. Be extremely specific.
 
@@ -150,7 +151,7 @@ Mood:
 - [Overall energy synthesized from all visuals]
 \`\`\`
 
-### BRAND BRIEF — EXAMPLE COPY (~500 chars max)
+### BRAND BRIEF — EXAMPLE COPY (HARD LIMIT: 600 chars max)
 
 Extract real headlines, taglines, CTAs from the provided materials. If none exist, create examples that match the brand voice.
 
@@ -171,7 +172,7 @@ CTAs:
 - "[CTA 2]"
 \`\`\`
 
-### TONE & TARGET AUDIENCE (~1500 chars max)
+### TONE & TARGET AUDIENCE (HARD LIMIT: 1,800 chars max)
 
 \`\`\`
 ## TONE & VOICE
@@ -197,7 +198,7 @@ Desired Emotional Response:
 - [How should someone feel seeing this creative?]
 \`\`\`
 
-### THE NEVER LIST (~1000 chars max)
+### THE NEVER LIST (HARD LIMIT: 1,200 chars max)
 
 Split into two categories. Include anything explicitly mentioned in brand data PLUS anything that would contradict the visual language you analyzed.
 
