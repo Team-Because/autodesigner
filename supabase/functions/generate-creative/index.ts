@@ -216,7 +216,8 @@ async function kieGenerateImage(
   prompt: string,
   imageInputs: string[],
   aspectRatio: string,
-  model = "nano-banana-2"
+  model = "nano-banana-2",
+  resolution = "1K"
 ): Promise<string> {
   // Submit task
   const createRes = await fetch(KIE_CREATE_TASK, {
@@ -231,7 +232,7 @@ async function kieGenerateImage(
         prompt,
         image_input: imageInputs,
         aspect_ratio: aspectRatio,
-        resolution: "2K",
+        resolution,
         output_format: "png",
       },
     }),
@@ -1119,9 +1120,9 @@ async function generateCreative(
 
   // Model fallback plan for kie.ai
   const modelPlan = [
-    { model: "nano-banana-pro", label: "Nano Banana Pro" },
-    { model: "nano-banana-2", label: "Nano Banana 2" },
-    { model: "nano-banana", label: "Nano Banana" },
+    { model: "nano-banana-2", label: "Nano Banana 2", resolution: "1K" },
+    { model: "nano-banana-pro", label: "Nano Banana Pro", resolution: "1K" },
+    { model: "nano-banana", label: "Nano Banana", resolution: "1K" },
   ];
 
   let lastError: Error | null = null;
