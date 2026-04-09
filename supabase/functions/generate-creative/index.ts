@@ -652,8 +652,8 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     { type: "image_url", image_url: { url: referenceImageUrl } },
   ];
 
-  // Send actual brand asset images so the Adapt step can SEE them
-  for (let i = 0; i < brandAssets.length && i < 8; i++) {
+  // Send ALL brand asset images (up to 15) so Adapt can visually evaluate each one
+  for (let i = 0; i < brandAssets.length && i < 15; i++) {
     const asset = brandAssets[i];
     userContent.push(
       { type: "text", text: `BRAND ASSET [${i}] "${asset.label || "Unlabeled"}":` },
