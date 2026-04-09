@@ -14,21 +14,51 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
   portrait: { width: 1080, height: 1350, label: "portrait (1080×1350, 4:5)", aspectRatio: "4:5" },
 };
 
+// ─── kie.ai API configuration ───
+const KIE_API_BASE = "https://api.kie.ai";
+const KIE_CHAT_BASE = `${KIE_API_BASE}/gemini-3-flash/v1/chat/completions`;
+const KIE_CREATE_TASK = `${KIE_API_BASE}/api/v1/jobs/createTask`;
+const KIE_TASK_STATUS = `${KIE_API_BASE}/api/v1/jobs/recordInfo`;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Extract width/height from PNG header bytes (first 24 bytes contain IHDR)
 function extractPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
-  // PNG signature: 137 80 78 71 13 10 26 10
   if (bytes.length < 24) return null;
   if (bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71) return null;
-  // IHDR chunk starts at byte 8, width at 16, height at 20 (big-endian uint32)
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const width = view.getUint32(16, false);
   const height = view.getUint32(20, false);
   return { width, height };
 }
 
-// Check if actual dimensions match requested aspect ratio within tolerance
+// Also support JPEG dimension extraction
+function extractJpegDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
+  let offset = 2;
+  while (offset < bytes.length - 1) {
+    if (bytes[offset] !== 0xFF) break;
+    const marker = bytes[offset + 1];
+    if (marker === 0xC0 || marker === 0xC2) {
+      if (offset + 9 < bytes.length) {
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const height = view.getUint16(offset + 5, false);
+        const width = view.getUint16(offset + 7, false);
+        return { width, height };
+      }
+      break;
+    }
+    if (offset + 3 >= bytes.length) break;
+    const segLen = (bytes[offset + 2] << 8) | bytes[offset + 3];
+    offset += 2 + segLen;
+  }
+  return null;
+}
+
+function extractImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  return extractPngDimensions(bytes) || extractJpegDimensions(bytes);
+}
+
 function isAspectRatioMatch(
   actual: { width: number; height: number },
   requested: { width: number; height: number },
@@ -41,33 +71,23 @@ function isAspectRatioMatch(
 
 // ─── Fixed vocabulary for zone normalization ───
 const NORM_ZONE_MAP: Record<string, string> = {
-  // Logo variants
   logo: "brand_mark", brand_logo: "brand_mark", secondary_logo: "brand_mark",
   partner_logo: "brand_mark", logo_zone: "brand_mark", brand_mark: "brand_mark",
-  // Headlines
   headline: "headline", title: "headline", main_headline: "headline",
   headline_text: "headline", primary_text: "headline",
-  // Subcopy
   subtext: "subcopy", subcopy: "subcopy", body_text: "subcopy", body: "subcopy",
   description: "subcopy", supporting_text: "subcopy", sub_headline: "subcopy",
-  // Hero visual
   hero_image: "hero_visual", hero: "hero_visual", main_image: "hero_visual",
   product_image: "hero_visual", hero_visual: "hero_visual", primary_visual: "hero_visual",
   architecture: "hero_visual", render: "hero_visual", "3d_render": "hero_visual",
-  // Supporting visual
   supporting_image: "supporting_visual", secondary_image: "supporting_visual",
   supporting_visual: "supporting_visual", lifestyle_image: "supporting_visual",
-  // Info strip
   info_strip: "info_strip", details: "info_strip", information: "info_strip",
   event_details: "info_strip", event_details_card: "info_strip", info_grid: "info_strip",
   contact_info: "info_strip", details_card: "info_strip",
-  // CTA
   cta: "cta", cta_button: "cta", button: "cta", call_to_action: "cta",
-  // Footer
   footer: "footer", footer_bar: "footer", disclaimer: "footer", legal: "footer",
-  // Background
   background: "background", bg: "background", overlay: "background",
-  // Accent
   accent: "accent", accent_strip: "accent", divider: "accent", separator: "accent",
   tagline: "accent", tag: "accent",
 };
@@ -94,18 +114,12 @@ function parseStoredFramework(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-// Strip reference-specific content from framework while preserving structural/design info
 function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown> {
   const clean = JSON.parse(JSON.stringify(fw));
 
-  // Sanitize zone names + descriptions
   if (clean.layout?.zones && Array.isArray(clean.layout.zones)) {
     for (const zone of clean.layout.zones) {
-      // Normalize zone name to fixed vocabulary
-      if (zone.name) {
-        zone.name = normalizeZoneName(zone.name);
-      }
-      // Replace description with generic role
+      if (zone.name) zone.name = normalizeZoneName(zone.name);
       if (zone.description) {
         const norm = zone.name || "accent";
         const descMap: Record<string, string> = {
@@ -125,11 +139,9 @@ function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown>
     }
   }
 
-  // Remove content_description entirely from text_elements (Adapt generates its own copy)
   if (clean.text_elements && Array.isArray(clean.text_elements)) {
     for (const te of clean.text_elements) {
       delete te.content_description;
-      // Normalize type
       if (te.type) {
         const t = te.type.toLowerCase();
         if (/headline|title/.test(t)) te.type = "headline";
@@ -142,24 +154,16 @@ function sanitizeFramework(fw: Record<string, unknown>): Record<string, unknown>
     }
   }
 
-  // Aggressively clean composition_notes
   if (typeof clean.composition_notes === "string") {
     clean.composition_notes = clean.composition_notes
-      // Remove quoted text
       .replace(/"[^"]*"/g, '"[text]"')
-      // Remove proper nouns (2+ consecutive capitalized words)
       .replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g, "[brand]")
-      // Remove ALL-CAPS words of 3+ chars (likely brand names)
       .replace(/\b[A-Z]{3,}\b/g, "[brand]")
-      // Remove prices/currencies
       .replace(/\b[A-Z]{3}\s*[\d,.]+[MKBmkb]?\b/g, "[price]")
       .replace(/\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|yds?|m)|acres?)\b/gi, "[size]")
-      // Remove dates
       .replace(/\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/gi, "[date]")
       .replace(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/gi, "[day]")
-      // Remove phone numbers
       .replace(/\+?\d[\d\s-]{7,}\d/g, "[phone]")
-      // Remove URLs
       .replace(/https?:\/\/\S+/g, "[url]")
       .replace(/www\.\S+/g, "[url]");
   }
@@ -179,32 +183,158 @@ function toCompactText(value: unknown, maxChars: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
 }
 
-function extractCaptionText(aiData: any): string {
-  const content = aiData?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter((part: any) => part?.type === "text" && typeof part?.text === "string")
-      .map((part: any) => part.text)
-      .join("\n")
-      .trim();
+// ─── kie.ai Chat API helper (OpenAI-compatible) ───
+async function kieChat(
+  apiKey: string,
+  body: Record<string, unknown>,
+  timeoutMs = 60000
+): Promise<any> {
+  const response = await fetch(KIE_CHAT_BASE, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error(`kie.ai chat error ${response.status}:`, errText);
+    if (response.status === 402) throw new Error("CREDITS_EXHAUSTED");
+    if (response.status === 429) throw new Error("KIE_RATE_LIMITED");
+    throw new Error(`kie.ai chat failed (${response.status})`);
   }
-  return "";
+
+  return await response.json();
 }
 
-function extractImagePayload(aiData: any): string | null {
-  const candidates = [
-    aiData?.choices?.[0]?.message?.images?.[0]?.image_url?.url,
-    aiData?.choices?.[0]?.message?.images?.[0]?.url,
-    aiData?.choices?.[0]?.message?.image_url?.url,
-    aiData?.choices?.[0]?.message?.image_url,
-  ];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
-    }
+// ─── kie.ai Image Generation (async task API) ───
+async function kieGenerateImage(
+  apiKey: string,
+  prompt: string,
+  imageInputs: string[],
+  aspectRatio: string,
+  model = "nano-banana-2"
+): Promise<string> {
+  // Submit task
+  const createRes = await fetch(KIE_CREATE_TASK, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input: {
+        prompt,
+        image_input: imageInputs,
+        aspect_ratio: aspectRatio,
+        resolution: "1K",
+        output_format: "png",
+      },
+    }),
+  });
+
+  if (!createRes.ok) {
+    const errText = await createRes.text().catch(() => "");
+    console.error(`kie.ai createTask error ${createRes.status}:`, errText);
+    if (createRes.status === 402) throw new Error("CREDITS_EXHAUSTED");
+    if (createRes.status === 429) throw new Error("KIE_RATE_LIMITED");
+    throw new Error(`kie.ai task creation failed (${createRes.status})`);
   }
-  return null;
+
+  const createData = await createRes.json();
+  const taskId = createData?.data?.taskId || createData?.taskId;
+  if (!taskId) {
+    console.error("No taskId in kie.ai response:", JSON.stringify(createData));
+    throw new Error("No taskId returned from kie.ai");
+  }
+
+  console.log(`kie.ai task created: ${taskId} (model: ${model})`);
+
+  // Poll for completion — max 3 minutes with exponential backoff
+  const maxWaitMs = 180000;
+  const startTime = Date.now();
+  let pollInterval = 3000; // Start at 3s
+  const maxPollInterval = 10000;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    await sleep(pollInterval);
+
+    const statusRes = await fetch(`${KIE_TASK_STATUS}?taskId=${taskId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    if (!statusRes.ok) {
+      console.warn(`kie.ai poll error ${statusRes.status}, retrying...`);
+      pollInterval = Math.min(pollInterval * 1.5, maxPollInterval);
+      continue;
+    }
+
+    const statusData = await statusRes.json();
+    const state = statusData?.data?.state;
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+
+    if (state === "success") {
+      const resultJson = statusData.data.resultJson;
+      let resultUrls: string[] = [];
+      if (typeof resultJson === "string") {
+        try {
+          const parsed = JSON.parse(resultJson);
+          resultUrls = parsed.resultUrls || [];
+        } catch {
+          console.error("Failed to parse resultJson:", resultJson);
+        }
+      } else if (resultJson?.resultUrls) {
+        resultUrls = resultJson.resultUrls;
+      }
+
+      if (resultUrls.length === 0) {
+        throw new Error("kie.ai task succeeded but no result URLs");
+      }
+
+      console.log(`kie.ai task ${taskId} completed in ${elapsed}s, got ${resultUrls.length} URLs`);
+      return resultUrls[0];
+    }
+
+    if (state === "fail") {
+      const failMsg = statusData.data?.failMsg || "Unknown failure";
+      console.error(`kie.ai task ${taskId} failed after ${elapsed}s:`, failMsg);
+      throw new Error(`kie.ai generation failed: ${failMsg}`);
+    }
+
+    // Still processing (waiting, queuing, generating)
+    if (elapsed % 15 === 0) {
+      console.log(`kie.ai task ${taskId} state: ${state}, elapsed: ${elapsed}s`);
+    }
+    pollInterval = Math.min(pollInterval * 1.2, maxPollInterval);
+  }
+
+  throw new Error(`kie.ai task ${taskId} timed out after ${maxWaitMs / 1000}s`);
+}
+
+// ─── Download image from URL and convert to base64 ───
+async function downloadImageAsBase64(url: string): Promise<{ base64: string; bytes: Uint8Array }> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`Failed to download image: ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  
+  // Detect content type
+  let mimeType = "image/png";
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8) mimeType = "image/jpeg";
+  else if (bytes[0] === 0x89 && bytes[1] === 0x50) mimeType = "image/png";
+  else if (bytes[0] === 0x52 && bytes[1] === 0x49) mimeType = "image/webp";
+  
+  // Convert to base64
+  let binary = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  const base64 = `data:${mimeType};base64,${btoa(binary)}`;
+  return { base64, bytes };
 }
 
 // ─── Creative direction moods for copy variation ───
@@ -230,20 +360,11 @@ async function analyzeFramework(
   referenceImageUrl: string,
   apiKey: string
 ): Promise<Record<string, unknown>> {
-  const analyzeResponse = await fetch(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert visual design analyst specializing in ABSTRACT DESIGN PRINCIPLES.
+  const data = await kieChat(apiKey, {
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert visual design analyst specializing in ABSTRACT DESIGN PRINCIPLES.
 
 CRITICAL RULES:
 1. Describe layout zones by their DESIGN ROLE — NOT by their content.
@@ -258,190 +379,105 @@ Example of RIGHT zone description: "brand mark placement, white on dark, high co
 
 Example of WRONG composition note: "Open house event with date and venue details"  
 Example of RIGHT composition note: "Information strip with 3-4 short data points, left-aligned"`,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Extract the ABSTRACT DESIGN FRAMEWORK from this advertisement. Focus on spatial layout, visual hierarchy, typographic style, and compositional principles. Do NOT describe any specific content — only design structure.",
           },
           {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extract the ABSTRACT DESIGN FRAMEWORK from this advertisement. Focus on spatial layout, visual hierarchy, typographic style, and compositional principles. Do NOT describe any specific content — only design structure.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: referenceImageUrl },
-              },
-            ],
+            type: "image_url",
+            image_url: { url: referenceImageUrl },
           },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_design_framework",
-              description:
-                "Extract a reusable, content-agnostic design framework from the reference image.",
-              parameters: {
+      },
+    ],
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "extract_design_framework",
+          description:
+            "Extract a reusable, content-agnostic design framework from the reference image.",
+          parameters: {
+            type: "object",
+            properties: {
+              layout: {
                 type: "object",
                 properties: {
-                  layout: {
-                    type: "object",
-                    properties: {
-                      orientation: {
-                        type: "string",
-                        description: "landscape, portrait, or square",
-                      },
-                      zones: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            name: {
-                              type: "string",
-                              enum: [
-                                "background",
-                                "brand_mark",
-                                "headline",
-                                "subcopy",
-                                "hero_visual",
-                                "supporting_visual",
-                                "info_strip",
-                                "cta",
-                                "footer",
-                                "accent",
-                              ],
-                              description: "Abstract zone type from the fixed vocabulary",
-                            },
-                            position: {
-                              type: "string",
-                              description:
-                                "Precise position: top-left, center, bottom-right, left-third, right-half, etc.",
-                            },
-                            size: {
-                              type: "string",
-                              description:
-                                "Relative size: tiny, small, medium, large, half, full",
-                            },
-                            description: {
-                              type: "string",
-                              description:
-                                "DESIGN ROLE description only — spatial function, visual weight, contrast approach. NEVER mention specific content.",
-                            },
-                          },
-                          required: ["name", "position", "size", "description"],
-                          additionalProperties: false,
-                        },
-                      },
-                    },
-                    required: ["orientation", "zones"],
-                    additionalProperties: false,
+                  orientation: {
+                    type: "string",
+                    description: "landscape, portrait, or square",
                   },
-                  style: {
-                    type: "object",
-                    properties: {
-                      background_type: {
-                        type: "string",
-                        description:
-                          "solid, gradient, photo, pattern, split, etc.",
-                      },
-                      photography_style: {
-                        type: "string",
-                        description:
-                          "lifestyle, product-shot, abstract, illustration, architectural, none",
-                      },
-                      overlay: {
-                        type: "string",
-                        description:
-                          "Overlay treatment: none, dark-gradient, light-gradient, color-wash, etc.",
-                      },
-                      mood: {
-                        type: "string",
-                        description:
-                          "Overall mood: professional, playful, luxurious, energetic, minimalist, etc.",
-                      },
-                      color_scheme: {
-                        type: "string",
-                        description:
-                          "Describe the color relationships — dominant/accent/neutral distribution, NOT specific brand colors",
-                      },
-                    },
-                    required: [
-                      "background_type",
-                      "photography_style",
-                      "overlay",
-                      "mood",
-                      "color_scheme",
-                    ],
-                    additionalProperties: false,
-                  },
-                  text_elements: {
+                  zones: {
                     type: "array",
                     items: {
                       type: "object",
                       properties: {
-                        type: {
+                        name: {
                           type: "string",
-                          enum: ["headline", "subcopy", "cta", "tagline", "detail", "footer"],
-                          description: "Text element type from fixed vocabulary",
+                          enum: [
+                            "background", "brand_mark", "headline", "subcopy",
+                            "hero_visual", "supporting_visual", "info_strip",
+                            "cta", "footer", "accent",
+                          ],
+                          description: "Abstract zone type from the fixed vocabulary",
                         },
-                        position: {
-                          type: "string",
-                          description: "Where it appears in the layout",
-                        },
-                        font_style: {
-                          type: "string",
-                          description:
-                            "bold, light, italic, uppercase, condensed, serif, sans-serif, display, etc.",
-                        },
-                        approximate_size: {
-                          type: "string",
-                          description: "small, medium, large, extra-large",
-                        },
+                        position: { type: "string", description: "Precise position: top-left, center, bottom-right, etc." },
+                        size: { type: "string", description: "Relative size: tiny, small, medium, large, half, full" },
+                        description: { type: "string", description: "DESIGN ROLE description only — NEVER mention specific content." },
                       },
-                      required: [
-                        "type",
-                        "position",
-                        "font_style",
-                        "approximate_size",
-                      ],
+                      required: ["name", "position", "size", "description"],
                       additionalProperties: false,
                     },
                   },
-                  composition_notes: {
-                    type: "string",
-                    description:
-                      "Abstract design observations about symmetry, focal point, whitespace usage, visual flow, contrast strategy, and information hierarchy. NEVER mention specific content, brands, or text from the image.",
-                  },
                 },
-                required: [
-                  "layout",
-                  "style",
-                  "text_elements",
-                  "composition_notes",
-                ],
+                required: ["orientation", "zones"],
                 additionalProperties: false,
               },
+              style: {
+                type: "object",
+                properties: {
+                  background_type: { type: "string", description: "solid, gradient, photo, pattern, split, etc." },
+                  photography_style: { type: "string", description: "lifestyle, product-shot, abstract, illustration, architectural, none" },
+                  overlay: { type: "string", description: "Overlay treatment: none, dark-gradient, light-gradient, color-wash, etc." },
+                  mood: { type: "string", description: "Overall mood: professional, playful, luxurious, energetic, minimalist, etc." },
+                  color_scheme: { type: "string", description: "Color relationships — dominant/accent/neutral distribution, NOT specific brand colors" },
+                },
+                required: ["background_type", "photography_style", "overlay", "mood", "color_scheme"],
+                additionalProperties: false,
+              },
+              text_elements: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string", enum: ["headline", "subcopy", "cta", "tagline", "detail", "footer"] },
+                    position: { type: "string" },
+                    font_style: { type: "string", description: "bold, light, italic, uppercase, condensed, serif, sans-serif, display, etc." },
+                    approximate_size: { type: "string", description: "small, medium, large, extra-large" },
+                  },
+                  required: ["type", "position", "font_style", "approximate_size"],
+                  additionalProperties: false,
+                },
+              },
+              composition_notes: {
+                type: "string",
+                description: "Abstract design observations about symmetry, focal point, whitespace, visual flow, contrast strategy. NEVER mention specific content.",
+              },
             },
+            required: ["layout", "style", "text_elements", "composition_notes"],
+            additionalProperties: false,
           },
-        ],
-        tool_choice: {
-          type: "function",
-          function: { name: "extract_design_framework" },
         },
-      }),
-    }
-  );
+      },
+    ],
+    tool_choice: { type: "function", function: { name: "extract_design_framework" } },
+  });
 
-  if (!analyzeResponse.ok) {
-    const errText = await analyzeResponse.text();
-    console.error("Framework analysis error:", analyzeResponse.status, errText);
-    if (analyzeResponse.status === 402) {
-      throw new Error("CREDITS_EXHAUSTED");
-    }
-    throw new Error(`Framework analysis failed (${analyzeResponse.status})`);
-  }
-
-  const analyzeData = await analyzeResponse.json();
-  const toolCall = analyzeData.choices?.[0]?.message?.tool_calls?.[0];
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall?.function?.arguments) {
     throw new Error("No framework extracted from reference image");
   }
@@ -474,9 +510,7 @@ interface CreativeDirective {
   compliance_notes: string;
 }
 
-// Role-specific instructions for each asset category
 const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
-  // Base tags
   "Logo": "Place as brand mark — exact fidelity required. Top-left or top-right with contrast backing.",
   "Hero Image": "Use as the primary hero visual. Feature prominently in the main visual zone.",
   "Product": "Feature prominently with high detail preservation. Center of visual attention.",
@@ -486,42 +520,32 @@ const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
   "Banner": "Use as a full-width visual strip or header element.",
   "Infographic": "Include as data/information visual. Maintain readability.",
   "Style Reference": "Use as mood/style guide — match its aesthetic, don't reproduce literally.",
-  // Real Estate
   "Elevation": "Use as hero architectural visual. Preserve exact building form, materials, and proportions.",
   "Interior": "Showcase interior space. Preserve design details, furniture, and spatial feel.",
   "Exterior": "Feature building/project exterior. Maintain architectural accuracy and surroundings.",
   "Amenity": "Showcase project amenity (pool, gym, garden). Feature prominently with lifestyle appeal.",
   "RERA QR": "Place as regulatory compliance element. Position in top-right or bottom corner, keep scannable.",
   "Render": "Use as hero 3D render. Preserve exact form, lighting, and materials.",
-  // Hospitality
   "Room/Suite": "Feature the space prominently. Preserve luxury/comfort feel.",
   "Aerial View": "Use as dramatic top-down or elevated perspective visual.",
-  // Fashion
   "Lookbook": "Use as fashion editorial visual. Maintain styling and composition.",
   "On-Model": "Feature model wearing product. Preserve outfit details.",
   "Swatch": "Use as color/material reference element. Place in supporting zone.",
   "Flat Lay": "Use as product arrangement visual. Maintain composition.",
   "Fabric Close-up": "Use as texture/detail reference. Supporting visual element.",
-  // Technology
   "Screenshot": "Use as product UI showcase. Maintain sharpness and readability.",
   "UI Mockup": "Feature as product interface visual. Keep pixel-perfect.",
   "Device Render": "Showcase product on device. Maintain device frame and screen content.",
   "Dashboard": "Feature as product analytics/interface visual.",
-  // Food & Beverage
   "Dish/Menu Item": "Feature food prominently. Preserve appetizing presentation.",
   "Packaging": "Showcase product packaging. Maintain label details and branding.",
-  // Retail
   "Store/Venue": "Feature retail/venue space. Preserve atmosphere.",
-  // Healthcare
   "Facility": "Showcase facility/building. Maintain professional look.",
-  // Finance
   "Data Visualization": "Include as chart/graph element. Maintain readability.",
-  // Fallback
   "Other": "Use in appropriate zone based on visual content.",
 };
 
 function getAssetRoleInstruction(label: string): string {
-  // Handle "Other: custom description" labels — pass custom text as context
   if (label.startsWith("Other:")) {
     const customDesc = label.replace(/^Other:\s*/, "").trim();
     return customDesc
@@ -544,7 +568,6 @@ async function adaptDirective(
       ? brand.extra_colors.map((c: any) => `${c.name || "Color"}: ${c.hex}`).join(", ")
       : "";
 
-  // Build asset list with role hints
   const assetList = brandAssets
     .map(
       (a: any, i: number) =>
@@ -563,7 +586,6 @@ async function adaptDirective(
     .filter(Boolean)
     .join("\n");
 
-  // Get random creative mood for copy variation
   const creativeMood = getRandomMood();
 
   const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
@@ -597,32 +619,15 @@ Your task:
 
 ASSET SELECTION RULES:
 - Always include ONE logo if available
-- VISUALLY MATCH assets to the reference layout zones:
-  • If the reference features a building/exterior → pick an Elevation or Exterior asset
-  • If the reference shows an interior space → pick an Interior asset  
-  • If the reference shows amenities (pool, gym, garden) → pick an Amenity asset
-  • If the reference is lifestyle/people-focused → pick a Lifestyle asset
-  • Match the CONTENT of the reference's hero zone to the most visually similar asset category
+- VISUALLY MATCH assets to the reference layout zones
 - Pick 1-3 visual assets (not just one!) if the reference has multiple visual zones
-- Each visual zone in the reference should map to a DIFFERENT asset — don't reuse the same one
+- Each visual zone in the reference should map to a DIFFERENT asset
 - Skip assets that don't fit this layout
 - Maximum 5 assets total (1 logo + up to 4 visuals)
-- For each asset, consider: does its composition, orientation, and content match the reference zone it would fill?
-
-ASSET ROLE MAPPING:
-- Logo → Brand mark, exact fidelity
-- Architecture/Hero Image → Primary visual, preserve details
-- Lifestyle → Atmospheric/background element
-- Product → Feature prominently
-- Masterplan → Dedicated zone, maintain readability
-- Mascot → Character element, preserve design
-- Pattern/Texture → Background texture or accent
-- Icon → Small supporting element
 
 COPY RULES:
 - Headlines must be original, punchy, and aligned to the CREATIVE DIRECTION above
 - ALL text MUST come from the brand brief and brand data
-- If the brand brief contains mandatory text (RERA, contact, location), include it
 - CTA should be actionable and brand-appropriate
 - DO NOT repeat the same headlines across generations — be creative and varied
 
@@ -633,7 +638,6 @@ COLOR RULES:
 
 TEXT PLACEMENT:
 - Text MUST be on solid color zones, gradient overlays, or panels — NEVER on photos/renders
-- Create clear visual separation between imagery and text zones
 
 FORMAT: ${spec.label} (${spec.width}×${spec.height})`;
 
@@ -648,14 +652,12 @@ ${assetList || "No assets available — design must be text-prominent."}
 
 Look at the reference image AND each brand asset image. Visually evaluate which assets best fit the reference layout zones. Pre-decide all copy, colors, and asset selections.`;
 
-  // Build multimodal content: reference image + all brand asset images
   const userContent: any[] = [
     { type: "text", text: userMessage },
     { type: "text", text: "REFERENCE IMAGE (layout/style inspiration only — ignore all text/content in it):" },
     { type: "image_url", image_url: { url: referenceImageUrl } },
   ];
 
-  // Send ALL brand asset images (up to 15) so Adapt can visually evaluate each one
   for (let i = 0; i < brandAssets.length && i < 15; i++) {
     const asset = brandAssets[i];
     userContent.push(
@@ -664,126 +666,62 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     );
   }
 
-  const response = await fetch(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "creative_directive",
-              description:
-                "Output the complete creative directive mapping the reference concept to the brand.",
-              parameters: {
+  const data = await kieChat(apiKey, {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "creative_directive",
+          description: "Output the complete creative directive mapping the reference concept to the brand.",
+          parameters: {
+            type: "object",
+            properties: {
+              headline: { type: "string", description: "Exact headline text, ≤8 words" },
+              subcopy: { type: "string", description: "Exact subcopy text, ≤20 words" },
+              cta_text: { type: "string", description: "Exact CTA text" },
+              selected_assets: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    index: { type: "number" },
+                    role: { type: "string" },
+                    placement: { type: "string" },
+                    reason: { type: "string" },
+                  },
+                  required: ["index", "role", "placement", "reason"],
+                  additionalProperties: false,
+                },
+              },
+              color_usage: {
                 type: "object",
                 properties: {
-                  headline: {
-                    type: "string",
-                    description: "Exact headline text, ≤8 words, punchy and brand-aligned",
-                  },
-                  subcopy: {
-                    type: "string",
-                    description: "Exact subcopy text, ≤20 words, supporting the headline",
-                  },
-                  cta_text: {
-                    type: "string",
-                    description: "Exact CTA text, e.g. 'Enquire Now', 'Shop Now', 'Learn More'",
-                  },
-                  selected_assets: {
-                    type: "array",
-                    description: "Which assets to use (by index), their role, placement, and reason",
-                    items: {
-                      type: "object",
-                      properties: {
-                        index: { type: "number", description: "Asset index from the list" },
-                        role: {
-                          type: "string",
-                          description: "logo, hero, supporting, pattern, or background",
-                        },
-                        placement: {
-                          type: "string",
-                          description:
-                            "Where and how to place it, e.g. 'top-left corner, dark version', 'left 60% of canvas as hero'",
-                        },
-                        reason: {
-                          type: "string",
-                          description: "Why this asset was selected for this layout",
-                        },
-                      },
-                      required: ["index", "role", "placement", "reason"],
-                      additionalProperties: false,
-                    },
-                  },
-                  color_usage: {
-                    type: "object",
-                    description: "Exact hex color values for each design element",
-                    properties: {
-                      background: { type: "string", description: "Background hex color" },
-                      headline_color: { type: "string", description: "Headline text hex color" },
-                      subcopy_color: { type: "string", description: "Subcopy text hex color" },
-                      cta_background: { type: "string", description: "CTA button/strip background hex" },
-                      cta_text: { type: "string", description: "CTA text hex color" },
-                    },
-                    required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
-                    additionalProperties: false,
-                  },
-                  concept_adaptation: {
-                    type: "string",
-                    description:
-                      "How the reference concept translates to this brand — what replaces what, what energy to keep",
-                  },
-                  logo_treatment: {
-                    type: "string",
-                    description:
-                      "How to handle the logo: light/dark version, backing panel, size, contrast notes",
-                  },
-                  compliance_notes: {
-                    type: "string",
-                    description:
-                      "Any brand brief rules to enforce or negative prompts to respect",
-                  },
+                  background: { type: "string" },
+                  headline_color: { type: "string" },
+                  subcopy_color: { type: "string" },
+                  cta_background: { type: "string" },
+                  cta_text: { type: "string" },
                 },
-                required: [
-                  "headline",
-                  "subcopy",
-                  "cta_text",
-                  "selected_assets",
-                  "color_usage",
-                  "concept_adaptation",
-                  "logo_treatment",
-                  "compliance_notes",
-                ],
+                required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
                 additionalProperties: false,
               },
+              concept_adaptation: { type: "string" },
+              logo_treatment: { type: "string" },
+              compliance_notes: { type: "string" },
             },
+            required: ["headline", "subcopy", "cta_text", "selected_assets", "color_usage", "concept_adaptation", "logo_treatment", "compliance_notes"],
+            additionalProperties: false,
           },
-        ],
-        tool_choice: {
-          type: "function",
-          function: { name: "creative_directive" },
         },
-      }),
-    }
-  );
+      },
+    ],
+    tool_choice: { type: "function", function: { name: "creative_directive" } },
+  });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Adapt directive error:", response.status, errText);
-    throw new Error(`Adapt directive failed (${response.status})`);
-  }
-
-  const data = await response.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall?.function?.arguments) {
     throw new Error("No directive extracted from Adapt step");
@@ -817,7 +755,7 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
 }
 
 // ─────────────────────────────────────────────────────
-// Step 3 — Generate creative with directive
+// Step 3 — Generate creative using kie.ai image API
 // ─────────────────────────────────────────────────────
 function buildDirectivePrompt(
   directive: CreativeDirective,
@@ -828,7 +766,6 @@ function buildDirectivePrompt(
 ): string {
   const aspectRatioLabel = spec.aspectRatio;
 
-  // Build concise asset placement lines with role-specific hints
   const assetRoleLines = directive.selected_assets
     .map((sa) => {
       const matchedAsset = selectedAssets.find((a: any) =>
@@ -842,11 +779,10 @@ function buildDirectivePrompt(
 
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
-  // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
-IMAGE ISOLATION: NEVER reproduce reference imagery. ALL visuals must come from the brand asset images provided below. The reference shows WHERE to place images and HOW to compose them — use ONLY brand assets to fill those zones.
+IMAGE ISOLATION: NEVER reproduce reference imagery. ALL visuals must come from the brand asset images provided below.
 
 ═══ CREATIVE DIRECTIVE ═══
 HEADLINE: "${directive.headline}"
@@ -862,7 +798,7 @@ CONCEPT: ${directive.concept_adaptation}
 LOGO: ${directive.logo_treatment}
 
 ═══ RULES ═══
-• Follow reference layout/composition/energy — adapt with brand assets + colors. NEVER recreate or imitate reference imagery — use ONLY the provided brand asset images
+• Follow reference layout/composition/energy — adapt with brand assets + colors. NEVER recreate or imitate reference imagery
 • Logo: reproduce EXACT letterforms, shapes, colors from the provided logo image. NEVER write "LOGO" as text
 • Architecture/3D: preserve exact building geometry. May enhance lighting/angle
 • Text on solid zones or panels only — NEVER on photos/renders
@@ -870,7 +806,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${aspectRatioLabel}). Generate NOW.`;
 }
 
 function buildFallbackPrompt(
@@ -917,34 +853,29 @@ function buildFallbackPrompt(
 
   const assetRoleDescriptions = [
     ...logoAssets.map((a: any) => `  🔷 LOGO: "${a.label || "Logo"}" — Place in brand mark zone.`),
-    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Hero visual. May enhance lighting/angle.`),
+    ...architectureAssets.map((a: any) => `  🏗️ 3D RENDER: "${a.label || "Architecture"}" — Hero visual.`),
     ...heroAssets.map((a: any) => `  🖼️ HERO: "${a.label || "Visual"}" — Primary/secondary visual.`),
     ...otherAssets.map((a: any) => `  📎 ASSET: "${a.label || "Asset"}" — Use in appropriate zone.`),
   ].join("\n");
 
   const aspectRatioLabel = spec.aspectRatio;
-
   const frameworkJson = JSON.stringify(sanitizeFramework(framework), null, 2);
 
-  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}×${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions. ⚠️⚠️⚠️
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}×${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies from it. ALL text comes from brand data below.
-IMAGE ISOLATION: NEVER reproduce, copy, or recreate imagery from the reference. ALL visuals must come from the brand's own uploaded assets. The reference shows WHERE and HOW to compose — use ONLY brand assets to fill visual zones.
+IMAGE ISOLATION: NEVER reproduce, copy, or recreate imagery from the reference. ALL visuals must come from the brand's own uploaded assets.
 
 ═══ DESIGN DIRECTION ═══
-Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content and assets. NEVER generate imagery that looks like the reference photo — use ONLY brand assets.
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below.
 
-LOGO: The brand logo is provided as a separate labeled image. Study it carefully and reproduce its EXACT letterforms, icon shapes, colors, and proportions. On dark backgrounds add a light backing panel. The logo in the REFERENCE image is NOT the brand's logo — ignore it. NEVER write the word "LOGO" as text.
-3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
-ASSET FIDELITY: Faithfully reproduce logos and product photos with high fidelity. Only adjust scale and contrast.
+LOGO: The brand logo is provided as a separate labeled image. Study it carefully and reproduce its EXACT letterforms, icon shapes, colors, and proportions. NEVER write "LOGO" as text.
 TEXT PLACEMENT: Text MUST be on solid color zones, gradient overlays, or dedicated panels — NEVER on photos/renders.
-COMPOSITION: Clear hierarchy. Hero visual prominent. Breathing room between elements.
 TYPOGRAPHY: Headline ≤8 words bold. Subcopy ≤20 words. CTA clean. All text legible.
-DEDUPLICATION: No repeated elements.
 
 ═══ BRAND DATA ═══
 ${brandContext}
-${brandBrief ? `\nBrand Brief instructions are MANDATORY. ALL copy must come from brand data.` : ""}
+${brandBrief ? `\nBrand Brief instructions are MANDATORY.` : ""}
 ${negativePrompts ? `\n⛔ NEVER INCLUDE: ${negativePrompts}` : ""}
 
 ═══ REFERENCE FRAMEWORK ═══
@@ -953,22 +884,14 @@ ${frameworkJson}
 ${hasAssets ? `BRAND ASSETS (${selectedAssets.length} images provided after reference):
 ${assetRoleDescriptions}` : `No assets. Use "${brand.name}" text with brand colors.`}
 
-CHECKLIST:
-✅ ${spec.width}×${spec.height} (${aspectRatioLabel})
-✅ Logo visible, contrasted
-✅ Brand colors: ${brand.primary_color} primary, ${brand.secondary_color} secondary
-✅ No text/content copied from reference
-✅ Text on clean backgrounds, not on imagery
-✅ Professional quality
-
-⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate NOW at exactly ${spec.width}×${spec.height}.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). Generate NOW.`;
 }
 
 // ─────────────────────────────────────────────────────
 // Advisory QC Step (non-blocking)
 // ─────────────────────────────────────────────────────
 interface QCResult {
-  score: number; // 1-10
+  score: number;
   issues: string[];
   strengths: string[];
 }
@@ -989,71 +912,45 @@ async function advisoryQC(
       brand.negative_prompts ? `Should NOT contain: ${toCompactText(brand.negative_prompts, 500)}` : "",
       formatInfo ? `Expected aspect ratio: ${formatInfo.requested.aspectRatio} (${formatInfo.requested.width}×${formatInfo.requested.height})` : "",
       formatInfo?.actual ? `Actual dimensions: ${formatInfo.actual.width}×${formatInfo.actual.height}` : "",
-      formatInfo?.ratioMatch === false ? `⚠️ ASPECT RATIO MISMATCH — expected ${formatInfo.requested.aspectRatio} but got different proportions` : "",
+      formatInfo?.ratioMatch === false ? `⚠️ ASPECT RATIO MISMATCH` : "",
     ].filter(Boolean).join("\n");
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+    const data = await kieChat(apiKey, {
+      messages: [
+        {
+          role: "system",
+          content: `You are a quality control reviewer for generated advertisements. Score the output 1-10 and list specific issues. Be concise. Focus on: logo presence, text legibility, color accuracy, content correctness, overall professionalism.`,
         },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `You are a quality control reviewer for generated advertisements. Score the output 1-10 and list specific issues. Be concise. Focus on: logo presence, text legibility, color accuracy, content correctness, overall professionalism.`,
-            },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: `Review this generated ad against these requirements:\n${checkItems}\n\nScore 1-10 and list issues + strengths.` },
-                { type: "image_url", image_url: { url: outputImageUrl } },
-              ],
-            },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `Review this generated ad against these requirements:\n${checkItems}\n\nScore 1-10 and list issues + strengths.` },
+            { type: "image_url", image_url: { url: outputImageUrl } },
           ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "qc_review",
-                description: "Quality control review of generated creative",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", description: "Quality score 1-10" },
-                    issues: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "List of specific issues found",
-                    },
-                    strengths: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "List of things done well",
-                    },
-                  },
-                  required: ["score", "issues", "strengths"],
-                  additionalProperties: false,
-                },
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "qc_review",
+            description: "Quality control review of generated creative",
+            parameters: {
+              type: "object",
+              properties: {
+                score: { type: "number", description: "Quality score 1-10" },
+                issues: { type: "array", items: { type: "string" } },
+                strengths: { type: "array", items: { type: "string" } },
               },
+              required: ["score", "issues", "strengths"],
+              additionalProperties: false,
             },
-          ],
-          tool_choice: { type: "function", function: { name: "qc_review" } },
-        }),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "qc_review" } },
+    }, 30000);
 
-    if (!response.ok) {
-      console.warn("QC step failed (non-blocking):", response.status);
-      return null;
-    }
-
-    const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) return null;
 
@@ -1066,6 +963,7 @@ async function advisoryQC(
   }
 }
 
+// ─── Image generation via kie.ai async task API ───
 async function generateCreative(
   framework: Record<string, unknown>,
   brand: any,
@@ -1079,47 +977,34 @@ async function generateCreative(
   let selectedAssets: any[];
 
   if (directive) {
-    // Use directive-selected assets
     const validIndices = directive.selected_assets
       .map((sa) => sa.index)
       .filter((i) => i >= 0 && i < brandAssets.length);
     selectedAssets = validIndices.map((i) => {
-      const asset = { ...brandAssets[i], _originalIndex: i };
-      return asset;
+      return { ...brandAssets[i], _originalIndex: i };
     });
 
-    // If directive selected no valid assets, fall back to first few
     if (selectedAssets.length === 0 && brandAssets.length > 0) {
       selectedAssets = brandAssets.slice(0, 3).map((a: any, i: number) => ({ ...a, _originalIndex: i }));
     }
 
     systemPrompt = buildDirectivePrompt(directive, framework, brand, selectedAssets, spec);
   } else {
-    // Fallback: no directive available
     selectedAssets = brandAssets.slice(0, 5);
     systemPrompt = buildFallbackPrompt(framework, brand, brandAssets, spec);
   }
 
-  const hasAssets = selectedAssets.length > 0;
+  // Build the full prompt text for kie.ai image generation
+  // Include the system prompt + asset descriptions
+  const promptParts: string[] = [systemPrompt];
 
-  // Build user content with explicit role labels for each image
-  const userContent: any[] = [
-    {
-      type: "text",
-      text: `MANDATORY OUTPUT SIZE: ${spec.width}×${spec.height} pixels (aspect ratio ${spec.aspectRatio}). IGNORE the dimensions of the reference image. The output MUST be ${spec.aspectRatio} aspect ratio, exactly ${spec.width}×${spec.height}px. All text from Creative Directive only.`,
-    },
-    {
-      type: "text",
-      text: "IMAGE 1 — REFERENCE (composition/layout/style only — IGNORE all text, logos, names, locations visible in it):",
-    },
-    {
-      type: "image_url",
-      image_url: { url: referenceImageUrl },
-    },
-  ];
+  // Add reference image instruction
+  promptParts.push("\nREFERENCE IMAGE: Use the first image_input as layout/style reference only — ignore all text/logos/names visible in it.");
+
+  // Collect all image URLs for image_input
+  const imageInputUrls: string[] = [referenceImageUrl];
 
   if (directive) {
-    // Sort assets so logo comes first (IMAGE 2, right after reference) for maximum model attention
     const sortedAssets = [...directive.selected_assets].sort((a, b) => {
       const aIsLogo = a.role.toUpperCase() === "LOGO" ? 0 : 1;
       const bIsLogo = b.role.toUpperCase() === "LOGO" ? 0 : 1;
@@ -1130,171 +1015,87 @@ async function generateCreative(
       const asset = selectedAssets.find((a: any) => (a._originalIndex ?? -1) === sa.index);
       if (!asset) continue;
       const roleLabel = sa.role.toUpperCase();
-      const imageNum = userContent.filter(c => c.type === "image_url").length + 1;
-      let labelText: string;
+      const imgNum = imageInputUrls.length + 1;
       if (roleLabel === "LOGO") {
-        labelText = `IMAGE ${imageNum} — BRAND LOGO (study this carefully — reproduce its exact letterforms, colors, shapes, and proportions in the final output. This is the ONLY logo to use, ignore any logo in IMAGE 1):`;
+        promptParts.push(`\nIMAGE ${imgNum} — BRAND LOGO: Study this carefully — reproduce its exact letterforms, colors, shapes, and proportions. This is the ONLY logo to use.`);
       } else {
-        labelText = `IMAGE ${imageNum} — ${roleLabel} (${sa.placement}):`;
+        promptParts.push(`\nIMAGE ${imgNum} — ${roleLabel}: ${sa.placement}`);
       }
-      userContent.push(
-        { type: "text", text: labelText },
-        { type: "image_url", image_url: { url: asset.image_url } }
-      );
+      imageInputUrls.push(asset.image_url);
     }
   } else {
     for (const asset of selectedAssets) {
-      const label = (asset.label || "Asset").toUpperCase();
       const isLogo = /\b(logo|logomark|brand\s*mark|brand\s*logo|symbol|monogram|emblem)\b/i.test(asset.label || "");
-      const roleHint = isLogo ? "BRAND LOGO — must appear in output" : `BRAND ASSET (${label})`;
-      userContent.push(
-        {
-          type: "text",
-          text: `IMAGE ${userContent.filter(c => c.type === "image_url").length + 1} — ${roleHint}:`,
-        },
-        {
-          type: "image_url",
-          image_url: { url: asset.image_url },
-        }
-      );
+      const roleHint = isLogo ? "BRAND LOGO — must appear in output" : `BRAND ASSET (${(asset.label || "Asset").toUpperCase()})`;
+      const imgNum = imageInputUrls.length + 1;
+      promptParts.push(`\nIMAGE ${imgNum} — ${roleHint}`);
+      imageInputUrls.push(asset.image_url);
     }
   }
 
-  // FINAL size enforcement — the last thing the model reads
-  userContent.push({
-    type: "text",
-    text: `⚠️ FINAL REMINDER — OUTPUT DIMENSIONS: This image MUST be ${spec.aspectRatio} aspect ratio (${spec.width}×${spec.height} pixels). Do NOT match the reference image dimensions. The output canvas is ${spec.width} wide × ${spec.height} tall. This is non-negotiable.`,
-  });
+  promptParts.push(`\n⚠️ FINAL REMINDER — OUTPUT DIMENSIONS: This image MUST be ${spec.aspectRatio} aspect ratio (${spec.width}×${spec.height} pixels). Do NOT match the reference image dimensions.`);
 
-  // Each model gets up to 3 attempts with increasing backoff
+  const fullPrompt = promptParts.join("\n");
+
+  // Model fallback plan for kie.ai
   const modelPlan = [
-    { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000, maxAttempts: 3 },
-    { model: "google/gemini-2.5-flash-image", timeoutMs: 80000, maxAttempts: 3 },
-    { model: "google/gemini-3-pro-image-preview", timeoutMs: 95000, maxAttempts: 2 },
+    { model: "nano-banana-2", label: "Nano Banana 2" },
+    { model: "nano-banana-pro", label: "Nano Banana Pro" },
+    { model: "nano-banana", label: "Nano Banana" },
   ];
-  const transientStatuses = new Set([500, 502, 503, 504, 529]);
 
-  let sawOverload = false;
-  let sawTruncated = false;
-  let sawAnyFailure = false;
-  let lastStatus: number | null = null;
+  let lastError: Error | null = null;
 
-  for (const { model, timeoutMs, maxAttempts } of modelPlan) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`Using model: ${model} (attempt ${attempt}/${maxAttempts})`);
+  for (const { model, label } of modelPlan) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      console.log(`Using model: ${label} (attempt ${attempt}/2)`);
 
-      let aiResponse: Response;
       try {
-        aiResponse = await fetch(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model,
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userContent },
-              ],
-              modalities: ["image", "text"],
-              // aspect_ratio via extra_body for OpenAI-compatible Gemini endpoint
-              extra_body: {
-                aspect_ratio: spec.aspectRatio,
-              },
-              // Also keep at top level for any gateway that reads it directly
-              aspect_ratio: spec.aspectRatio,
-              size: `${spec.width}x${spec.height}`,
-              image_size: { width: spec.width, height: spec.height },
-            }),
-            signal: AbortSignal.timeout(timeoutMs),
-          }
+        const resultUrl = await kieGenerateImage(
+          apiKey,
+          fullPrompt,
+          imageInputUrls,
+          spec.aspectRatio,
+          model
         );
-      } catch (fetchErr: any) {
-        sawAnyFailure = true;
-        console.warn(`[${model}] fetch error (attempt ${attempt}):`, fetchErr.message || fetchErr);
-        if (attempt < maxAttempts) {
-          await sleep(3000 * attempt);
+
+        // Download the generated image
+        console.log(`Downloading generated image from kie.ai...`);
+        const { base64, bytes } = await downloadImageAsBase64(resultUrl);
+
+        const dims = extractImageDimensions(bytes);
+        if (dims) {
+          console.log(`[${label}] Generated image: ${dims.width}×${dims.height}`);
+        }
+
+        const captionText = directive
+          ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
+          : "";
+
+        return { imageBase64: base64, captionText };
+      } catch (err: any) {
+        lastError = err;
+        console.error(`[${label}] attempt ${attempt} failed:`, err.message);
+
+        if (err.message === "CREDITS_EXHAUSTED") throw err;
+
+        if (err.message === "KIE_RATE_LIMITED") {
+          const waitMs = 5000 * attempt;
+          console.warn(`[${label}] rate limited, waiting ${waitMs}ms...`);
+          await sleep(waitMs);
           continue;
         }
-        break; // move to next model
-      }
 
-      if (!aiResponse.ok) {
-        sawAnyFailure = true;
-        lastStatus = aiResponse.status;
-        const errText = await aiResponse.text().catch(() => "");
-        console.error(`[${model}] AI error ${aiResponse.status}:`, errText);
-
-        if (aiResponse.status === 402) throw new Error("CREDITS_EXHAUSTED");
-
-        if (aiResponse.status === 429) {
-          sawOverload = true;
-          // Wait longer for rate limits, then retry same model
-          if (attempt < maxAttempts) {
-            const waitMs = 5000 * attempt;
-            console.warn(`[${model}] rate limited, waiting ${waitMs}ms before retry...`);
-            await sleep(waitMs);
-            continue;
-          }
-          break;
-        }
-
-        const isOverloaded = aiResponse.status === 503 || aiResponse.status === 529;
-        if (isOverloaded) sawOverload = true;
-
-        if (transientStatuses.has(aiResponse.status)) {
-          if (attempt < maxAttempts) {
-            // Exponential backoff: 3s, 6s, 9s
-            const delay = isOverloaded ? 3000 * attempt : 1500 * attempt;
-            console.warn(`[${model}] transient error (${aiResponse.status}), retrying in ${delay}ms...`);
-            await sleep(delay);
-            continue;
-          }
-          break; // exhausted attempts for this model, move to next
-        }
-        break; // non-transient error, move to next model
-      }
-
-      let aiData: any;
-      try {
-        aiData = await aiResponse.json();
-      } catch {
-        sawAnyFailure = true;
-        sawTruncated = true;
-        console.warn(`[${model}] Truncated response body`);
-        if (attempt < maxAttempts) {
-          await sleep(2000);
+        if (attempt < 2) {
+          await sleep(3000);
           continue;
         }
-        break;
-      }
-
-      const imageBase64 = extractImagePayload(aiData);
-      const captionText = extractCaptionText(aiData);
-
-      console.log(`[${model}] response:`, JSON.stringify({ hasImage: !!imageBase64 }));
-
-      if (imageBase64) {
-        return { imageBase64, captionText };
-      }
-
-      sawAnyFailure = true;
-      console.warn(`[${model}] No image payload returned`);
-      if (attempt < maxAttempts) {
-        await sleep(1500);
-        continue;
       }
     }
   }
 
-  if (sawOverload) throw new Error("UPSTREAM_OVERLOADED");
-  if (sawTruncated) throw new Error("AI_TRUNCATED_RESPONSE");
-  if (lastStatus !== null) throw new Error(`AI generation failed (${lastStatus})`);
-  if (sawAnyFailure) throw new Error("AI generation failed");
-  throw new Error("NO_IMAGE_GENERATED");
+  if (lastError?.message === "CREDITS_EXHAUSTED") throw lastError;
+  throw new Error(lastError?.message || "All kie.ai models failed");
 }
 
 // ─────────────────────────────────────────────────────
@@ -1309,8 +1110,14 @@ serve(async (req) => {
       await req.json();
     const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Use kie.ai API key (primary) with Lovable AI as fallback
+    const KIE_KEY = Deno.env.get("KIE_API_KEY");
+    const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = KIE_KEY || LOVABLE_KEY;
+    if (!apiKey) throw new Error("No AI API key configured (KIE_API_KEY or LOVABLE_API_KEY)");
+
+    const usingKie = !!KIE_KEY;
+    console.log(`Using AI provider: ${usingKie ? "kie.ai" : "Lovable AI (fallback)"}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -1362,7 +1169,6 @@ serve(async (req) => {
     const SUPPORTED_IMAGE_EXTS = /\.(png|jpe?g|webp|gif)(\?.*)?$/i;
     const brandAssets = (assetsRes.data || []).filter((a: any) => {
       if (!a.image_url) return false;
-      // Extract pathname (ignore query params) and check extension
       try {
         const pathname = new URL(a.image_url).pathname;
         if (!SUPPORTED_IMAGE_EXTS.test(pathname)) {
@@ -1370,7 +1176,6 @@ serve(async (req) => {
           return false;
         }
       } catch {
-        // If URL parsing fails, check the raw string
         if (!SUPPORTED_IMAGE_EXTS.test(a.image_url)) {
           console.warn(`Skipping unsupported image format: ${a.image_url}`);
           return false;
@@ -1410,7 +1215,7 @@ serve(async (req) => {
 
       console.log("Step 1: Analyzing reference image framework...");
       try {
-        framework = await analyzeFramework(referenceImageUrl, LOVABLE_API_KEY);
+        framework = await analyzeFramework(referenceImageUrl, apiKey);
         console.log("Framework extracted successfully");
       } catch (err) {
         console.error("Framework analysis failed:", err);
@@ -1450,7 +1255,7 @@ serve(async (req) => {
         brandAssets,
         referenceImageUrl,
         spec,
-        LOVABLE_API_KEY
+        apiKey
       );
       console.log("Adapt directive created successfully");
     } catch (err) {
@@ -1470,7 +1275,7 @@ serve(async (req) => {
         brandAssets,
         referenceImageUrl,
         spec,
-        LOVABLE_API_KEY,
+        apiKey,
         directive
       );
       imageBase64 = result.imageBase64;
@@ -1481,55 +1286,8 @@ serve(async (req) => {
 
       if (err.message === "CREDITS_EXHAUSTED") {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please top up your workspace." }),
+          JSON.stringify({ error: "AI credits exhausted. Please top up your account." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (err.message === "UPSTREAM_OVERLOADED") {
-        return new Response(
-          JSON.stringify({
-            code: "UPSTREAM_OVERLOADED",
-            error:
-              "AI providers are busy right now. Your layout analysis was saved, so retrying will skip that step.",
-            fallback: true,
-            retryable: true,
-            retryAfterSeconds: 45,
-            analysisReused: !!existingFramework,
-            cachedPreview: existingImageUrl || undefined,
-            cachedCaption: existingCaption || undefined,
-          }),
-          {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-              "Retry-After": "45",
-            },
-          }
-        );
-      }
-      if (err.message === "AI_TRUNCATED_RESPONSE") {
-        return new Response(
-          JSON.stringify({ error: "AI returned an incomplete response. Please retry." }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (err.message === "NO_IMAGE_GENERATED") {
-        return new Response(
-          JSON.stringify({ error: "No image was generated. Try again." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const statusMatch = /AI generation failed \((\d+)\)/.exec(err.message || "");
-      if (statusMatch) {
-        const statusCode = Number(statusMatch[1]);
-        return new Response(
-          JSON.stringify({ error: `AI generation failed (${statusCode})` }),
-          {
-            status: Number.isFinite(statusCode) ? statusCode : 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
         );
       }
 
@@ -1539,47 +1297,40 @@ serve(async (req) => {
       );
     }
 
-    // Upload generated image + extract actual dimensions — retry once on mismatch
+    // Upload generated image + extract actual dimensions
     let finalImageBase64 = imageBase64;
     let base64Data = finalImageBase64.replace(/^data:image\/\w+;base64,/, "");
     let imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
 
-    let actualDims = extractPngDimensions(imageBytes);
+    let actualDims = extractImageDimensions(imageBytes);
     let ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
 
     if (actualDims) {
       console.log(`Actual image dimensions: ${actualDims.width}×${actualDims.height}, ratio match: ${ratioMatch}`);
     }
 
-    // If aspect ratio is wrong, retry generation ONCE with stronger enforcement
+    // If aspect ratio is wrong, retry generation ONCE
     if (ratioMatch === false && actualDims) {
-      console.warn(`⚠️ ASPECT RATIO MISMATCH on first attempt: expected ${spec.aspectRatio}, got ${actualDims.width}×${actualDims.height}. Retrying...`);
+      console.warn(`⚠️ ASPECT RATIO MISMATCH: expected ${spec.aspectRatio}, got ${actualDims.width}×${actualDims.height}. Retrying...`);
       
       await supabase.from("generations").update({ status: "retrying_aspect_ratio" }).eq("id", generationId);
 
       try {
         const retryResult = await generateCreative(
-          framework,
-          brand,
-          brandAssets,
-          referenceImageUrl,
-          spec,
-          LOVABLE_API_KEY,
-          directive
+          framework, brand, brandAssets, referenceImageUrl, spec, apiKey, directive
         );
 
         const retryBase64 = retryResult.imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const retryBytes = Uint8Array.from(atob(retryBase64), (c) => c.charCodeAt(0));
-        const retryDims = extractPngDimensions(retryBytes);
+        const retryDims = extractImageDimensions(retryBytes);
         const retryMatch = retryDims ? isAspectRatioMatch(retryDims, spec) : null;
 
         if (retryDims) {
           console.log(`Retry dimensions: ${retryDims.width}×${retryDims.height}, ratio match: ${retryMatch}`);
         }
 
-        // Use retry result if it's correct OR if it's at least not worse
         if (retryMatch !== false) {
-          console.log("✅ Retry produced correct aspect ratio, using retry result");
+          console.log("✅ Retry produced correct aspect ratio");
           finalImageBase64 = retryResult.imageBase64;
           base64Data = retryBase64;
           imageBytes = retryBytes;
@@ -1611,14 +1362,13 @@ serve(async (req) => {
 
     const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
 
-    // Use directive caption if the image model didn't provide one
     const finalCaption =
       captionText ||
       (directive
         ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}`
         : "");
 
-    // ── Advisory QC (non-blocking) — includes aspect ratio info ──
+    // ── Advisory QC (non-blocking) ──
     const formatInfo = {
       requested: { width: spec.width, height: spec.height, aspectRatio: spec.aspectRatio },
       actual: actualDims,
@@ -1627,12 +1377,12 @@ serve(async (req) => {
 
     let qcResult: QCResult | null = null;
     try {
-      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, LOVABLE_API_KEY, formatInfo);
+      qcResult = await advisoryQC(publicUrlData.publicUrl, directive, brand, apiKey, formatInfo);
     } catch {
       console.warn("QC step skipped due to error");
     }
 
-    // Build copywriting JSON with optional QC data + format info
+    // Build copywriting JSON
     const copywritingData: Record<string, any> = { caption: finalCaption };
     if (qcResult) {
       copywritingData.qc_score = qcResult.score;
@@ -1641,7 +1391,6 @@ serve(async (req) => {
     }
     if (ratioMatch === false) {
       copywritingData.aspect_ratio_mismatch = true;
-      // Add to QC issues
       if (!copywritingData.qc_issues) copywritingData.qc_issues = [];
       copywritingData.qc_issues.push(
         `Aspect ratio mismatch: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims?.width}×${actualDims?.height}`
@@ -1689,6 +1438,7 @@ serve(async (req) => {
         actualDimensions: actualDims ?? undefined,
         aspectRatioMatch: ratioMatch,
         qc: qcResult ? { score: qcResult.score, issues: qcResult.issues } : undefined,
+        provider: usingKie ? "kie.ai" : "lovable",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
