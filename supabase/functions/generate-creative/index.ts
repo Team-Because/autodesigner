@@ -1523,17 +1523,58 @@ serve(async (req) => {
       );
     }
 
-    // Upload generated image + extract actual dimensions
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-    const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    // Upload generated image + extract actual dimensions — retry once on mismatch
+    let finalImageBase64 = imageBase64;
+    let base64Data = finalImageBase64.replace(/^data:image\/\w+;base64,/, "");
+    let imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
 
-    // Extract actual dimensions from image bytes
-    const actualDims = extractPngDimensions(imageBytes);
-    const ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
+    let actualDims = extractPngDimensions(imageBytes);
+    let ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
+
     if (actualDims) {
       console.log(`Actual image dimensions: ${actualDims.width}×${actualDims.height}, ratio match: ${ratioMatch}`);
-      if (ratioMatch === false) {
-        console.warn(`⚠️ ASPECT RATIO MISMATCH: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims.width}×${actualDims.height}`);
+    }
+
+    // If aspect ratio is wrong, retry generation ONCE with stronger enforcement
+    if (ratioMatch === false && actualDims) {
+      console.warn(`⚠️ ASPECT RATIO MISMATCH on first attempt: expected ${spec.aspectRatio}, got ${actualDims.width}×${actualDims.height}. Retrying...`);
+      
+      await supabase.from("generations").update({ status: "retrying_aspect_ratio" }).eq("id", generationId);
+
+      try {
+        const retryResult = await generateCreative(
+          framework,
+          brand,
+          brandAssets,
+          referenceImageUrl,
+          spec,
+          LOVABLE_API_KEY,
+          directive
+        );
+
+        const retryBase64 = retryResult.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const retryBytes = Uint8Array.from(atob(retryBase64), (c) => c.charCodeAt(0));
+        const retryDims = extractPngDimensions(retryBytes);
+        const retryMatch = retryDims ? isAspectRatioMatch(retryDims, spec) : null;
+
+        if (retryDims) {
+          console.log(`Retry dimensions: ${retryDims.width}×${retryDims.height}, ratio match: ${retryMatch}`);
+        }
+
+        // Use retry result if it's correct OR if it's at least not worse
+        if (retryMatch !== false) {
+          console.log("✅ Retry produced correct aspect ratio, using retry result");
+          finalImageBase64 = retryResult.imageBase64;
+          base64Data = retryBase64;
+          imageBytes = retryBytes;
+          actualDims = retryDims;
+          ratioMatch = retryMatch;
+          if (retryResult.captionText) captionText = retryResult.captionText;
+        } else {
+          console.warn("⚠️ Retry also produced wrong aspect ratio, keeping first attempt");
+        }
+      } catch (retryErr) {
+        console.warn("Aspect ratio retry failed, keeping first attempt:", retryErr);
       }
     }
 
