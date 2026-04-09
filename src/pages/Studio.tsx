@@ -453,7 +453,7 @@ export default function Studio() {
             <CardContent>
               {referencePreview ? (
                 <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img src={referencePreview} alt="Reference" className="w-full aspect-video object-cover" />
+                  <img src={referencePreview} alt="Reference" className="w-full object-contain max-h-[400px]" />
                   <Button variant="secondary" size="sm" className="absolute top-2 right-2" onClick={() => { setReferenceFile(null); setReferencePreview(""); }} disabled={isGenerating}>
                     Change
                   </Button>
@@ -530,7 +530,7 @@ export default function Studio() {
               )}
               {studioState === "generating" && (
                 <div className="w-full space-y-6 py-8">
-                  <div className="relative w-full aspect-video rounded-lg bg-muted overflow-hidden">
+                  <div className={`relative w-full ${FORMAT_OPTIONS.find(f => f.value === outputFormat)?.aspect || "aspect-video"} rounded-lg bg-muted overflow-hidden`}>
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer" />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center px-4">
