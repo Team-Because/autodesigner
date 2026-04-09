@@ -898,7 +898,7 @@ CHECKLIST:
 ✅ Text on clean backgrounds, not on imagery
 ✅ Professional quality
 
-Output: ${spec.width}×${spec.height} pixels. Generate now.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}×${spec.height} pixels (${aspectRatioLabel}). NOT the reference image size. Generate NOW at exactly ${spec.width}×${spec.height}.`;
 }
 
 // ─────────────────────────────────────────────────────
