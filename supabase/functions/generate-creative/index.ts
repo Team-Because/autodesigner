@@ -937,6 +937,9 @@ async function advisoryQC(
       `Brand name: ${brand.name}`,
       `Brand colors: primary ${brand.primary_color}, secondary ${brand.secondary_color}`,
       brand.negative_prompts ? `Should NOT contain: ${toCompactText(brand.negative_prompts, 500)}` : "",
+      formatInfo ? `Expected aspect ratio: ${formatInfo.requested.aspectRatio} (${formatInfo.requested.width}×${formatInfo.requested.height})` : "",
+      formatInfo?.actual ? `Actual dimensions: ${formatInfo.actual.width}×${formatInfo.actual.height}` : "",
+      formatInfo?.ratioMatch === false ? `⚠️ ASPECT RATIO MISMATCH — expected ${formatInfo.requested.aspectRatio} but got different proportions` : "",
     ].filter(Boolean).join("\n");
 
     const response = await fetch(
