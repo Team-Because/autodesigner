@@ -478,17 +478,39 @@ interface CreativeDirective {
 const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
   "Logo": "Place as brand mark — exact fidelity required. Top-left or top-right with contrast backing.",
   "Hero Image": "Use as the primary hero visual. Feature prominently in the main visual zone.",
-  "Architecture": "Use as hero visual. Preserve exact geometry, materials, proportions. May adjust lighting/angle for mood.",
-  "Lifestyle": "Use as atmospheric background or lifestyle context. Can crop/blend into layout.",
-  "Masterplan": "Include in a dedicated zone. Maintain readability and detail.",
   "Product": "Feature prominently with high detail preservation. Center of visual attention.",
-  "Mascot": "Place as character element. Preserve exact design, colors, proportions.",
-  "Pattern/Texture": "Use as background texture, border accent, or subtle overlay pattern.",
+  "Lifestyle": "Use as atmospheric background or lifestyle context. Can crop/blend into layout.",
   "Icon": "Small supporting element. Use at specified position, maintain clarity.",
+  "Pattern/Texture": "Use as background texture, border accent, or subtle overlay pattern.",
+  "Banner": "Use as a full-width visual strip or header element.",
+  "Infographic": "Include as data/information visual. Maintain readability.",
+  "Style Reference": "Use as mood/style guide — match its aesthetic, don't reproduce literally.",
+  "Architecture": "Use as hero visual. Preserve exact geometry, materials, proportions.",
+  "Interior": "Showcase interior space. Preserve design details and spatial feel.",
+  "Exterior": "Feature building/space exterior. Maintain architectural accuracy.",
+  "Render": "Use as hero 3D render. Preserve exact form and materials.",
+  "Aerial View": "Use as dramatic top-down or elevated perspective visual.",
+  "Room/Suite": "Feature the space prominently. Preserve luxury/comfort feel.",
+  "Lookbook": "Use as fashion editorial visual. Maintain styling and composition.",
+  "On-Model": "Feature model wearing product. Preserve outfit details.",
+  "Screenshot": "Use as product UI showcase. Maintain sharpness and readability.",
+  "UI Mockup": "Feature as product interface visual. Keep pixel-perfect.",
+  "Dish/Menu Item": "Feature food prominently. Preserve appetizing presentation.",
+  "Packaging": "Showcase product packaging. Maintain label details and branding.",
+  "Store/Venue": "Feature retail/venue space. Preserve atmosphere.",
+  "Facility": "Showcase facility/building. Maintain professional look.",
+  "Data Visualization": "Include as chart/graph element. Maintain readability.",
   "Other": "Use in appropriate zone based on visual content.",
 };
 
 function getAssetRoleInstruction(label: string): string {
+  // Handle "Other: custom description" labels — pass custom text as context
+  if (label.startsWith("Other:")) {
+    const customDesc = label.replace(/^Other:\s*/, "").trim();
+    return customDesc
+      ? `Use as "${customDesc}" — place in appropriate zone based on this description.`
+      : ASSET_ROLE_INSTRUCTIONS["Other"];
+  }
   return ASSET_ROLE_INSTRUCTIONS[label] || ASSET_ROLE_INSTRUCTIONS["Other"];
 }
 
