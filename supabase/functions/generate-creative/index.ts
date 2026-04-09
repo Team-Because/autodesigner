@@ -1093,6 +1093,12 @@ async function generateCreative(
     }
   }
 
+  // FINAL size enforcement — the last thing the model reads
+  userContent.push({
+    type: "text",
+    text: `⚠️ FINAL REMINDER — OUTPUT DIMENSIONS: This image MUST be ${spec.aspectRatio} aspect ratio (${spec.width}×${spec.height} pixels). Do NOT match the reference image dimensions. The output canvas is ${spec.width} wide × ${spec.height} tall. This is non-negotiable.`,
+  });
+
   // Each model gets up to 3 attempts with increasing backoff
   const modelPlan = [
     { model: "google/gemini-3.1-flash-image-preview", timeoutMs: 80000, maxAttempts: 3 },
