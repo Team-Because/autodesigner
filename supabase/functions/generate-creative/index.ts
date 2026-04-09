@@ -777,7 +777,7 @@ function buildDirectivePrompt(
   const negativePrompts = toCompactText(brand.negative_prompts, 800);
 
   // SIMPLIFIED prompt — ~30 lines of core instructions
-  return `MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. The output image MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. Aspect ratio: ${aspectRatioLabel}. Do NOT use any other dimensions. IGNORE the dimensions of the reference image — output MUST be ${spec.width}x${spec.height}.
+  return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${spec.aspectRatio}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
 
