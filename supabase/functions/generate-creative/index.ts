@@ -794,66 +794,93 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     );
   }
 
-  const data = await kieChat(apiKey, {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userContent },
-    ],
-    tools: [
-      {
-        type: "function",
-        function: {
-          name: "creative_directive",
-          description: "Output the complete creative directive mapping the reference concept to the brand.",
-          parameters: {
-            type: "object",
-            properties: {
-              headline: { type: "string", description: "Exact headline text, ≤8 words" },
-              subcopy: { type: "string", description: "Exact subcopy text, ≤20 words" },
-              cta_text: { type: "string", description: "Exact CTA text" },
-              selected_assets: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    index: { type: "number" },
-                    role: { type: "string" },
-                    placement: { type: "string" },
-                    reason: { type: "string" },
-                  },
-                  required: ["index", "role", "placement", "reason"],
-                  additionalProperties: false,
-                },
-              },
-              color_usage: {
+  // Retry adapt step up to 2 times
+  let lastAdaptError: Error | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) console.log(`Adapt step retry attempt ${attempt}...`);
+      
+      const data = await kieChat(apiKey, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "creative_directive",
+              description: "Output the complete creative directive mapping the reference concept to the brand.",
+              parameters: {
                 type: "object",
                 properties: {
-                  background: { type: "string" },
-                  headline_color: { type: "string" },
-                  subcopy_color: { type: "string" },
-                  cta_background: { type: "string" },
-                  cta_text: { type: "string" },
+                  headline: { type: "string", description: "Exact headline text, ≤8 words" },
+                  subcopy: { type: "string", description: "Exact subcopy text, ≤20 words" },
+                  cta_text: { type: "string", description: "Exact CTA text" },
+                  selected_assets: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        index: { type: "number" },
+                        role: { type: "string" },
+                        placement: { type: "string" },
+                        reason: { type: "string" },
+                      },
+                      required: ["index", "role", "placement", "reason"],
+                      additionalProperties: false,
+                    },
+                  },
+                  color_usage: {
+                    type: "object",
+                    properties: {
+                      background: { type: "string" },
+                      headline_color: { type: "string" },
+                      subcopy_color: { type: "string" },
+                      cta_background: { type: "string" },
+                      cta_text: { type: "string" },
+                    },
+                    required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
+                    additionalProperties: false,
+                  },
+                  concept_adaptation: { type: "string" },
+                  logo_treatment: { type: "string" },
+                  compliance_notes: { type: "string" },
                 },
-                required: ["background", "headline_color", "subcopy_color", "cta_background", "cta_text"],
+                required: ["headline", "subcopy", "cta_text", "selected_assets", "color_usage", "concept_adaptation", "logo_treatment", "compliance_notes"],
                 additionalProperties: false,
               },
-              concept_adaptation: { type: "string" },
-              logo_treatment: { type: "string" },
-              compliance_notes: { type: "string" },
             },
-            required: ["headline", "subcopy", "cta_text", "selected_assets", "color_usage", "concept_adaptation", "logo_treatment", "compliance_notes"],
-            additionalProperties: false,
           },
-        },
-      },
-    ],
-    tool_choice: { type: "function", function: { name: "creative_directive" } },
-  });
+        ],
+        tool_choice: { type: "function", function: { name: "creative_directive" } },
+      }, 90000);
 
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall?.function?.arguments) {
-    throw new Error("No directive extracted from Adapt step");
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall?.function?.arguments) {
+        // Try content fallback
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          console.warn("Adapt: No tool_calls, trying content extraction...");
+          const extracted = extractFrameworkFromContent(typeof content === "string" ? content : JSON.stringify(content));
+          if (extracted && extracted.headline) {
+            return extracted as unknown as CreativeDirective;
+          }
+        }
+        throw new Error("No directive extracted from Adapt step");
+      }
+
+      const directive: CreativeDirective = JSON.parse(toolCall.function.arguments);
+      return directive; // success — break out of retry loop
+    } catch (err: any) {
+      lastAdaptError = err;
+      console.error(`Adapt attempt ${attempt} failed:`, err.message);
+      if (err.message === "CREDITS_EXHAUSTED" || err.message === "KIE_RATE_LIMITED") throw err;
+      if (attempt < 2) await sleep(3000);
+    }
   }
+
+  throw lastAdaptError || new Error("Adapt step failed");
 
   const directive: CreativeDirective = JSON.parse(toolCall.function.arguments);
   console.log("Adapt directive:", JSON.stringify({
