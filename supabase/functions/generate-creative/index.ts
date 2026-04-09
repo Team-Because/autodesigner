@@ -476,6 +476,7 @@ interface CreativeDirective {
 
 // Role-specific instructions for each asset category
 const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
+  // Base tags
   "Logo": "Place as brand mark — exact fidelity required. Top-left or top-right with contrast backing.",
   "Hero Image": "Use as the primary hero visual. Feature prominently in the main visual zone.",
   "Product": "Feature prominently with high detail preservation. Center of visual attention.",
@@ -485,21 +486,37 @@ const ASSET_ROLE_INSTRUCTIONS: Record<string, string> = {
   "Banner": "Use as a full-width visual strip or header element.",
   "Infographic": "Include as data/information visual. Maintain readability.",
   "Style Reference": "Use as mood/style guide — match its aesthetic, don't reproduce literally.",
-  "Architecture": "Use as hero visual. Preserve exact geometry, materials, proportions.",
-  "Interior": "Showcase interior space. Preserve design details and spatial feel.",
-  "Exterior": "Feature building/space exterior. Maintain architectural accuracy.",
-  "Render": "Use as hero 3D render. Preserve exact form and materials.",
-  "Aerial View": "Use as dramatic top-down or elevated perspective visual.",
+  // Real Estate
+  "Elevation": "Use as hero architectural visual. Preserve exact building form, materials, and proportions.",
+  "Interior": "Showcase interior space. Preserve design details, furniture, and spatial feel.",
+  "Exterior": "Feature building/project exterior. Maintain architectural accuracy and surroundings.",
+  "Amenity": "Showcase project amenity (pool, gym, garden). Feature prominently with lifestyle appeal.",
+  "RERA QR": "Place as regulatory compliance element. Position in top-right or bottom corner, keep scannable.",
+  "Render": "Use as hero 3D render. Preserve exact form, lighting, and materials.",
+  // Hospitality
   "Room/Suite": "Feature the space prominently. Preserve luxury/comfort feel.",
+  "Aerial View": "Use as dramatic top-down or elevated perspective visual.",
+  // Fashion
   "Lookbook": "Use as fashion editorial visual. Maintain styling and composition.",
   "On-Model": "Feature model wearing product. Preserve outfit details.",
+  "Swatch": "Use as color/material reference element. Place in supporting zone.",
+  "Flat Lay": "Use as product arrangement visual. Maintain composition.",
+  "Fabric Close-up": "Use as texture/detail reference. Supporting visual element.",
+  // Technology
   "Screenshot": "Use as product UI showcase. Maintain sharpness and readability.",
   "UI Mockup": "Feature as product interface visual. Keep pixel-perfect.",
+  "Device Render": "Showcase product on device. Maintain device frame and screen content.",
+  "Dashboard": "Feature as product analytics/interface visual.",
+  // Food & Beverage
   "Dish/Menu Item": "Feature food prominently. Preserve appetizing presentation.",
   "Packaging": "Showcase product packaging. Maintain label details and branding.",
+  // Retail
   "Store/Venue": "Feature retail/venue space. Preserve atmosphere.",
+  // Healthcare
   "Facility": "Showcase facility/building. Maintain professional look.",
+  // Finance
   "Data Visualization": "Include as chart/graph element. Maintain readability.",
+  // Fallback
   "Other": "Use in appropriate zone based on visual content.",
 };
 
