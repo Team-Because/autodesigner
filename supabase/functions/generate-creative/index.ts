@@ -16,6 +16,29 @@ const FORMAT_SPECS: Record<string, { width: number; height: number; label: strin
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Extract width/height from PNG header bytes (first 24 bytes contain IHDR)
+function extractPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  // PNG signature: 137 80 78 71 13 10 26 10
+  if (bytes.length < 24) return null;
+  if (bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71) return null;
+  // IHDR chunk starts at byte 8, width at 16, height at 20 (big-endian uint32)
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16, false);
+  const height = view.getUint32(20, false);
+  return { width, height };
+}
+
+// Check if actual dimensions match requested aspect ratio within tolerance
+function isAspectRatioMatch(
+  actual: { width: number; height: number },
+  requested: { width: number; height: number },
+  tolerance = 0.05
+): boolean {
+  const expectedRatio = requested.width / requested.height;
+  const actualRatio = actual.width / actual.height;
+  return Math.abs(actualRatio - expectedRatio) / expectedRatio <= tolerance;
+}
+
 // ─── Fixed vocabulary for zone normalization ───
 const NORM_ZONE_MAP: Record<string, string> = {
   // Logo variants
