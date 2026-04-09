@@ -175,7 +175,16 @@ export default function Studio() {
 
       const { data: gen, error: insertError } = await supabase
         .from("generations")
-        .insert({ user_id: user.id, brand_id: selectedBrandId, reference_image_url: refUrlData.publicUrl, status: "processing" })
+        .insert({
+          user_id: user.id,
+          brand_id: selectedBrandId,
+          reference_image_url: refUrlData.publicUrl,
+          status: "processing",
+          output_format: outputFormat,
+          requested_aspect_ratio: FORMAT_SPECS[outputFormat].aspectRatio,
+          requested_width: FORMAT_SPECS[outputFormat].width,
+          requested_height: FORMAT_SPECS[outputFormat].height,
+        } as any)
         .select()
         .single();
 
