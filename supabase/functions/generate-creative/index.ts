@@ -573,6 +573,9 @@ The reference image is for LAYOUT, COMPOSITION, and VISUAL STYLE only.
 IGNORE ALL text, names, locations, prices, currencies, phone numbers, addresses, URLs, and any written content visible in the reference image.
 ALL copy (headline, subcopy, CTA) must come EXCLUSIVELY from the brand data below.
 
+CRITICAL — IMAGE ISOLATION:
+NEVER reproduce, copy, or recreate the IMAGERY from the reference image. The reference shows a layout structure — but ALL visuals in the output must come from the brand's OWN uploaded assets. If the reference shows people, buildings, products, or scenes — do NOT generate similar-looking imagery. Instead, select the brand's own assets that best fit each visual zone. The reference dictates WHERE images go and HOW they're composed, NOT WHAT images to use.
+
 CREATIVE DIRECTION FOR THIS GENERATION:
 ${creativeMood}
 Write copy that embodies this mood. Do NOT just repeat the brand's tagline — interpret the brand brief through this creative lens. Each generation should feel fresh and different.
@@ -843,6 +846,7 @@ function buildDirectivePrompt(
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
+IMAGE ISOLATION: NEVER reproduce reference imagery. ALL visuals must come from the brand asset images provided below. The reference shows WHERE to place images and HOW to compose them — use ONLY brand assets to fill those zones.
 
 ═══ CREATIVE DIRECTIVE ═══
 HEADLINE: "${directive.headline}"
@@ -858,7 +862,7 @@ CONCEPT: ${directive.concept_adaptation}
 LOGO: ${directive.logo_treatment}
 
 ═══ RULES ═══
-• Follow reference layout/composition/energy — adapt with brand assets + colors
+• Follow reference layout/composition/energy — adapt with brand assets + colors. NEVER recreate or imitate reference imagery — use ONLY the provided brand asset images
 • Logo: reproduce EXACT letterforms, shapes, colors from the provided logo image. NEVER write "LOGO" as text
 • Architecture/3D: preserve exact building geometry. May enhance lighting/angle
 • Text on solid zones or panels only — NEVER on photos/renders
@@ -925,9 +929,10 @@ function buildFallbackPrompt(
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}×${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: The reference image (IMAGE 1) is for LAYOUT and VISUAL STYLE only. NEVER copy any text, names, locations, prices, currencies from it. ALL text comes from brand data below.
+IMAGE ISOLATION: NEVER reproduce, copy, or recreate imagery from the reference. ALL visuals must come from the brand's own uploaded assets. The reference shows WHERE and HOW to compose — use ONLY brand assets to fill visual zones.
 
 ═══ DESIGN DIRECTION ═══
-Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content.
+Follow the reference image's layout, composition, and visual energy. Adapt it to the brand assets and colors below. The reference shows the DESIGN APPROACH — replicate its spatial relationships, visual weight distribution, and compositional style, but with the brand's own content and assets. NEVER generate imagery that looks like the reference photo — use ONLY brand assets.
 
 LOGO: The brand logo is provided as a separate labeled image. Study it carefully and reproduce its EXACT letterforms, icon shapes, colors, and proportions. On dark backgrounds add a light backing panel. The logo in the REFERENCE image is NOT the brand's logo — ignore it. NEVER write the word "LOGO" as text.
 3D RENDERS: Preserve exact architecture. May enhance lighting/angle/atmosphere.
