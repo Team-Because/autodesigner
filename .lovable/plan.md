@@ -1,62 +1,62 @@
 
-Goal: make aspect ratio handling generic and reliable for every brand, not NAM:TECH-specific.
 
-What I found
-- The generation backend already sends strong format signals in `supabase/functions/generate-creative/index.ts`: provider `aspect_ratio`, `size`, `image_size`, plus repeated prompt instructions.
-- That means this is probably not a NAM:TECH brand-setup problem.
-- The bigger gaps are:
-  1. No post-generation validation: whatever the model returns gets saved.
-  2. QC does not check aspect ratio at all.
-  3. The UI can visually misrepresent correct outputs:
-     - `src/pages/History.tsx` and `src/pages/AdminHistory.tsx` hardcode `aspect-[4/3]` and use `object-cover`
-     - `src/pages/Studio.tsx` uses landscape-style containers for the reference preview and loading state
-- This can look “NAM:TECH-only” because NAM:TECH layouts have strong framed compositions, so cropping/distortion is easier to notice.
+# Quality Optimization Plan — Practical & Cost-Effective
 
-Recommended fix
-1. Treat output format as stored metadata
-- Add format fields to `generations`: `output_format`, `requested_width`, `requested_height`, `requested_aspect_ratio`, `actual_width`, `actual_height`.
-- Save the requested format before generation and actual dimensions after generation.
+## Current State
 
-2. Add hard validation in the generation function
-- In `supabase/functions/generate-creative/index.ts`, inspect the returned image bytes and extract real width/height from the file header.
-- Compare actual dimensions with the selected format spec.
-- If they do not match:
-  - retry once with the same format spec,
-  - if still wrong, return a clear error instead of silently saving the wrong size.
-- Do not “fix” this by cropping/resizing after generation; that can break composition and text.
+The pipeline has 4 steps (Analyze → Adapt → Generate → QC), all routed through kie.ai's chat and image APIs. However, **the kie.ai code hasn't been deployed yet** — logs still show Lovable AI with 429 errors. First priority is getting kie.ai working, then optimizing each step.
 
-3. Use one canonical aspect-ratio language everywhere
-- Keep the provider-native `aspect_ratio` parameter as the main source of truth.
-- Standardize all prompt references to only these canonical values: `16:9`, `1:1`, `9:16`, `4:5`.
-- Remove ambiguous wording like `1920:1080 LANDSCAPE` from fallback prompts.
+## What Changes
 
-4. Extend QC to check ratio compliance
-- Add expected format + actual dimensions to the QC review inputs.
-- Save aspect-ratio mismatches in QC issues so they become visible in history/debugging.
+### 1. Deploy kie.ai integration & set resolution to 2K
+The current code already has kie.ai integration written but isn't deployed. Deploy it and change image resolution from `"1K"` to `"2K"` for sharper outputs. Keep Nano Banana 2 as primary, Nano Banana Pro as fallback — no need for GPT or Ideogram.
 
-5. Fix the UI previews
-- `src/pages/Studio.tsx`
-  - make the loading skeleton match the selected output format
-  - stop forcing the uploaded reference into a landscape preview
-  - preserve the chosen aspect in the output preview
-- `src/pages/History.tsx` and `src/pages/AdminHistory.tsx`
-  - remove the hardcoded `4:3` thumbnail wrapper
-  - render each image using saved format metadata
-  - use format-matched containers or `object-contain` so previews do not fake a ratio issue
-  - show a small format badge
+### 2. Use the right model tier per step
 
-Why this is the best approach
-- Generic: improves the whole system, not one brand.
-- Accurate: enforces ratio at request time and verifies it after generation.
-- Debbugable: stores requested vs actual size.
-- User-safe: prevents preview cropping from being mistaken for generation failure.
+| Step | Current | Proposed | Why |
+|------|---------|----------|-----|
+| Analyze (extract layout) | kie.ai Gemini 3 Flash (chat) | Same — keep it | Layout extraction is structural, flash-tier is fine |
+| Adapt (map brand to layout) | kie.ai Gemini 3 Flash (chat) | Same — keep it | Works well for asset selection + copy generation |
+| Generate (render image) | Nano Banana 2 → Pro → Original | Nano Banana Pro → Nano Banana 2 (lead with quality) | Pro produces better compositions; 2 is fast fallback |
+| QC (score output) | kie.ai Gemini 3 Flash (chat) | **Remove entirely** | See below |
 
-Technical details
-- Main backend file: `supabase/functions/generate-creative/index.ts`
-- UI files: `src/pages/Studio.tsx`, `src/pages/History.tsx`, `src/pages/AdminHistory.tsx`
-- Database: add generation format/dimension columns via migration
+### 3. Remove QC step
 
-Expected result
-- If the model returns the correct size, the UI will display it correctly everywhere.
-- If the model returns the wrong size, the system will catch it immediately.
-- This will tell us clearly whether the issue is true generation non-compliance or just preview distortion.
+**Why remove it:**
+- QC is purely advisory — it scores the image but never triggers a retry or blocks bad output
+- It adds latency (extra API call + image download) to every generation
+- The score is buried in JSON and rarely surfaced meaningfully to users
+- Making QC "actionable" (auto-retry on low scores) would double generation costs and time for marginal benefit
+- The aspect ratio validation already catches the most critical quality issue
+
+**What replaces it:**
+- Keep the existing aspect ratio mismatch detection + retry (already implemented)
+- Users can visually judge quality and regenerate if unsatisfied (costs 1 credit either way)
+
+### 4. Verify kie.ai image fetching works end-to-end
+The async polling pattern (createTask → poll recordInfo → download resultUrl) is written but untested. Ensure:
+- Task creation succeeds with proper model names (`nano-banana-pro`, `nano-banana-2`)
+- Polling handles all states correctly
+- Downloaded images are valid PNG/JPEG with correct dimensions
+- Image URLs from kie.ai are accessible for download
+
+## Technical Changes
+
+**File: `supabase/functions/generate-creative/index.ts`**
+
+1. Reorder model fallback: `nano-banana-pro` first, then `nano-banana-2`, then `nano-banana`
+2. Change resolution from `"1K"` to `"2K"` in `kieGenerateImage`
+3. Remove the entire `advisoryQC` function and all QC-related code (lines 890-963, QC call at lines 1378-1383, QC data in copywriting at lines 1387-1398, QC in response at line 1440)
+4. Deploy the edge function
+
+**No database changes needed** — QC data is already stored in the `copywriting` JSON column, removing it just means that field won't have `qc_score`/`qc_issues` anymore.
+
+**No UI changes needed** — QC badges in history are already graceful (they just won't appear if no QC data exists).
+
+## Expected Outcome
+- Generations use kie.ai instead of rate-limited Lovable AI → no more 429 errors
+- 2K resolution → sharper text and edges
+- Pro model first → better compositions
+- No QC step → ~15-20% faster generation time
+- System still catches aspect ratio mismatches via dimension validation
+
