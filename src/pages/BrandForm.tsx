@@ -439,7 +439,7 @@ export default function BrandForm() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Brand Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Shanti Juniors" />
+              <Input id="name" value={name} onChange={(e) => { if (e.target.value.length <= 100) setName(e.target.value); }} placeholder="e.g., Shanti Juniors" maxLength={100} />
             </div>
             <div className="space-y-2">
               <Label>Industry</Label>
@@ -503,9 +503,12 @@ export default function BrandForm() {
                           className="text-xs h-7"
                           placeholder="Describe this asset…"
                           value={asset.label.replace(/^Other:\s*/, "")}
+                          maxLength={50}
                           onChange={(e) => {
-                            const customLabel = e.target.value ? `Other: ${e.target.value}` : "Other:";
-                            handleLabelChange(index, customLabel);
+                            if (e.target.value.length <= 50) {
+                              const customLabel = e.target.value ? `Other: ${e.target.value}` : "Other:";
+                              handleLabelChange(index, customLabel);
+                            }
                           }}
                           onBlur={() => {
                             if (asset.id && isEditing) {
