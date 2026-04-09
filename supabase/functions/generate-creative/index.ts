@@ -393,6 +393,71 @@ function extractFrameworkFromContent(content: string): Record<string, unknown> |
   return null;
 }
 
+// Extract a creative directive from plain-text/JSON content (Adapt step fallback)
+function extractDirectiveFromContent(content: string): CreativeDirective | null {
+  if (!content) return null;
+
+  const jsonPatterns = [
+    /```json\s*([\s\S]*?)```/,
+    /```\s*([\s\S]*?)```/,
+    /\{[\s\S]*"headline"[\s\S]*\}/,
+  ];
+
+  for (const pattern of jsonPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1] || match[0]);
+        if (parsed && typeof parsed === "object" && parsed.headline) {
+          console.log("Extracted directive from content text (fallback)");
+          // Ensure required fields have defaults
+          return {
+            headline: parsed.headline || "",
+            subcopy: parsed.subcopy || parsed.sub_copy || parsed.subheadline || "",
+            cta_text: parsed.cta_text || parsed.cta || "Learn More",
+            selected_assets: parsed.selected_assets || [],
+            color_usage: parsed.color_usage || {
+              background: "#FFFFFF",
+              headline_color: "#000000",
+              subcopy_color: "#333333",
+              cta_background: "#000000",
+              cta_text: "#FFFFFF",
+            },
+            concept_adaptation: parsed.concept_adaptation || "",
+            logo_treatment: parsed.logo_treatment || "",
+            compliance_notes: parsed.compliance_notes || "",
+          } as CreativeDirective;
+        }
+      } catch { /* continue */ }
+    }
+  }
+
+  // Try parsing entire content as JSON
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed === "object" && parsed.headline) {
+      return {
+        headline: parsed.headline || "",
+        subcopy: parsed.subcopy || parsed.sub_copy || "",
+        cta_text: parsed.cta_text || parsed.cta || "Learn More",
+        selected_assets: parsed.selected_assets || [],
+        color_usage: parsed.color_usage || {
+          background: "#FFFFFF",
+          headline_color: "#000000",
+          subcopy_color: "#333333",
+          cta_background: "#000000",
+          cta_text: "#FFFFFF",
+        },
+        concept_adaptation: parsed.concept_adaptation || "",
+        logo_treatment: parsed.logo_treatment || "",
+        compliance_notes: parsed.compliance_notes || "",
+      } as CreativeDirective;
+    }
+  } catch { /* not JSON */ }
+
+  return null;
+}
+
 // Build a minimal fallback framework from the format spec
 function buildMinimalFramework(aspectRatio: string): Record<string, unknown> {
   const orientation = aspectRatio === "1:1" ? "square" 
