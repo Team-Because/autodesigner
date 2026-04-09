@@ -846,6 +846,7 @@ function buildDirectivePrompt(
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. The reference image may be a different size — IGNORE its dimensions completely. Your output canvas MUST be exactly ${spec.width} pixels wide and ${spec.height} pixels tall. ⚠️⚠️⚠️
 
 CONTENT ISOLATION: Reference image (IMAGE 1) = LAYOUT ONLY. Copy NO text/names/locations from it.
+IMAGE ISOLATION: NEVER reproduce reference imagery. ALL visuals must come from the brand asset images provided below. The reference shows WHERE to place images and HOW to compose them — use ONLY brand assets to fill those zones.
 
 ═══ CREATIVE DIRECTIVE ═══
 HEADLINE: "${directive.headline}"
@@ -861,7 +862,7 @@ CONCEPT: ${directive.concept_adaptation}
 LOGO: ${directive.logo_treatment}
 
 ═══ RULES ═══
-• Follow reference layout/composition/energy — adapt with brand assets + colors
+• Follow reference layout/composition/energy — adapt with brand assets + colors. NEVER recreate or imitate reference imagery — use ONLY the provided brand asset images
 • Logo: reproduce EXACT letterforms, shapes, colors from the provided logo image. NEVER write "LOGO" as text
 • Architecture/3D: preserve exact building geometry. May enhance lighting/angle
 • Text on solid zones or panels only — NEVER on photos/renders
