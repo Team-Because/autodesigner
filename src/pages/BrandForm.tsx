@@ -617,9 +617,10 @@ export default function BrandForm() {
                     />
                     <Input
                       value={color.name}
-                      onChange={(e) => updateExtraColor(index, "name", e.target.value)}
+                      onChange={(e) => { if (e.target.value.length <= 30) updateExtraColor(index, "name", e.target.value); }}
                       placeholder="e.g., Accent Gold"
                       className="text-sm flex-1"
+                      maxLength={30}
                     />
                     <button
                       type="button"
