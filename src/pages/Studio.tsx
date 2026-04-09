@@ -39,6 +39,13 @@ import { cn } from "@/lib/utils";
 type StudioState = "idle" | "generating" | "complete";
 type OutputFormat = "landscape" | "square" | "story" | "portrait";
 
+const FORMAT_SPECS: Record<OutputFormat, { width: number; height: number; aspectRatio: string }> = {
+  landscape: { width: 1920, height: 1080, aspectRatio: "16:9" },
+  square: { width: 1080, height: 1080, aspectRatio: "1:1" },
+  story: { width: 1080, height: 1920, aspectRatio: "9:16" },
+  portrait: { width: 1080, height: 1350, aspectRatio: "4:5" },
+};
+
 const FORMAT_OPTIONS: { value: OutputFormat; label: string; description: string; icon: typeof Square; aspect: string }[] = [
   { value: "landscape", label: "Landscape", description: "1920×1080", icon: RectangleHorizontal, aspect: "aspect-video" },
   { value: "square", label: "Square", description: "1080×1080", icon: Square, aspect: "aspect-square" },
