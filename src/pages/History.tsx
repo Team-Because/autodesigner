@@ -110,6 +110,15 @@ export default function History() {
     return typeof g.copywriting === "string" ? JSON.parse(g.copywriting) : g.copywriting;
   };
 
+  const getAspectClass = (g: any) => {
+    const ar = g.requested_aspect_ratio;
+    if (ar === "1:1") return "aspect-square";
+    if (ar === "9:16") return "aspect-[9/16]";
+    if (ar === "4:5") return "aspect-[4/5]";
+    if (ar === "16:9") return "aspect-video";
+    return "aspect-[4/3]"; // fallback for old generations
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-display font-bold text-foreground">
