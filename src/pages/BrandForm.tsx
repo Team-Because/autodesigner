@@ -702,12 +702,13 @@ export default function BrandForm() {
               <Textarea
                 id="brief-identity"
                 value={briefIdentity}
-                onChange={(e) => setBriefIdentity(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 1000) setBriefIdentity(e.target.value); }}
                 placeholder="Project name, location, developer, USP, key differentiators..."
                 rows={4}
                 className="text-sm"
+                maxLength={1000}
               />
-              <p className={`text-xs ${briefIdentity.length > 800 ? "text-amber-500" : "text-muted-foreground"}`}>{briefIdentity.length}/800 recommended — Project name, location, developer, USP</p>
+              <p className={`text-xs ${briefIdentity.length > 900 ? "text-amber-500" : "text-muted-foreground"}`}>{briefIdentity.length}/1000 — Project name, location, developer, USP</p>
             </div>
 
             <div className="space-y-2">
@@ -715,12 +716,13 @@ export default function BrandForm() {
               <Textarea
                 id="brief-mandatory"
                 value={briefMandatory}
-                onChange={(e) => setBriefMandatory(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 600) setBriefMandatory(e.target.value); }}
                 placeholder="RERA number, contact info, tagline, legal text, website URL..."
                 rows={3}
                 className="text-sm"
+                maxLength={600}
               />
-              <p className={`text-xs ${briefMandatory.length > 500 ? "text-amber-500" : "text-muted-foreground"}`}>{briefMandatory.length}/500 recommended — RERA, contact, tagline, legal text</p>
+              <p className={`text-xs ${briefMandatory.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{briefMandatory.length}/600 — RERA, contact, tagline, legal text</p>
             </div>
 
             <div className="space-y-2">
@@ -728,12 +730,13 @@ export default function BrandForm() {
               <Textarea
                 id="brief-visual"
                 value={briefVisual}
-                onChange={(e) => setBriefVisual(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 800) setBriefVisual(e.target.value); }}
                 placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
                 rows={3}
                 className="text-sm"
+                maxLength={800}
               />
-              <p className={`text-xs ${briefVisual.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefVisual.length}/600 recommended — Mood, lighting, photography style, layout preferences</p>
+              <p className={`text-xs ${briefVisual.length > 720 ? "text-amber-500" : "text-muted-foreground"}`}>{briefVisual.length}/800 — Mood, lighting, photography style, layout preferences</p>
             </div>
 
             <div className="space-y-2">
@@ -741,12 +744,13 @@ export default function BrandForm() {
               <Textarea
                 id="brief-copy"
                 value={briefCopy}
-                onChange={(e) => setBriefCopy(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 600) setBriefCopy(e.target.value); }}
                 placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
                 rows={3}
                 className="text-sm"
+                maxLength={600}
               />
-              <p className={`text-xs ${briefCopy.length > 600 ? "text-amber-500" : "text-muted-foreground"}`}>{briefCopy.length}/600 recommended — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+              <p className={`text-xs ${briefCopy.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
             </div>
           </CardContent>
         </Card>
