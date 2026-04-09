@@ -1268,7 +1268,7 @@ serve(async (req) => {
 
       console.log("Step 1: Analyzing reference image framework...");
       try {
-        framework = await analyzeFramework(referenceImageUrl, apiKey);
+        framework = await analyzeFramework(referenceImageUrl, apiKey, spec.aspectRatio);
         console.log("Framework extracted successfully");
       } catch (err) {
         console.error("Framework analysis failed:", err);
