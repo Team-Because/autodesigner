@@ -1189,6 +1189,11 @@ async function generateCreative(
                 { role: "user", content: userContent },
               ],
               modalities: ["image", "text"],
+              // aspect_ratio via extra_body for OpenAI-compatible Gemini endpoint
+              extra_body: {
+                aspect_ratio: spec.aspectRatio,
+              },
+              // Also keep at top level for any gateway that reads it directly
               aspect_ratio: spec.aspectRatio,
               size: `${spec.width}x${spec.height}`,
               image_size: { width: spec.width, height: spec.height },
