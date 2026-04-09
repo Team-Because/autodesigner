@@ -594,10 +594,16 @@ Your task:
 
 ASSET SELECTION RULES:
 - Always include ONE logo if available
-- Pick ONE hero visual that best matches the reference's main visual zone — USE YOUR VISUAL JUDGEMENT
-- Optionally add ONE supporting asset if the reference has multiple visual zones
+- VISUALLY MATCH assets to the reference layout zones:
+  • If the reference features a building/exterior → pick an Elevation or Exterior asset
+  • If the reference shows an interior space → pick an Interior asset  
+  • If the reference shows amenities (pool, gym, garden) → pick an Amenity asset
+  • If the reference is lifestyle/people-focused → pick a Lifestyle asset
+  • Match the CONTENT of the reference's hero zone to the most visually similar asset category
+- Pick 1-3 visual assets (not just one!) if the reference has multiple visual zones
+- Each visual zone in the reference should map to a DIFFERENT asset — don't reuse the same one
 - Skip assets that don't fit this layout
-- Maximum 4 assets total (fewer = better design)
+- Maximum 5 assets total (1 logo + up to 4 visuals)
 - For each asset, consider: does its composition, orientation, and content match the reference zone it would fill?
 
 ASSET ROLE MAPPING:
@@ -646,8 +652,8 @@ Look at the reference image AND each brand asset image. Visually evaluate which 
     { type: "image_url", image_url: { url: referenceImageUrl } },
   ];
 
-  // Send actual brand asset images so the Adapt step can SEE them
-  for (let i = 0; i < brandAssets.length && i < 8; i++) {
+  // Send ALL brand asset images (up to 15) so Adapt can visually evaluate each one
+  for (let i = 0; i < brandAssets.length && i < 15; i++) {
     const asset = brandAssets[i];
     userContent.push(
       { type: "text", text: `BRAND ASSET [${i}] "${asset.label || "Unlabeled"}":` },
