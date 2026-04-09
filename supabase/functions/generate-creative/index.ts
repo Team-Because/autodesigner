@@ -803,7 +803,7 @@ LOGO: ${directive.logo_treatment}
 • If logo contains brand name, do NOT repeat as text
 ${negativePrompts ? `• ⛔ NEVER: ${negativePrompts}` : ""}
 
-MANDATORY OUTPUT SIZE: ${spec.width}x${spec.height} pixels. Generate the image at exactly ${spec.width}x${spec.height} now.`;
+⚠️⚠️⚠️ FINAL CHECK: Output MUST be ${spec.width}x${spec.height} pixels (${spec.aspectRatio}). NOT the reference image size. Generate the image NOW at exactly ${spec.width}x${spec.height}.`;
 }
 
 function buildFallbackPrompt(
