@@ -1373,7 +1373,14 @@ serve(async (req) => {
 
       await supabase
         .from("generations")
-        .update({ layout_guide: JSON.stringify(framework), status: "adapting" })
+        .update({
+          layout_guide: JSON.stringify(framework),
+          status: "adapting",
+          output_format: outputFormat,
+          requested_aspect_ratio: spec.aspectRatio,
+          requested_width: spec.width,
+          requested_height: spec.height,
+        })
         .eq("id", generationId);
     }
 
