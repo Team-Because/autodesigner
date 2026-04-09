@@ -216,7 +216,8 @@ async function kieGenerateImage(
   prompt: string,
   imageInputs: string[],
   aspectRatio: string,
-  model = "nano-banana-2"
+  model = "nano-banana-2",
+  resolution = "1K"
 ): Promise<string> {
   // Submit task
   const createRes = await fetch(KIE_CREATE_TASK, {
@@ -231,7 +232,7 @@ async function kieGenerateImage(
         prompt,
         image_input: imageInputs,
         aspect_ratio: aspectRatio,
-        resolution: "2K",
+        resolution,
         output_format: "png",
       },
     }),
@@ -1119,16 +1120,16 @@ async function generateCreative(
 
   // Model fallback plan for kie.ai
   const modelPlan = [
-    { model: "nano-banana-pro", label: "Nano Banana Pro" },
-    { model: "nano-banana-2", label: "Nano Banana 2" },
-    { model: "nano-banana", label: "Nano Banana" },
+    { model: "nano-banana-2", label: "Nano Banana 2", resolution: "1K" },
+    { model: "nano-banana-pro", label: "Nano Banana Pro", resolution: "1K" },
+    { model: "nano-banana", label: "Nano Banana", resolution: "1K" },
   ];
 
   let lastError: Error | null = null;
 
-  for (const { model, label } of modelPlan) {
+  for (const { model, label, resolution } of modelPlan) {
     for (let attempt = 1; attempt <= 2; attempt++) {
-      console.log(`Using model: ${label} (attempt ${attempt}/2)`);
+      console.log(`Using model: ${label} @ ${resolution} (attempt ${attempt}/2)`);
 
       try {
         const resultUrl = await kieGenerateImage(
@@ -1136,7 +1137,8 @@ async function generateCreative(
           fullPrompt,
           imageInputUrls,
           spec.aspectRatio,
-          model
+          model,
+          resolution
         );
 
         // Download the generated image
