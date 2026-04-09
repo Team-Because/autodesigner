@@ -573,6 +573,9 @@ The reference image is for LAYOUT, COMPOSITION, and VISUAL STYLE only.
 IGNORE ALL text, names, locations, prices, currencies, phone numbers, addresses, URLs, and any written content visible in the reference image.
 ALL copy (headline, subcopy, CTA) must come EXCLUSIVELY from the brand data below.
 
+CRITICAL — IMAGE ISOLATION:
+NEVER reproduce, copy, or recreate the IMAGERY from the reference image. The reference shows a layout structure — but ALL visuals in the output must come from the brand's OWN uploaded assets. If the reference shows people, buildings, products, or scenes — do NOT generate similar-looking imagery. Instead, select the brand's own assets that best fit each visual zone. The reference dictates WHERE images go and HOW they're composed, NOT WHAT images to use.
+
 CREATIVE DIRECTION FOR THIS GENERATION:
 ${creativeMood}
 Write copy that embodies this mood. Do NOT just repeat the brand's tagline — interpret the brand brief through this creative lens. Each generation should feel fresh and different.
