@@ -765,20 +765,24 @@ export default function BrandForm() {
               <Textarea
                 id="voice"
                 value={voiceRules}
-                onChange={(e) => setVoiceRules(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 1800) setVoiceRules(e.target.value); }}
                 placeholder='"Subjects must strictly be 3-4 year old toddlers. Warm, nurturing tone."'
                 rows={4}
+                maxLength={1800}
               />
+              <p className={`text-xs ${voiceRules.length > 1600 ? "text-amber-500" : "text-muted-foreground"}`}>{voiceRules.length}/1800</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="negative">The "Never" List (Strict Exclusions)</Label>
               <Textarea
                 id="negative"
                 value={negativePrompts}
-                onChange={(e) => setNegativePrompts(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 1200) setNegativePrompts(e.target.value); }}
                 placeholder='"Never use the color green for real estate ads. Remove all background clutter."'
                 rows={4}
+                maxLength={1200}
               />
+              <p className={`text-xs ${negativePrompts.length > 1080 ? "text-amber-500" : "text-muted-foreground"}`}>{negativePrompts.length}/1200</p>
             </div>
           </CardContent>
         </Card>
