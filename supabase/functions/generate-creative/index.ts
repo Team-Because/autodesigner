@@ -927,7 +927,8 @@ async function advisoryQC(
   outputImageUrl: string,
   directive: CreativeDirective | null,
   brand: any,
-  apiKey: string
+  apiKey: string,
+  formatInfo?: { requested: { width: number; height: number; aspectRatio: string }; actual: { width: number; height: number } | null; ratioMatch: boolean | null }
 ): Promise<QCResult | null> {
   try {
     const checkItems = [
