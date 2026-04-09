@@ -250,10 +250,10 @@ export default function AdminHistory() {
                 className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group"
                 onClick={() => setSelectedGeneration(g)}
               >
-                <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                <div className={`relative ${getAspectClass(g)} bg-muted overflow-hidden`}>
                   {g.output_image_url ? (
                     <>
-                      <img src={g.output_image_url} alt="Generated creative" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                      <img src={g.output_image_url} alt="Generated creative" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                       <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
                         <Eye className="h-8 w-8 text-card opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                       </div>
