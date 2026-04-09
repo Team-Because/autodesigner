@@ -209,13 +209,13 @@ export default function History() {
                 onClick={() => setSelectedGeneration(g)}
               >
                 {/* Output image with reference overlay */}
-                <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                <div className={`relative ${getAspectClass(g)} bg-muted overflow-hidden`}>
                   {g.output_image_url ? (
                     <>
                       <img
                         src={g.output_image_url}
                         alt="Generated creative"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
                       <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
@@ -245,6 +245,11 @@ export default function History() {
                   <p className="text-sm font-medium text-foreground truncate">
                     {brandMap[g.brand_id] ?? "Unknown brand"}
                   </p>
+                  {g.requested_aspect_ratio && (
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {g.requested_aspect_ratio}
+                    </Badge>
+                  )}
                   {cw?.caption && (
                     <p className="text-xs text-muted-foreground line-clamp-1">{cw.caption}</p>
                   )}
