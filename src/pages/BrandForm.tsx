@@ -40,55 +40,54 @@ const BASE_CATEGORIES = [
 
 const INDUSTRY_CATEGORIES: Record<string, string[]> = {
   "Real Estate": [
-    "Architecture", "Interior", "Exterior", "Floor Plan",
-    "Render", "Aerial View", "Amenity", "Location Map",
-    "Construction Progress", "Landscape",
+    "Logo", "Elevation", "Interior", "Exterior",
+    "Amenity", "Lifestyle", "RERA QR",
+    "Pattern/Texture", "Render",
   ],
   "Education": [
-    "Campus", "Classroom", "Student Life", "Faculty",
-    "Lab", "Library", "Playground", "Graduation",
-    "Sports", "Workshop",
+    "Logo", "Campus", "Classroom", "Student Life",
+    "Faculty", "Lab", "Library", "Playground",
+    "Graduation", "Sports",
   ],
   "Healthcare": [
-    "Facility", "Medical Equipment", "Patient Care",
+    "Logo", "Facility", "Medical Equipment", "Patient Care",
     "Doctor/Staff", "Wellness", "Lab", "Pharmacy",
-    "Diagnostic", "Hospital Exterior", "Therapy",
+    "Hospital Exterior", "Therapy",
   ],
   "Retail": [
-    "Store/Venue", "Packaging", "Catalogue", "Display/Shelf",
-    "Unboxing", "E-commerce Shot", "Shopping Bag",
-    "Window Display", "Customer in Store", "Price Tag",
+    "Logo", "Store/Venue", "Product", "Packaging",
+    "Catalogue", "Display/Shelf", "E-commerce Shot",
+    "Window Display", "Lifestyle", "Banner",
   ],
   "Fashion": [
-    "Lookbook", "On-Model", "Flat Lay", "Swatch",
-    "Fabric Close-up", "Collection", "Runway",
-    "Accessories", "Styling", "Detail Shot",
+    "Logo", "Lookbook", "On-Model", "Flat Lay",
+    "Swatch", "Fabric Close-up", "Collection",
+    "Runway", "Accessories", "Lifestyle",
   ],
   "Technology": [
-    "Screenshot", "UI Mockup", "Device Render", "Dashboard",
-    "Feature Highlight", "Architecture Diagram",
-    "Mobile View", "Desktop View", "Integration Flow", "API Doc",
+    "Logo", "Screenshot", "UI Mockup", "Device Render",
+    "Dashboard", "Feature Highlight", "Mobile View",
+    "Desktop View", "Icon", "Banner",
   ],
   "Food & Beverage": [
-    "Dish/Menu Item", "Packaging", "Restaurant/Venue",
+    "Logo", "Dish/Menu Item", "Packaging", "Restaurant/Venue",
     "Ingredient", "Plating", "Drink", "Kitchen",
-    "Chef/Staff", "Menu Card", "Delivery",
+    "Chef/Staff", "Menu Card",
   ],
   "Automotive": [
-    "Exterior Shot", "Interior Shot", "Detail/Close-up",
+    "Logo", "Exterior Shot", "Interior Shot", "Detail/Close-up",
     "On Road", "Showroom", "Dashboard View",
-    "Colour Options", "Off-Road", "Aerial/Drone", "Engine",
+    "Colour Options", "Lifestyle", "Banner",
   ],
   "Hospitality": [
-    "Room/Suite", "Amenity", "Dining", "Spa/Wellness",
-    "Aerial View", "Pool", "Lobby", "Conference Room",
-    "Guest Experience", "Night Ambiance",
+    "Logo", "Room/Suite", "Amenity", "Dining",
+    "Spa/Wellness", "Pool", "Lobby", "Aerial View",
+    "Guest Experience", "Lifestyle",
   ],
   "Finance": [
-    "Data Visualization", "Office/Branch", "Customer Success",
+    "Logo", "Data Visualization", "Office/Branch",
     "Card/Product", "Mobile Banking", "Investment Chart",
-    "Insurance Illustration", "Team Photo", "Compliance Badge",
-    "Report",
+    "Team Photo", "Lifestyle", "Banner", "Report",
   ],
 };
 
@@ -96,11 +95,7 @@ const INDUSTRIES = Object.keys(INDUSTRY_CATEGORIES);
 
 const getAssetCategories = (industry: string | null) => {
   if (!industry || !INDUSTRY_CATEGORIES[industry]) return BASE_CATEGORIES;
-  const industryTags = INDUSTRY_CATEGORIES[industry];
-  const base = BASE_CATEGORIES.filter((c) => c !== "Other");
-  const merged = [...new Set([...base, ...industryTags])].slice(0, 10);
-  merged.push("Other");
-  return merged;
+  return [...INDUSTRY_CATEGORIES[industry], "Other"];
 };
 
 interface AssetItem {
