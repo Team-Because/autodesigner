@@ -126,7 +126,9 @@ export default function BrandForm() {
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
   const [voiceRules, setVoiceRules] = useState("");
-  const [negativePrompts, setNegativePrompts] = useState("");
+  const [visualNevers, setVisualNevers] = useState("");
+  const [contentNevers, setContentNevers] = useState("");
+  const [legacyNevers, setLegacyNevers] = useState(""); // back-compat for unsplit text
   // Structured brief sections
   const [briefIdentity, setBriefIdentity] = useState("");
   const [briefMandatory, setBriefMandatory] = useState("");
