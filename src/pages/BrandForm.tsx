@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import BrandAutofillPanel, { type AutofillResult } from "@/components/BrandAutofillPanel";
 
 const BASE_CATEGORIES = [
   "Logo",
