@@ -402,6 +402,74 @@ export default function BrandForm() {
     setExtraColors((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Non-destructively apply AI autofill results.
+  // - Text fields are filled ONLY if currently empty (never overwrite user input).
+  // - Colors fill only if still at the defaults.
+  // - Industry fills only if not already set.
+  // - Uploaded assets are appended (and persisted immediately when editing).
+  const applyAutofill = async (result: AutofillResult) => {
+    const DEFAULT_PRIMARY = "#2563EB";
+    const DEFAULT_SECONDARY = "#DBEAFE";
+
+    if (!industry && result.industry) setIndustry(result.industry);
+    if ((!primaryColor || primaryColor === DEFAULT_PRIMARY) && /^#[0-9a-f]{6}$/i.test(result.primary_color)) {
+      setPrimaryColor(result.primary_color);
+    }
+    if ((!secondaryColor || secondaryColor === DEFAULT_SECONDARY) && /^#[0-9a-f]{6}$/i.test(result.secondary_color)) {
+      setSecondaryColor(result.secondary_color);
+    }
+    if (extraColors.length === 0 && Array.isArray(result.extra_colors) && result.extra_colors.length > 0) {
+      const valid = result.extra_colors.filter(
+        (c) => c && typeof c.name === "string" && /^#[0-9a-f]{6}$/i.test(c.hex)
+      );
+      if (valid.length > 0) setExtraColors(valid);
+    }
+    if (!briefIdentity.trim() && result.brief_identity) setBriefIdentity(result.brief_identity);
+    if (!briefMandatory.trim() && result.brief_mandatory) setBriefMandatory(result.brief_mandatory);
+    if (!briefVisual.trim() && result.brief_visual) setBriefVisual(result.brief_visual);
+    if (!briefCopy.trim() && result.brief_copy) setBriefCopy(result.brief_copy);
+    if (!voiceRules.trim() && result.brand_voice_rules) setVoiceRules(result.brand_voice_rules);
+    if (!negativePrompts.trim() && result.negative_prompts) setNegativePrompts(result.negative_prompts);
+
+    // Append uploaded assets with predicted tags.
+    if (result.uploaded_assets?.length) {
+      if (isEditing && id && user) {
+        // Persist immediately so re-tagging works without saving the whole form.
+        const rows = result.uploaded_assets.map((a) => ({
+          brand_id: id,
+          user_id: user.id,
+          image_url: a.image_url,
+          label: a.predicted_tag || "",
+        }));
+        const { data: inserted, error } = await supabase
+          .from("brand_assets")
+          .insert(rows)
+          .select();
+        if (error) {
+          toast.error("Failed to attach uploaded assets.");
+        } else if (inserted) {
+          setAssets((prev) => [
+            ...prev,
+            ...inserted.map((a: { id: string; image_url: string; label: string | null }) => ({
+              id: a.id,
+              image_url: a.image_url,
+              label: a.label || "",
+            })),
+          ]);
+        }
+      } else {
+        setAssets((prev) => [
+          ...prev,
+          ...result.uploaded_assets.map((a) => ({
+            image_url: a.image_url,
+            label: a.predicted_tag || "",
+            isNew: true,
+          })),
+        ]);
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
@@ -467,6 +535,8 @@ export default function BrandForm() {
       <Button variant="ghost" onClick={() => navigate("/brands")} className="gap-2">
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
+
+      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} />
 
       <h1 className="text-2xl font-display font-bold">
         {isEditing ? "Edit Brand" : "Create New Brand"}
