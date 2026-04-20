@@ -122,6 +122,7 @@ export default function BrandForm() {
 
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
+  const [brandOwnerId, setBrandOwnerId] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#2563EB");
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
@@ -306,6 +307,7 @@ export default function BrandForm() {
         if (brandRes.data) {
           const data = brandRes.data;
           setName(data.name);
+          setBrandOwnerId(data.user_id);
           setPrimaryColor(data.primary_color);
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
@@ -352,9 +354,10 @@ export default function BrandForm() {
       const { data: urlData } = supabase.storage.from("brand-assets").getPublicUrl(path);
 
       if (isEditing) {
+        const assetOwnerId = brandOwnerId || user.id;
         const { data: inserted, error: insertErr } = await supabase
           .from("brand_assets")
-          .insert({ brand_id: id, user_id: user.id, image_url: urlData.publicUrl, label: "" })
+          .insert({ brand_id: id, user_id: assetOwnerId, image_url: urlData.publicUrl, label: "" })
           .select()
           .single();
         if (!insertErr && inserted) {
@@ -451,9 +454,10 @@ export default function BrandForm() {
     if (result.uploaded_assets?.length) {
       if (isEditing && id && user) {
         // Persist immediately so re-tagging works without saving the whole form.
+        const assetOwnerId = brandOwnerId || user.id;
         const rows = result.uploaded_assets.map((a) => ({
           brand_id: id,
-          user_id: user.id,
+          user_id: assetOwnerId,
           image_url: a.image_url,
           label: a.predicted_tag || "",
         }));
@@ -522,6 +526,8 @@ export default function BrandForm() {
     }
 
     setLoading(true);
+    // Preserve original owner when editing — admins must not steal brands.
+    const ownerId = isEditing ? (brandOwnerId || user.id) : user.id;
     const payload: any = {
       name,
       logo_url: assets.find((a) => a.label === "Logo")?.image_url || (assets.length > 0 ? assets[0].image_url : ""),
@@ -532,7 +538,7 @@ export default function BrandForm() {
       negative_prompts: writeNevers(visualNevers, contentNevers, legacyNevers),
       brand_brief: combineBrief(),
       industry: industry,
-      user_id: user.id,
+      user_id: ownerId,
     };
 
     let brandId = id;
