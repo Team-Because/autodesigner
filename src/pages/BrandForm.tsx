@@ -486,7 +486,33 @@ export default function BrandForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Apply parsed Master Prompt output. Like applyAutofill, never overwrites
+  // existing values. Asset tags are matched by 1-based index against the
+  // current gallery (logo first if present).
+  const applyPasteParse = (p: ParsedMasterOutput) => {
+    if (!name.trim() && p.brandName) setName(p.brandName);
+    if (!industry && p.industry) setIndustry(p.industry);
+    if ((primaryColor === "#2563EB") && p.primaryColor) setPrimaryColor(p.primaryColor);
+    if ((secondaryColor === "#DBEAFE") && p.secondaryColor) setSecondaryColor(p.secondaryColor);
+    if (extraColors.length === 0 && p.extraColors.length > 0) setExtraColors(p.extraColors);
+    if (!briefIdentity.trim() && p.briefIdentity) setBriefIdentity(p.briefIdentity);
+    if (!briefMandatory.trim() && p.briefMandatory) setBriefMandatory(p.briefMandatory);
+    if (!briefVisual.trim() && p.briefVisual) setBriefVisual(p.briefVisual);
+    if (!briefCopy.trim() && p.briefCopy) setBriefCopy(p.briefCopy);
+    if (!voiceRules.trim() && p.voiceRules) setVoiceRules(p.voiceRules);
+    if (!visualNevers.trim() && p.visualNevers) setVisualNevers(p.visualNevers);
+    if (!contentNevers.trim() && p.contentNevers) setContentNevers(p.contentNevers);
+
+    if (p.assetTags.length && assets.length) {
+      setAssets((prev) => prev.map((a, i) => {
+        if (a.label) return a; // don't overwrite existing tag
+        const match = p.assetTags.find((t) => t.index === i + 1);
+        return match ? { ...a, label: match.tag } : a;
+      }));
+    }
+
+    toast.success(`Applied parsed brand profile.`);
+  };
     e.preventDefault();
     if (!name.trim() || !user) {
       toast.error("Brand name is required.");
