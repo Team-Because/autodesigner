@@ -198,7 +198,7 @@ If nothing fits, use \`Other: <short description>\`.
 4. **Visual analysis is king** — VISUAL DIRECTION must reflect what you actually saw, not generic design talk.
 5. **Spatial precision** — "Logo at 10% from top-left" beats "logo in corner".
 6. **Stay under character limits.**
-7. **Never fabricate** RERA numbers, contact info, or taglines that aren't in the source.
+7. **Never fabricate** legal/registration numbers, contact info, certifications, or taglines that aren't in the source.
 8. **Keep VISUAL NEVERS and CONTENT NEVERS strictly separate.**
 
 ---
