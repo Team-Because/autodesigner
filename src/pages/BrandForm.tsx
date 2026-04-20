@@ -354,9 +354,10 @@ export default function BrandForm() {
       const { data: urlData } = supabase.storage.from("brand-assets").getPublicUrl(path);
 
       if (isEditing) {
+        const assetOwnerId = brandOwnerId || user.id;
         const { data: inserted, error: insertErr } = await supabase
           .from("brand_assets")
-          .insert({ brand_id: id, user_id: user.id, image_url: urlData.publicUrl, label: "" })
+          .insert({ brand_id: id, user_id: assetOwnerId, image_url: urlData.publicUrl, label: "" })
           .select()
           .single();
         if (!insertErr && inserted) {
@@ -453,9 +454,10 @@ export default function BrandForm() {
     if (result.uploaded_assets?.length) {
       if (isEditing && id && user) {
         // Persist immediately so re-tagging works without saving the whole form.
+        const assetOwnerId = brandOwnerId || user.id;
         const rows = result.uploaded_assets.map((a) => ({
           brand_id: id,
-          user_id: user.id,
+          user_id: assetOwnerId,
           image_url: a.image_url,
           label: a.predicted_tag || "",
         }));
