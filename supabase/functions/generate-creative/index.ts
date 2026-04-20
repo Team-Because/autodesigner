@@ -931,13 +931,19 @@ async function adaptDirective(
     )
     .join("\n");
 
+  const nevers = splitNevers(brand.negative_prompts);
+  // Mood derivation = content-side signal (visual nevers shouldn't disqualify "Playful").
+  const moodNeverCorpus = [nevers.content, nevers.general].filter(Boolean).join("\n");
+
   const brandContext = [
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
     brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1800)}` : "",
     brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 3000)}` : "",
-    brand.negative_prompts ? `NEVER include: ${toCompactText(brand.negative_prompts, 1200)}` : "",
+    nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 600)}` : "",
+    nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 600)}` : "",
+    nevers.general ? `NEVER include: ${toCompactText(nevers.general, 1200)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -945,7 +951,7 @@ async function adaptDirective(
   const { allowed: allowedMoods, reason: moodReason } = deriveBrandMoods(
     brand.brand_brief || "",
     brand.brand_voice_rules || "",
-    brand.negative_prompts || "",
+    moodNeverCorpus,
   );
   const creativeMood = pickMoodFromAllowed(allowedMoods);
   console.log(
