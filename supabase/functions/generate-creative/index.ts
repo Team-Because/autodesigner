@@ -1187,7 +1187,9 @@ function buildDirectivePrompt(
     })
     .join("\n");
 
-  const negativePrompts = toCompactText(brand.negative_prompts, 800);
+  const _nevers = splitNevers(brand.negative_prompts);
+  // Image prompt = visual nevers + general (legacy). Content nevers go to copy only.
+  const negativePrompts = toCompactText([_nevers.visual, _nevers.general].filter(Boolean).join(" "), 800);
 
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. ⚠️⚠️⚠️
 
@@ -1231,7 +1233,8 @@ function buildFallbackPrompt(
       : "";
 
   const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
-  const negativePrompts = toCompactText(brand.negative_prompts, 2000);
+  const _fbNevers = splitNevers(brand.negative_prompts);
+  const negativePrompts = toCompactText([_fbNevers.visual, _fbNevers.general].filter(Boolean).join(" "), 2000);
   const brandBrief = toCompactText(brand.brand_brief, 3000);
 
   const brandContext = [
