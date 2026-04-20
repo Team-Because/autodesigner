@@ -887,13 +887,12 @@ export default function BrandForm() {
               <Textarea
                 id="brief-identity"
                 value={briefIdentity}
-                onChange={(e) => { if (e.target.value.length <= 1000) setBriefIdentity(e.target.value); }}
-                placeholder="Project name, location, developer, USP, key differentiators..."
+                onChange={(e) => setBriefIdentity(e.target.value)}
+                placeholder="Project name, location, parent company, USP, key differentiators..."
                 rows={4}
                 className="text-sm"
-                maxLength={1000}
               />
-              <p className={`text-xs ${briefIdentity.length > 900 ? "text-amber-500" : "text-muted-foreground"}`}>{briefIdentity.length}/1000 — Project name, location, developer, USP</p>
+              <p className="text-xs text-muted-foreground">{briefIdentity.length} chars — Be thorough; cover what makes the brand unique</p>
             </div>
 
             <div className="space-y-2">
@@ -901,13 +900,12 @@ export default function BrandForm() {
               <Textarea
                 id="brief-mandatory"
                 value={briefMandatory}
-                onChange={(e) => { if (e.target.value.length <= 600) setBriefMandatory(e.target.value); }}
-                placeholder="RERA number, contact info, tagline, legal text, website URL..."
+                onChange={(e) => setBriefMandatory(e.target.value)}
+                placeholder="Registrations, contact info, tagline, legal text, website URL..."
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className={`text-xs ${briefMandatory.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{briefMandatory.length}/600 — RERA, contact, tagline, legal text</p>
+              <p className="text-xs text-muted-foreground">{briefMandatory.length} chars — Compliance, contact, tagline, legal text</p>
             </div>
 
             <div className="space-y-2">
@@ -915,13 +913,12 @@ export default function BrandForm() {
               <Textarea
                 id="brief-visual"
                 value={briefVisual}
-                onChange={(e) => { if (e.target.value.length <= 800) setBriefVisual(e.target.value); }}
-                placeholder="Mood: premium & nature-led. Lighting: golden hour. Style: editorial photography. Layout: clean with breathing room..."
+                onChange={(e) => setBriefVisual(e.target.value)}
+                placeholder="Mood, lighting, photography style, layout, typography — describe in as much detail as you need..."
                 rows={3}
                 className="text-sm"
-                maxLength={800}
               />
-              <p className={`text-xs ${briefVisual.length > 720 ? "text-amber-500" : "text-muted-foreground"}`}>{briefVisual.length}/800 — Mood, lighting, photography style, layout preferences</p>
+              <p className="text-xs text-muted-foreground">{briefVisual.length} chars — MOST CRITICAL — be hyper-specific</p>
             </div>
 
             <div className="space-y-2">
@@ -929,13 +926,12 @@ export default function BrandForm() {
               <Textarea
                 id="brief-copy"
                 value={briefCopy}
-                onChange={(e) => { if (e.target.value.length <= 600) setBriefCopy(e.target.value); }}
-                placeholder='Headlines: "Live Above The Ordinary" | CTAs: "Enquire Now", "Book a Site Visit" | Taglines: "Where Nature Meets Luxury"'
+                onChange={(e) => setBriefCopy(e.target.value)}
+                placeholder='Sample headlines, subcopy, CTAs the AI can use or adapt...'
                 rows={3}
                 className="text-sm"
-                maxLength={600}
               />
-              <p className={`text-xs ${briefCopy.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{briefCopy.length}/600 — Sample headlines, CTAs, taglines the AI can use or adapt</p>
+              <p className="text-xs text-muted-foreground">{briefCopy.length} chars — 3-5 strong examples beat 10 mediocre ones</p>
             </div>
           </CardContent>
         </Card>
@@ -950,36 +946,33 @@ export default function BrandForm() {
               <Textarea
                 id="voice"
                 value={voiceRules}
-                onChange={(e) => { if (e.target.value.length <= 1800) setVoiceRules(e.target.value); }}
-                placeholder='"Subjects must strictly be 3-4 year old toddlers. Warm, nurturing tone."'
+                onChange={(e) => setVoiceRules(e.target.value)}
+                placeholder='Voice traits, use-words / avoid-words, demographics, psychographics, desired emotional response...'
                 rows={4}
-                maxLength={1800}
               />
-              <p className={`text-xs ${voiceRules.length > 1600 ? "text-amber-500" : "text-muted-foreground"}`}>{voiceRules.length}/1800</p>
+              <p className="text-xs text-muted-foreground">{voiceRules.length} chars</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="visual-nevers">Visual Nevers <span className="text-muted-foreground font-normal">(image / design constraints)</span></Label>
               <Textarea
                 id="visual-nevers"
                 value={visualNevers}
-                onChange={(e) => { if (e.target.value.length <= 600) setVisualNevers(e.target.value); }}
+                onChange={(e) => setVisualNevers(e.target.value)}
                 placeholder='"Never distort the logo. Never use stock photography. Never place text over key product imagery."'
                 rows={3}
-                maxLength={600}
               />
-              <p className={`text-xs ${visualNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{visualNevers.length}/600 — Drives image-prompt exclusions only</p>
+              <p className="text-xs text-muted-foreground">{visualNevers.length} chars — Drives image-prompt exclusions only</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="content-nevers">Content Nevers <span className="text-muted-foreground font-normal">(copywriting / messaging constraints)</span></Label>
               <Textarea
                 id="content-nevers"
                 value={contentNevers}
-                onChange={(e) => { if (e.target.value.length <= 600) setContentNevers(e.target.value); }}
-                placeholder='"Never use the word cheap. Never use fear-based urgency. Never omit the RERA number."'
+                onChange={(e) => setContentNevers(e.target.value)}
+                placeholder='"Never use the word cheap. Never use fear-based urgency. Never omit mandatory legal text."'
                 rows={3}
-                maxLength={600}
               />
-              <p className={`text-xs ${contentNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{contentNevers.length}/600 — Drives copy & mood derivation</p>
+              <p className="text-xs text-muted-foreground">{contentNevers.length} chars — Drives copy & mood derivation</p>
             </div>
             {legacyNevers && (
               <div className="space-y-2">
@@ -987,9 +980,8 @@ export default function BrandForm() {
                 <Textarea
                   id="legacy-nevers"
                   value={legacyNevers}
-                  onChange={(e) => { if (e.target.value.length <= 1200) setLegacyNevers(e.target.value); }}
+                  onChange={(e) => setLegacyNevers(e.target.value)}
                   rows={3}
-                  maxLength={1200}
                   className="text-xs"
                 />
               </div>

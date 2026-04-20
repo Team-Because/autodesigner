@@ -220,13 +220,13 @@ export function parseMasterOutput(raw: string): ParsedMasterOutput {
     secondaryColor: palette.secondary,
     extraColors: palette.extras.slice(0, 8),
     assetTags,
-    briefIdentity: briefIdentity.slice(0, 1000),
-    briefMandatory: briefMandatory.slice(0, 600),
-    briefVisual: briefVisual.slice(0, 800),
-    briefCopy: briefCopy.slice(0, 600),
-    voiceRules: voiceRules.slice(0, 1800),
-    visualNevers: (visualNevers || "").slice(0, 600),
-    contentNevers: (contentNevers || fallbackNevers || "").slice(0, 600),
+    briefIdentity,
+    briefMandatory,
+    briefVisual,
+    briefCopy,
+    voiceRules,
+    visualNevers: visualNevers || "",
+    contentNevers: contentNevers || fallbackNevers || "",
   };
 }
 

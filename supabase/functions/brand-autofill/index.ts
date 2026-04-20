@@ -84,7 +84,7 @@ async function scrapeUrl(url: string): Promise<{
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 2500);
+      .slice(0, 10000);
 
     return {
       title,
@@ -93,7 +93,7 @@ async function scrapeUrl(url: string): Promise<{
       bodyText: [
         headlines.length ? `Headlines: ${headlines.join(" | ")}` : "",
         bodyText,
-      ].filter(Boolean).join("\n\n").slice(0, 3500),
+      ].filter(Boolean).join("\n\n").slice(0, 12000),
     };
   } catch (e) {
     console.warn("scrapeUrl failed:", e);
@@ -153,12 +153,12 @@ const TOOL_SCHEMA = {
             additionalProperties: false,
           },
         },
-        brief_identity: { type: "string", description: "BRAND IDENTITY section — name, what they do, USPs. Max 1000 chars." },
-        brief_mandatory: { type: "string", description: "MUST-INCLUDE ELEMENTS — tagline, contact, legal, etc. Max 600 chars. Empty string if unknown." },
-        brief_visual: { type: "string", description: "VISUAL DIRECTION — mood, lighting, photo style, layout, typography. Max 800 chars. CRITICAL section." },
-        brief_copy: { type: "string", description: "EXAMPLE COPY — sample headlines, subtext, CTAs. Max 600 chars." },
-        brand_voice_rules: { type: "string", description: "Tone, demographics, target audience traits. Max 1800 chars." },
-        negative_prompts: { type: "string", description: "What the brand should NEVER do (visual + content). Max 1200 chars. Empty string if unknown." },
+        brief_identity: { type: "string", description: "BRAND IDENTITY section — name, what they do, USPs. Be thorough but focused — quality over length." },
+        brief_mandatory: { type: "string", description: "MUST-INCLUDE ELEMENTS — tagline, contact, legal, etc. Empty string if unknown." },
+        brief_visual: { type: "string", description: "VISUAL DIRECTION — mood, lighting, photo style, layout, typography. CRITICAL section — describe in as much detail as needed." },
+        brief_copy: { type: "string", description: "EXAMPLE COPY — sample headlines, subtext, CTAs. 3-5 strong examples beat 10 mediocre ones." },
+        brand_voice_rules: { type: "string", description: "Tone, demographics, target audience traits, use-words / avoid-words. Be thorough but focused." },
+        negative_prompts: { type: "string", description: "What the brand should NEVER do (visual + content). Empty string if unknown. Use ## VISUAL NEVERS and ## CONTENT NEVERS headers if you have both." },
         asset_tags: {
           type: "array",
           description: "One entry per uploaded asset, in the same order received. Each tag MUST be from the chosen industry's category list, or 'Other: <description>'.",
@@ -353,20 +353,19 @@ serve(async (req) => {
       });
     }
 
-    // Light sanitization: clamp char limits so the form doesn't reject them.
-    const clamp = (v: unknown, max: number): string =>
-      typeof v === "string" ? v.slice(0, max) : "";
+    // No char clamping — let the form receive the full LLM output.
+    const asStr = (v: unknown): string => (typeof v === "string" ? v : "");
     const result = {
-      industry: typeof parsed.industry === "string" ? parsed.industry : "",
-      primary_color: typeof parsed.primary_color === "string" ? parsed.primary_color : "",
-      secondary_color: typeof parsed.secondary_color === "string" ? parsed.secondary_color : "",
+      industry: asStr(parsed.industry),
+      primary_color: asStr(parsed.primary_color),
+      secondary_color: asStr(parsed.secondary_color),
       extra_colors: Array.isArray(parsed.extra_colors) ? parsed.extra_colors.slice(0, 6) : [],
-      brief_identity: clamp(parsed.brief_identity, 1000),
-      brief_mandatory: clamp(parsed.brief_mandatory, 600),
-      brief_visual: clamp(parsed.brief_visual, 800),
-      brief_copy: clamp(parsed.brief_copy, 600),
-      brand_voice_rules: clamp(parsed.brand_voice_rules, 1800),
-      negative_prompts: clamp(parsed.negative_prompts, 1200),
+      brief_identity: asStr(parsed.brief_identity),
+      brief_mandatory: asStr(parsed.brief_mandatory),
+      brief_visual: asStr(parsed.brief_visual),
+      brief_copy: asStr(parsed.brief_copy),
+      brand_voice_rules: asStr(parsed.brand_voice_rules),
+      negative_prompts: asStr(parsed.negative_prompts),
       asset_tags: Array.isArray(parsed.asset_tags) ? parsed.asset_tags : [],
       confidence: typeof parsed.confidence === "string" ? parsed.confidence : "medium",
       website_meta: scraped ? { title: scraped.title, description: scraped.description } : null,
