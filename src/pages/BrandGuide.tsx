@@ -1,254 +1,209 @@
-import { Copy, Check, ArrowLeft, FileText, Sparkles, Paintbrush, ExternalLink, ArrowRight } from "lucide-react";
+import { Copy, Check, ArrowLeft, FileText, Sparkles, Paintbrush, ExternalLink, ArrowRight, Wand2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — AI Brand Profile Generator
+const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — AI Brand Profile Generator (v2)
 
-You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for an AI creative generation system.
-
----
-
-## IMPORTANT: ASK QUESTIONS FIRST
-
-Before generating anything, you MUST ask me 10-15 clarifying questions to fill gaps in what I've provided. Ask about:
-
-- **Missing brand data**: Company history, target audience details, USPs I haven't mentioned
-- **Visual preferences**: Do I prefer minimal or bold? Photo-heavy or graphic? Warm or cool tones?
-- **Tone ambiguities**: Formal vs casual? Playful vs serious? Any words/phrases I love or hate?
-- **Asset gaps**: Are there logos, images, or materials I forgot to upload?
-- **Competitive context**: Who are my competitors? What should I look different from?
-- **Mandatory elements**: Legal disclaimers, contact info, taglines that MUST appear?
-- **What's NOT working**: Any past creatives or styles I want to avoid?
-
-Only AFTER I answer your questions, proceed to generate the complete brand profile using the format below.
+You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for the MakeMyAd creative generation system.
 
 ---
 
-## YOUR TASK (after Q&A)
+## OPTIONAL: ASK QUESTIONS FIRST
 
-### Step 1: Analyze All Visual Materials
+If you feel my inputs are too thin to produce a high-quality profile, ask me **5–8** focused clarifying questions BEFORE generating. Otherwise, proceed straight to the output.
 
-Look at EVERY image I've uploaded (old creatives, references, style examples). For each, analyze:
+Good question topics: target audience specifics, USPs, mandatory legal text (RERA, certifications), tone preferences (use-words / avoid-words), visual style references, competitor brands to differentiate from.
 
-- **Color palette**: Dominant colors, accent colors, background tones, gradient usage
-- **Typography style**: Font weight (bold/light), serif vs sans-serif, size hierarchy, spacing
-- **Logo placement**: Where is the logo? What size relative to the canvas? Top-left, center, bottom?
-- **Photo vs Illustration**: Are visuals photographic, illustrated, flat graphic, 3D, mixed?
-- **Illustration style** (if any): Flat vector, hand-drawn, geometric, isometric, collage?
-- **Photo style** (if any): Studio, lifestyle, outdoor, close-up, aerial? Lighting — warm, cool, natural, dramatic?
-- **Layout structure**: Grid-based, freeform, centered, asymmetric? Text-to-visual ratio?
-- **Text treatment**: How is text placed — over images, on solid blocks, in containers, floating?
-- **Mood/energy**: Minimal and calm, bold and loud, playful, corporate, rebellious, premium?
-- **Recurring patterns**: Any repeated design elements — borders, shapes, textures, overlays?
-
-### Step 2: Synthesize a Visual Language
-
-From all the visuals analyzed, create a generalized visual language description that captures:
-- The consistent design DNA across all materials
-- What makes this brand visually recognizable
-- How a designer would recreate this "feel" for a new creative without copying any specific layout
-
-### Step 3: Read All Raw Brand Data
-
-Process all text documents, notes, bullet points, and any other information I've provided. Extract:
-- Brand name, company/developer info
-- What the brand does / offers
-- Target audience
-- Key differentiators / USPs
-- Mandatory elements (legal, contact, taglines)
-- Tone and voice characteristics
-- Any "never do this" rules mentioned
-
-### Step 4: Generate the Complete Brand Profile
-
-Using the visual analysis + raw data, fill out EVERY section below. Be hyper-specific. Front-load the most critical information in each section. Use markdown headers (##) exactly as shown.
+If I say "just go" or my input is rich enough, skip Q&A and produce the profile.
 
 ---
 
-## 📋 OUTPUT FORMAT — Fill Every Section
+## STEP 1 — DECLARE THE INDUSTRY (REQUIRED, FIRST)
 
-### BRAND NAME
-Official brand name only. No taglines. No descriptions.
+Pick exactly ONE industry from this list. This drives the asset-tag vocabulary and downstream generation logic. Output it before anything else.
 
-### BRAND ASSETS GUIDE
-List the images/assets I've provided and recommend how each should be tagged using ONLY these categories:
-- **Logo**: Primary logo file
-- **Hero Image**: Key visual for creative mood
-- **Product**: Product photos, close-ups
-- **Lifestyle**: People, aspirational scenes
-- **Icon**: Small graphic elements
-- **Pattern/Texture**: Backgrounds, brand patterns
-- **Banner**: Header/strip visuals
-- **Infographic**: Data/info visuals
-- **Style Reference**: Design language examples
-- **Other**: If none of the above fit, use "Other: [describe what it is]"
+Allowed industries:
+\`Real Estate\` · \`Education\` · \`Healthcare\` · \`Retail\` · \`Fashion\` · \`Technology\` · \`Food & Beverage\` · \`Automotive\` · \`Hospitality\` · \`Finance\`
 
-Minimum: Logo + 1 Hero. More = better.
+---
 
-### COLOR PALETTE
-From the visual analysis, extract:
-- **Primary Color**: Hex code + usage (headlines, CTAs)
-- **Secondary Color**: Hex code + usage (backgrounds, accents)
-- **Extra Colors**: Each with hex + specific usage note
-- **Color relationships**: How colors interact (e.g., "White text on dark navy blocks", "Gold accents on cream backgrounds")
+## STEP 2 — ANALYZE EVERY VISUAL
 
-### BRAND BRIEF — IDENTITY (HARD LIMIT: 1,000 chars max)
+For each uploaded image extract: dominant colors (hex), typography weight & style, logo placement, photo vs illustration, mood, layout structure (grid / freeform / centered), text-over-image vs text-on-block, recurring patterns.
+
+Synthesize a generalized **visual DNA** — the consistent design fingerprint across all materials.
+
+---
+
+## STEP 3 — READ ALL RAW DATA
+
+Process docs, notes, briefs. Extract: brand name, what they do, USPs, mandatory elements (legal, contact, taglines), tone signals, "never do this" rules.
+
+---
+
+## STEP 4 — FILL EVERY OUTPUT SECTION
+
+Use markdown headers (\`##\`) **exactly** as shown. Respect character limits — the form will truncate overflow silently.
+
+---
+
+## 📋 OUTPUT FORMAT — Copy this whole block into MakeMyAd
 
 \`\`\`
-## BRAND IDENTITY
+## INDUSTRY
+[One value from the allowed list above]
 
-Brand Name: [extracted]
-Developer/Company: [extracted] | [tagline if found]
+## BRAND NAME
+[Official brand name only]
+
+## COLOR PALETTE
+- Primary: #RRGGBB — [usage: headlines, CTAs, etc.]
+- Secondary: #RRGGBB — [usage: backgrounds, accents]
+- Extra:
+  - [Name e.g. "Accent Gold"]: #RRGGBB — [usage]
+  - [Name]: #RRGGBB — [usage]
+- Color relationships: [e.g. "White text on dark navy blocks; gold accent strips on cream"]
+
+## ASSET TAGS
+For each asset I uploaded, propose a tag from the chosen industry's vocabulary (see INDUSTRY → TAGS reference below). Format:
+- Asset 1 (Logo): Logo
+- Asset 2: [tag]
+- Asset 3: [tag]
+…
+
+## BRAND IDENTITY            ← 1,000 char hard limit
+Brand: [name]
+Developer/Company: [name] | [tagline]
 Location: [if applicable]
 
-What We Do:
+What we do:
 - [Offering 1 with specifics]
 - [Offering 2]
 - [Offering 3]
 
 Differentiators:
-- [USP 1 with proof point]
-- [USP 2 with proof point]
-- [USP 3 with proof point]
-\`\`\`
+- [USP 1 with proof]
+- [USP 2 with proof]
+- [USP 3 with proof]
 
-### BRAND BRIEF — MUST-INCLUDE ELEMENTS (HARD LIMIT: 600 chars max)
+## MUST-INCLUDE ELEMENTS     ← 600 char hard limit
+- Brand name: [NAME] — always prominent
+- Tagline: "[tagline]"
+- Contact: [phone / email / website]
+- Legal: [RERA / certifications / disclaimers]
+- Location: [address]
 
-\`\`\`
-## MUST-INCLUDE ELEMENTS
-
-- Brand Name: [NAME] — always prominent
-- Tagline: "[extracted tagline]"
-- Contact: [extracted contact info]
-- Legal: [RERA, certifications, T&C — whatever is mandatory]
-- Location: [extracted address]
-- [Any other mandatory elements found in the data]
-\`\`\`
-
-### BRAND BRIEF — VISUAL DIRECTION (HARD LIMIT: 800 chars max)
-
-THIS IS THE MOST CRITICAL SECTION. Use your visual analysis from Step 1 & 2 to fill this. Be extremely specific.
-
-\`\`\`
-## VISUAL DIRECTION
-
+## VISUAL DIRECTION          ← 800 char hard limit · MOST CRITICAL section
 Visual Style:
-- [Extracted from analysis: lighting, color treatment, photo vs graphic]
-- [Layout structure and composition rules]
-- [Text treatment — how copy sits relative to visuals]
+- [Lighting / color treatment / photo vs graphic]
+- [Layout structure & composition rules]
+- [How copy sits relative to visuals]
 
 Typography:
-- [Font style observations: weight, spacing, hierarchy]
-- [Headline treatment vs body text]
+- [Weight, hierarchy, spacing observations]
+- [Headline vs body treatment]
 
 Textures & Elements:
-- [Recurring patterns, shapes, borders, overlays observed]
+- [Recurring patterns, shapes, borders, overlays]
 - [Background treatments]
 
 Mood:
-- [Overall energy synthesized from all visuals]
-\`\`\`
+- [Overall energy in 1-2 lines]
 
-### BRAND BRIEF — EXAMPLE COPY (HARD LIMIT: 600 chars max)
+## EXAMPLE COPY              ← 600 char hard limit
+Headlines (≤8 words each — system enforces this):
+- "[Headline 1]"
+- "[Headline 2]"
+- "[Headline 3]"
 
-Extract real headlines, taglines, CTAs from the provided materials. If none exist, create examples that match the brand voice.
+Subtext (≤20 words each):
+- "[Subcopy 1]"
+- "[Subcopy 2]"
 
-\`\`\`
-## EXAMPLE COPY
-
-Headlines:
-- "[Real or recommended headline 1]"
-- "[Real or recommended headline 2]"
-- "[Real or recommended headline 3]"
-
-Subtext:
-- "[Supporting copy example]"
-- "[Another subtext example]"
-
-CTAs:
+CTAs (2-3 words):
 - "[CTA 1]"
 - "[CTA 2]"
-\`\`\`
 
-### TONE & TARGET AUDIENCE (HARD LIMIT: 1,800 chars max)
-
-\`\`\`
-## TONE & VOICE
-
+## TONE & VOICE              ← part of 1,800 char limit (combined with audience)
 Voice Traits:
-- [e.g., "Confident but not arrogant"]
-- [Extracted from copy analysis and brand data]
+- [e.g. "Confident, never arrogant"]
+- [e.g. "Warm but precise"]
 
-Language Rules:
-- [Specific word choices: use X not Y]
-- [Sentence length, formality level]
-- [Any language patterns observed in existing copy]
+Use words: [comma-separated list of preferred vocabulary]
+Avoid words: [comma-separated list of banned vocabulary]
+
+Sentence pattern: [short & punchy / flowing & poetic / direct & informative]
 
 ## TARGET AUDIENCE
+Demographics: [age, income, profession, location]
+Psychographics: [values, aspirations, lifestyle]
+Desired emotional response: [how should they feel?]
 
-Demographics:
-- [Age, income, profession, location]
-
-Psychographics:
-- [Values, aspirations, lifestyle]
-
-Desired Emotional Response:
-- [How should someone feel seeing this creative?]
-\`\`\`
-
-### THE NEVER LIST (HARD LIMIT: 1,200 chars max)
-
-Split into two categories. Include anything explicitly mentioned in brand data PLUS anything that would contradict the visual language you analyzed.
-
-\`\`\`
-## VISUAL NEVERS
-
-- Never distort or crop the logo
+## VISUAL NEVERS             ← image/design constraints only
+- Never distort, recolor, or crop the logo
 - Never use stock photography — only uploaded brand assets
-- [Visual constraints from analysis — e.g., "Never use dark moody tones" if brand is bright]
-- [Layout constraints — e.g., "Never place text directly over key product imagery"]
-- [Color constraints — e.g., "Never use gradients outside the brand palette"]
+- Never [color/style constraint from analysis]
+- Never [layout constraint]
+- Never [composition constraint]
 
-## CONTENT NEVERS
-
-- [Word/phrase bans extracted from data]
-- [Tone violations — e.g., "Never use fear-based urgency"]
-- [Mandatory element omissions — "Never omit RERA number"]
-- [Positioning constraints — "Never position as budget/value"]
+## CONTENT NEVERS            ← copywriting/messaging constraints only
+- Never use words: [list banned words/phrases]
+- Never use [tone violation, e.g. "fear-based urgency"]
+- Never omit [mandatory element, e.g. "RERA number"]
+- Never position as [budget/value/cheap/etc.]
 \`\`\`
 
 ---
 
-## ⚡ QUALITY RULES FOR YOUR OUTPUT
+## 🎯 SYSTEM AWARENESS — write your output to fit these rules
 
-1. **Front-load**: Most important instruction first in every section
-2. **Specificity over vagueness**: "Warm golden-hour lighting with visible sky at 60% frame" not "make it look nice"
-3. **Use ## headers**: The AI system parses markdown headers to categorize instructions
-4. **Real copy > abstract tone descriptions**: Show actual headlines, don't just say "professional tone"
-5. **Visual analysis is king**: The visual direction section must reflect what you actually see in the uploaded creatives, not generic design advice
-6. **Color relationships matter**: Don't just list hex codes — describe how colors interact in layouts
-7. **Spatial precision**: "Logo at 10% from top-left" is better than "logo in corner"
-8. **Respect character limits**: Each section has a budget. Be concise but complete
-9. **Separate visual from content rules**: Never mix image constraints with text constraints in the Never List
+The MakeMyAd generator has hard constraints. Don't propose anything it can't honor:
 
----
-
-## CONTEXT ABOUT THE SYSTEM
-
-This brand profile will be used in an AI creative generation system that works like this:
-1. User sets up a brand profile (what you're generating)
-2. User uploads brand assets (logo, images, etc.) tagged by category
-3. User uploads a reference image for a new creative
-4. The system analyzes the reference image layout
-5. The system combines the brand profile + assets + reference layout to generate an on-brand creative
-
-Your job is to make the brand profile SO GOOD that the system produces on-point, on-brand creatives every time, regardless of what reference image is used. The brand profile is the "DNA" — it must be complete, specific, and unambiguous.
+1. **Headlines ≤ 8 words.** Subcopy ≤ 20 words. CTAs 2-3 words. Anything longer gets truncated.
+2. **Reference images = layout blueprints only.** The system will NEVER copy text, names, locations, or pricing from references. Don't write "we'll reuse the photography from the reference".
+3. **Logos are force-included** via regex matching. Always present, never altered.
+4. **Per-brand mood pool** is auto-derived from your TONE & VOICE + CONTENT NEVERS. Be explicit (use-words / avoid-words) so the right moods get picked.
+5. **Output formats:** 1:1 (square), 16:9 (landscape), 9:16 (story), 4:5 (portrait) only.
+6. **Character limits are enforced** — the form will truncate. Stay under budget.
+7. **VISUAL NEVERS** drive image-prompt constraints. **CONTENT NEVERS** drive copywriting constraints. Keep them separate.
 
 ---
 
-Now start by asking me 10-15 clarifying questions based on what I've provided. After I answer, generate the complete brand profile.`;
+## 📚 INDUSTRY → ALLOWED ASSET TAGS reference
+
+Use these EXACT tag names so they paste cleanly into the app's asset gallery:
+
+- **Real Estate**: Logo · Elevation · Interior · Exterior · Amenity · Lifestyle · RERA QR · Pattern/Texture · Render · Other
+- **Education**: Logo · Campus · Classroom · Student Life · Faculty · Lab · Library · Playground · Graduation · Sports · Other
+- **Healthcare**: Logo · Facility · Medical Equipment · Patient Care · Doctor/Staff · Wellness · Lab · Pharmacy · Hospital Exterior · Therapy · Other
+- **Retail**: Logo · Store/Venue · Product · Packaging · Catalogue · Display/Shelf · E-commerce Shot · Window Display · Lifestyle · Banner · Other
+- **Fashion**: Logo · Lookbook · On-Model · Flat Lay · Swatch · Fabric Close-up · Collection · Runway · Accessories · Lifestyle · Other
+- **Technology**: Logo · Screenshot · UI Mockup · Device Render · Dashboard · Feature Highlight · Mobile View · Desktop View · Icon · Banner · Other
+- **Food & Beverage**: Logo · Dish/Menu Item · Packaging · Restaurant/Venue · Ingredient · Plating · Drink · Kitchen · Chef/Staff · Menu Card · Other
+- **Automotive**: Logo · Exterior Shot · Interior Shot · Detail/Close-up · On Road · Showroom · Dashboard View · Colour Options · Lifestyle · Banner · Other
+- **Hospitality**: Logo · Room/Suite · Amenity · Dining · Spa/Wellness · Pool · Lobby · Aerial View · Guest Experience · Lifestyle · Other
+- **Finance**: Logo · Data Visualization · Office/Branch · Card/Product · Mobile Banking · Investment Chart · Team Photo · Lifestyle · Banner · Report · Other
+
+If nothing fits, use \`Other: <short description>\`.
+
+---
+
+## ✅ QUALITY RULES
+
+1. **Front-load** the most important info in every section.
+2. **Specificity beats vagueness** — "Warm golden-hour light, sky visible at 60% frame" beats "make it nice".
+3. **Real copy > abstract tone words** — show actual headlines.
+4. **Visual analysis is king** — VISUAL DIRECTION must reflect what you actually saw, not generic design talk.
+5. **Spatial precision** — "Logo at 10% from top-left" beats "logo in corner".
+6. **Stay under character limits.**
+7. **Never fabricate** RERA numbers, contact info, or taglines that aren't in the source.
+8. **Keep VISUAL NEVERS and CONTENT NEVERS strictly separate.**
+
+---
+
+Now produce the brand profile. Either ask 5-8 sharp questions first, or — if you have enough — go straight to the OUTPUT FORMAT block above.`;
 
 export default function BrandGuide() {
   const navigate = useNavigate();
@@ -263,15 +218,21 @@ export default function BrandGuide() {
   const steps = [
     { icon: FileText, label: "Gather", desc: "Brand docs, logos, old creatives" },
     { icon: Sparkles, label: "Prompt", desc: "Paste in Claude + attach files" },
-    { icon: Paintbrush, label: "Setup", desc: "Copy output into BrandTonic" },
+    { icon: Wand2, label: "Paste & Parse", desc: "One textarea in MakeMyAd auto-fills everything" },
   ];
 
   const mapping = [
-    { from: "BRAND NAME", to: "Brand Name" },
-    { from: "COLOR PALETTE", to: "Primary / Secondary / Extra Colors" },
-    { from: "BRAND BRIEF (all sections)", to: "Brand Brief" },
-    { from: "TONE & TARGET AUDIENCE", to: "Brand Voice Rules" },
-    { from: "THE NEVER LIST", to: "Negative Prompts" },
+    { from: "## INDUSTRY", to: "Industry dropdown" },
+    { from: "## BRAND NAME", to: "Brand Name" },
+    { from: "## COLOR PALETTE", to: "Primary / Secondary / Extra Colors" },
+    { from: "## ASSET TAGS", to: "Per-asset tag dropdowns" },
+    { from: "## BRAND IDENTITY", to: "Brief — Identity" },
+    { from: "## MUST-INCLUDE ELEMENTS", to: "Brief — Must-Include" },
+    { from: "## VISUAL DIRECTION", to: "Brief — Visual Direction" },
+    { from: "## EXAMPLE COPY", to: "Brief — Example Copy" },
+    { from: "## TONE & VOICE + ## TARGET AUDIENCE", to: "Brand Voice Rules" },
+    { from: "## VISUAL NEVERS", to: "Never List → Visual" },
+    { from: "## CONTENT NEVERS", to: "Never List → Content" },
   ];
 
   return (
@@ -328,7 +289,8 @@ export default function BrandGuide() {
       {/* Where to Paste */}
       <Card className="border-border/50">
         <CardContent className="pt-6 space-y-3">
-          <h2 className="text-lg font-display font-semibold text-foreground">Where to Paste</h2>
+          <h2 className="text-lg font-display font-semibold text-foreground">Where each section lands</h2>
+          <p className="text-xs text-muted-foreground">Tip: in the brand form, use <strong>Paste & Parse</strong> — drop the whole Claude output into one textarea and we'll route every section automatically.</p>
           <div className="divide-y divide-border">
             {mapping.map((item, i) => (
               <div key={i} className="flex items-center gap-3 py-2.5">

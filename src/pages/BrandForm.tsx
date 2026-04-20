@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import BrandAutofillPanel, { type AutofillResult } from "@/components/BrandAutofillPanel";
+import PasteParseWizard from "@/components/PasteParseWizard";
+import { readNevers, writeNevers, type ParsedMasterOutput } from "@/lib/brandParser";
 
 const BASE_CATEGORIES = [
   "Logo",
@@ -124,7 +126,9 @@ export default function BrandForm() {
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
   const [voiceRules, setVoiceRules] = useState("");
-  const [negativePrompts, setNegativePrompts] = useState("");
+  const [visualNevers, setVisualNevers] = useState("");
+  const [contentNevers, setContentNevers] = useState("");
+  const [legacyNevers, setLegacyNevers] = useState(""); // back-compat for unsplit text
   // Structured brief sections
   const [briefIdentity, setBriefIdentity] = useState("");
   const [briefMandatory, setBriefMandatory] = useState("");
@@ -305,7 +309,10 @@ export default function BrandForm() {
           setPrimaryColor(data.primary_color);
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
-          setNegativePrompts(data.negative_prompts || "");
+          const split = readNevers(data.negative_prompts || "");
+          setVisualNevers(split.visual);
+          setContentNevers(split.content);
+          setLegacyNevers(split.general);
           const briefRaw = (data as any).brand_brief || "";
           const parsed = parseBrief(briefRaw);
           setBriefIdentity(parsed.identity);
@@ -429,7 +436,16 @@ export default function BrandForm() {
     if (!briefVisual.trim() && result.brief_visual) setBriefVisual(result.brief_visual);
     if (!briefCopy.trim() && result.brief_copy) setBriefCopy(result.brief_copy);
     if (!voiceRules.trim() && result.brand_voice_rules) setVoiceRules(result.brand_voice_rules);
-    if (!negativePrompts.trim() && result.negative_prompts) setNegativePrompts(result.negative_prompts);
+    if (result.negative_prompts) {
+      // Autofill returns a single negative_prompts blob — split it on the way in.
+      const incoming = readNevers(result.negative_prompts);
+      if (!visualNevers.trim() && incoming.visual) setVisualNevers(incoming.visual);
+      if (!contentNevers.trim() && incoming.content) setContentNevers(incoming.content);
+      if (!legacyNevers.trim() && !visualNevers.trim() && !contentNevers.trim() && incoming.general) {
+        // Old-style blob — drop into content nevers (safer default for mood derivation).
+        setContentNevers(incoming.general);
+      }
+    }
 
     // Append uploaded assets with predicted tags.
     if (result.uploaded_assets?.length) {
@@ -470,6 +486,34 @@ export default function BrandForm() {
     }
   };
 
+  // Apply parsed Master Prompt output. Like applyAutofill, never overwrites
+  // existing values. Asset tags are matched by 1-based index against the
+  // current gallery (logo first if present).
+  const applyPasteParse = (p: ParsedMasterOutput) => {
+    if (!name.trim() && p.brandName) setName(p.brandName);
+    if (!industry && p.industry) setIndustry(p.industry);
+    if ((primaryColor === "#2563EB") && p.primaryColor) setPrimaryColor(p.primaryColor);
+    if ((secondaryColor === "#DBEAFE") && p.secondaryColor) setSecondaryColor(p.secondaryColor);
+    if (extraColors.length === 0 && p.extraColors.length > 0) setExtraColors(p.extraColors);
+    if (!briefIdentity.trim() && p.briefIdentity) setBriefIdentity(p.briefIdentity);
+    if (!briefMandatory.trim() && p.briefMandatory) setBriefMandatory(p.briefMandatory);
+    if (!briefVisual.trim() && p.briefVisual) setBriefVisual(p.briefVisual);
+    if (!briefCopy.trim() && p.briefCopy) setBriefCopy(p.briefCopy);
+    if (!voiceRules.trim() && p.voiceRules) setVoiceRules(p.voiceRules);
+    if (!visualNevers.trim() && p.visualNevers) setVisualNevers(p.visualNevers);
+    if (!contentNevers.trim() && p.contentNevers) setContentNevers(p.contentNevers);
+
+    if (p.assetTags.length && assets.length) {
+      setAssets((prev) => prev.map((a, i) => {
+        if (a.label) return a; // don't overwrite existing tag
+        const match = p.assetTags.find((t) => t.index === i + 1);
+        return match ? { ...a, label: match.tag } : a;
+      }));
+    }
+
+    toast.success(`Applied parsed brand profile.`);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
@@ -485,7 +529,7 @@ export default function BrandForm() {
       secondary_color: secondaryColor,
       extra_colors: extraColors,
       brand_voice_rules: voiceRules,
-      negative_prompts: negativePrompts,
+      negative_prompts: writeNevers(visualNevers, contentNevers, legacyNevers),
       brand_brief: combineBrief(),
       industry: industry,
       user_id: user.id,
@@ -536,7 +580,8 @@ export default function BrandForm() {
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
 
-      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} />
+      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} defaultOpen={!isEditing} />
+      <PasteParseWizard onApply={applyPasteParse} />
 
       <h1 className="text-2xl font-display font-bold">
         {isEditing ? "Edit Brand" : "Create New Brand"}
@@ -907,17 +952,42 @@ export default function BrandForm() {
               <p className={`text-xs ${voiceRules.length > 1600 ? "text-amber-500" : "text-muted-foreground"}`}>{voiceRules.length}/1800</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="negative">The "Never" List (Strict Exclusions)</Label>
+              <Label htmlFor="visual-nevers">Visual Nevers <span className="text-muted-foreground font-normal">(image / design constraints)</span></Label>
               <Textarea
-                id="negative"
-                value={negativePrompts}
-                onChange={(e) => { if (e.target.value.length <= 1200) setNegativePrompts(e.target.value); }}
-                placeholder='"Never use the color green for real estate ads. Remove all background clutter."'
-                rows={4}
-                maxLength={1200}
+                id="visual-nevers"
+                value={visualNevers}
+                onChange={(e) => { if (e.target.value.length <= 600) setVisualNevers(e.target.value); }}
+                placeholder='"Never distort the logo. Never use stock photography. Never place text over key product imagery."'
+                rows={3}
+                maxLength={600}
               />
-              <p className={`text-xs ${negativePrompts.length > 1080 ? "text-amber-500" : "text-muted-foreground"}`}>{negativePrompts.length}/1200</p>
+              <p className={`text-xs ${visualNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{visualNevers.length}/600 — Drives image-prompt exclusions only</p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="content-nevers">Content Nevers <span className="text-muted-foreground font-normal">(copywriting / messaging constraints)</span></Label>
+              <Textarea
+                id="content-nevers"
+                value={contentNevers}
+                onChange={(e) => { if (e.target.value.length <= 600) setContentNevers(e.target.value); }}
+                placeholder='"Never use the word cheap. Never use fear-based urgency. Never omit the RERA number."'
+                rows={3}
+                maxLength={600}
+              />
+              <p className={`text-xs ${contentNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{contentNevers.length}/600 — Drives copy & mood derivation</p>
+            </div>
+            {legacyNevers && (
+              <div className="space-y-2">
+                <Label htmlFor="legacy-nevers" className="text-muted-foreground">Legacy Nevers <span className="text-[10px] font-normal">(unsplit — consider moving into Visual or Content above)</span></Label>
+                <Textarea
+                  id="legacy-nevers"
+                  value={legacyNevers}
+                  onChange={(e) => { if (e.target.value.length <= 1200) setLegacyNevers(e.target.value); }}
+                  rows={3}
+                  maxLength={1200}
+                  className="text-xs"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

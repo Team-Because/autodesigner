@@ -410,6 +410,25 @@ const CREATIVE_MOODS: MoodEntry[] = [
   },
 ];
 
+// Split a stored negative_prompts blob into visual / content / general parts.
+// The form may store "## VISUAL NEVERS … ## CONTENT NEVERS …"; older rows
+// remain plain text and are treated as "general" (used in both pipelines).
+function splitNevers(raw: string | null | undefined): { visual: string; content: string; general: string } {
+  if (!raw || !raw.trim()) return { visual: "", content: "", general: "" };
+  const text = raw.trim();
+  const visualMatch = text.match(/##\s*VISUAL NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const contentMatch = text.match(/##\s*CONTENT NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const generalMatch = text.match(/##\s*GENERAL NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (visualMatch || contentMatch || generalMatch) {
+    return {
+      visual: (visualMatch?.[1] || "").trim(),
+      content: (contentMatch?.[1] || "").trim(),
+      general: (generalMatch?.[1] || "").trim(),
+    };
+  }
+  return { visual: "", content: "", general: text };
+}
+
 // Derive 3-5 brand-appropriate moods from the brand's brief, voice rules, and negative prompts.
 // Returns the descriptions to inject into the prompt.
 function deriveBrandMoods(
@@ -912,13 +931,19 @@ async function adaptDirective(
     )
     .join("\n");
 
+  const nevers = splitNevers(brand.negative_prompts);
+  // Mood derivation = content-side signal (visual nevers shouldn't disqualify "Playful").
+  const moodNeverCorpus = [nevers.content, nevers.general].filter(Boolean).join("\n");
+
   const brandContext = [
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
     brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1800)}` : "",
     brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 3000)}` : "",
-    brand.negative_prompts ? `NEVER include: ${toCompactText(brand.negative_prompts, 1200)}` : "",
+    nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 600)}` : "",
+    nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 600)}` : "",
+    nevers.general ? `NEVER include: ${toCompactText(nevers.general, 1200)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -926,7 +951,7 @@ async function adaptDirective(
   const { allowed: allowedMoods, reason: moodReason } = deriveBrandMoods(
     brand.brand_brief || "",
     brand.brand_voice_rules || "",
-    brand.negative_prompts || "",
+    moodNeverCorpus,
   );
   const creativeMood = pickMoodFromAllowed(allowedMoods);
   console.log(
@@ -1162,7 +1187,9 @@ function buildDirectivePrompt(
     })
     .join("\n");
 
-  const negativePrompts = toCompactText(brand.negative_prompts, 800);
+  const _nevers = splitNevers(brand.negative_prompts);
+  // Image prompt = visual nevers + general (legacy). Content nevers go to copy only.
+  const negativePrompts = toCompactText([_nevers.visual, _nevers.general].filter(Boolean).join(" "), 800);
 
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. ⚠️⚠️⚠️
 
@@ -1206,7 +1233,8 @@ function buildFallbackPrompt(
       : "";
 
   const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
-  const negativePrompts = toCompactText(brand.negative_prompts, 2000);
+  const _fbNevers = splitNevers(brand.negative_prompts);
+  const negativePrompts = toCompactText([_fbNevers.visual, _fbNevers.general].filter(Boolean).join(" "), 2000);
   const brandBrief = toCompactText(brand.brand_brief, 3000);
 
   const brandContext = [
