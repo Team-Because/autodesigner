@@ -339,19 +339,162 @@ async function downloadImageAsBase64(url: string): Promise<{ base64: string; byt
 }
 
 // ─── Creative direction moods for copy variation ───
-const CREATIVE_MOODS = [
-  "Bold & Confident — use strong, declarative language with authority",
-  "Aspirational & Dreamy — paint a vision of the ideal lifestyle",
-  "Minimal & Elegant — fewer words, more impact, refined tone",
-  "Energetic & Dynamic — action-oriented, momentum-driven language",
-  "Warm & Inviting — conversational, welcoming, personal tone",
-  "Sophisticated & Premium — luxury vocabulary, understated elegance",
-  "Direct & Practical — focus on tangible benefits and facts",
-  "Poetic & Evocative — rhythmic, image-rich, emotionally resonant",
+// Each mood is tagged with traits so we can filter by brand tone.
+type MoodEntry = {
+  label: string;
+  description: string;
+  traits: string[]; // signals that make this mood appropriate
+  forbiddenFor: string[]; // signals that disqualify this mood
+};
+
+const CREATIVE_MOODS: MoodEntry[] = [
+  {
+    label: "Bold & Confident",
+    description: "Bold & Confident — use strong, declarative language with authority",
+    traits: ["bold", "confident", "authoritative", "strong", "powerful", "assertive", "decisive"],
+    forbiddenFor: ["restrained", "understated", "humble"],
+  },
+  {
+    label: "Aspirational & Dreamy",
+    description: "Aspirational & Dreamy — paint a vision of the ideal lifestyle",
+    traits: ["aspirational", "dreamy", "lifestyle", "visionary", "luxury", "premium", "elevated", "refined"],
+    forbiddenFor: ["practical", "utilitarian", "industrial"],
+  },
+  {
+    label: "Minimal & Elegant",
+    description: "Minimal & Elegant — fewer words, more impact, refined tone",
+    traits: ["minimal", "elegant", "refined", "clean", "understated", "sophisticated", "premium", "luxury"],
+    forbiddenFor: ["playful", "energetic", "loud", "maximalist"],
+  },
+  {
+    label: "Energetic & Dynamic",
+    description: "Energetic & Dynamic — action-oriented, momentum-driven language",
+    traits: ["energetic", "dynamic", "youth", "young", "vibrant", "active", "fun", "playful", "bold"],
+    forbiddenFor: ["restrained", "understated", "luxury", "premium", "institutional", "solemn"],
+  },
+  {
+    label: "Warm & Inviting",
+    description: "Warm & Inviting — conversational, welcoming, personal tone",
+    traits: ["warm", "inviting", "friendly", "welcoming", "personal", "human", "intimate", "conversational", "family"],
+    forbiddenFor: ["cold", "industrial", "corporate"],
+  },
+  {
+    label: "Sophisticated & Premium",
+    description: "Sophisticated & Premium — luxury vocabulary, understated elegance",
+    traits: ["sophisticated", "premium", "luxury", "elegant", "refined", "high-end", "elevated", "exclusive"],
+    forbiddenFor: ["playful", "casual", "youth", "budget", "value"],
+  },
+  {
+    label: "Direct & Practical",
+    description: "Direct & Practical — focus on tangible benefits and facts",
+    traits: ["practical", "direct", "honest", "transparent", "clear", "informative", "value", "trusted"],
+    forbiddenFor: ["poetic", "abstract", "dreamy"],
+  },
+  {
+    label: "Poetic & Evocative",
+    description: "Poetic & Evocative — rhythmic, image-rich, emotionally resonant",
+    traits: ["poetic", "evocative", "emotional", "lyrical", "soulful", "intimate", "aspirational", "luxury"],
+    forbiddenFor: ["practical", "technical", "industrial", "utilitarian"],
+  },
+  {
+    label: "Playful & Witty",
+    description: "Playful & Witty — clever wordplay, humor, lighthearted energy",
+    traits: ["playful", "witty", "fun", "humorous", "casual", "youth", "quirky", "desi", "cheeky"],
+    forbiddenFor: ["restrained", "institutional", "luxury", "premium", "solemn", "serious"],
+  },
+  {
+    label: "Grounded & Authentic",
+    description: "Grounded & Authentic — rooted, sincere, no-nonsense tone with cultural truth",
+    traits: ["grounded", "authentic", "honest", "rooted", "cultural", "traditional", "heritage", "family", "trusted"],
+    forbiddenFor: ["futuristic", "abstract", "edgy"],
+  },
 ];
 
-function getRandomMood(): string {
-  return CREATIVE_MOODS[Math.floor(Math.random() * CREATIVE_MOODS.length)];
+// Derive 3-5 brand-appropriate moods from the brand's brief, voice rules, and negative prompts.
+// Returns the descriptions to inject into the prompt.
+function deriveBrandMoods(
+  brief: string,
+  voiceRules: string,
+  negativePrompts: string,
+): { allowed: MoodEntry[]; reason: string } {
+  const corpus = `${brief}\n${voiceRules}`.toLowerCase();
+  const negativeCorpus = negativePrompts.toLowerCase();
+
+  // Find Tone & Voice section explicitly if present (gets a 2x weight boost)
+  const toneSectionMatch = corpus.match(
+    /(?:tone|voice|personality|brand voice|tone & voice|tone and voice)[\s\S]{0,1500}?(?:\n##|\n\*\*[A-Z]|$)/i,
+  );
+  const toneSection = toneSectionMatch ? toneSectionMatch[0] : "";
+
+  const scored = CREATIVE_MOODS.map((mood) => {
+    let score = 0;
+    let disqualified = false;
+
+    // Hard disqualifiers from negative prompts
+    for (const forbidden of mood.forbiddenFor) {
+      if (negativeCorpus.includes(forbidden)) {
+        disqualified = true;
+        break;
+      }
+    }
+    if (disqualified) return { mood, score: -999 };
+
+    // Soft disqualifiers from brief (if brief explicitly says "never playful", drop it)
+    for (const forbidden of mood.forbiddenFor) {
+      const neverPattern = new RegExp(`(?:never|avoid|not|no)\\s+\\w{0,20}\\s*${forbidden}`, "i");
+      if (neverPattern.test(corpus)) {
+        disqualified = true;
+        break;
+      }
+    }
+    if (disqualified) return { mood, score: -999 };
+
+    // Score by trait matches in corpus (1pt each)
+    for (const trait of mood.traits) {
+      if (corpus.includes(trait)) score += 1;
+      // Tone section matches count double
+      if (toneSection && toneSection.includes(trait)) score += 1;
+    }
+
+    return { mood, score };
+  });
+
+  const eligible = scored.filter((s) => s.score > -999);
+
+  // If brief has signal, take top-scoring moods (tied at top all included, then top 3-5)
+  const withSignal = eligible.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
+
+  let allowed: MoodEntry[];
+  let reason: string;
+
+  if (withSignal.length >= 3) {
+    // Take top 3-5 based on score distribution
+    allowed = withSignal.slice(0, Math.min(5, withSignal.length)).map((s) => s.mood);
+    reason = `derived from brand tone signals (${allowed.length} moods)`;
+  } else if (withSignal.length > 0) {
+    // Some signal — use those plus pad to 3 from neutral remainder
+    const used = new Set(withSignal.map((s) => s.mood.label));
+    const padding = eligible
+      .filter((s) => !used.has(s.mood.label) && s.score === 0)
+      .slice(0, 3 - withSignal.length)
+      .map((s) => s.mood);
+    allowed = [...withSignal.map((s) => s.mood), ...padding];
+    reason = `partial brand signal + ${padding.length} neutral moods`;
+  } else {
+    // No tone signal at all — fall back to all eligible moods (filtered only by forbidden traits)
+    allowed = eligible.map((s) => s.mood);
+    reason = `no tone signal; all ${allowed.length} brand-safe moods`;
+  }
+
+  return { allowed, reason };
+}
+
+function pickMoodFromAllowed(allowed: MoodEntry[]): string {
+  if (allowed.length === 0) {
+    // Last-resort safety: shouldn't happen but fall back to all moods
+    return CREATIVE_MOODS[Math.floor(Math.random() * CREATIVE_MOODS.length)].description;
+  }
+  return allowed[Math.floor(Math.random() * allowed.length)].description;
 }
 
 // ─────────────────────────────────────────────────────
@@ -780,7 +923,15 @@ async function adaptDirective(
     .filter(Boolean)
     .join("\n");
 
-  const creativeMood = getRandomMood();
+  const { allowed: allowedMoods, reason: moodReason } = deriveBrandMoods(
+    brand.brand_brief || "",
+    brand.brand_voice_rules || "",
+    brand.negative_prompts || "",
+  );
+  const creativeMood = pickMoodFromAllowed(allowedMoods);
+  console.log(
+    `[Adapt] Brand "${brand.name}" mood pool: ${moodReason}. Allowed: [${allowedMoods.map((m) => m.label).join(", ")}]. Picked: "${creativeMood.split(" — ")[0]}"`,
+  );
 
   const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
 
