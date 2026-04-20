@@ -410,6 +410,25 @@ const CREATIVE_MOODS: MoodEntry[] = [
   },
 ];
 
+// Split a stored negative_prompts blob into visual / content / general parts.
+// The form may store "## VISUAL NEVERS … ## CONTENT NEVERS …"; older rows
+// remain plain text and are treated as "general" (used in both pipelines).
+function splitNevers(raw: string | null | undefined): { visual: string; content: string; general: string } {
+  if (!raw || !raw.trim()) return { visual: "", content: "", general: "" };
+  const text = raw.trim();
+  const visualMatch = text.match(/##\s*VISUAL NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const contentMatch = text.match(/##\s*CONTENT NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const generalMatch = text.match(/##\s*GENERAL NEVERS\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (visualMatch || contentMatch || generalMatch) {
+    return {
+      visual: (visualMatch?.[1] || "").trim(),
+      content: (contentMatch?.[1] || "").trim(),
+      general: (generalMatch?.[1] || "").trim(),
+    };
+  }
+  return { visual: "", content: "", general: text };
+}
+
 // Derive 3-5 brand-appropriate moods from the brand's brief, voice rules, and negative prompts.
 // Returns the descriptions to inject into the prompt.
 function deriveBrandMoods(
