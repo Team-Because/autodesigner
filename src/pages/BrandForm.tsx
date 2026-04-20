@@ -580,7 +580,8 @@ export default function BrandForm() {
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
 
-      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} />
+      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} defaultOpen={!isEditing} />
+      <PasteParseWizard onApply={applyPasteParse} />
 
       <h1 className="text-2xl font-display font-bold">
         {isEditing ? "Edit Brand" : "Create New Brand"}

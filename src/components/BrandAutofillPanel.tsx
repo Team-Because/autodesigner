@@ -34,6 +34,7 @@ export interface AutofillResult {
 interface Props {
   brandNameHint: string;
   onApply: (result: AutofillResult) => void;
+  defaultOpen?: boolean;
 }
 
 interface PendingImage {
@@ -42,9 +43,9 @@ interface PendingImage {
   uploadedUrl?: string;
 }
 
-export default function BrandAutofillPanel({ brandNameHint, onApply }: Props) {
+export default function BrandAutofillPanel({ brandNameHint, onApply, defaultOpen = false }: Props) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [logo, setLogo] = useState<PendingImage | null>(null);
   const [refs, setRefs] = useState<PendingImage[]>([]);
   const [websiteUrl, setWebsiteUrl] = useState("");
