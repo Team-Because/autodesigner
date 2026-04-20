@@ -1,62 +1,85 @@
 
 
-# Quality Optimization Plan — Practical & Cost-Effective
+# Plan: Send Generated Creatives to Canva
 
-## Current State
+Connect a single shared Canva account to the app so any generated creative can be pushed into Canva — either as a brand new design or uploaded into an existing folder/project.
 
-The pipeline has 4 steps (Analyze → Adapt → Generate → QC), all routed through kie.ai's chat and image APIs. However, **the kie.ai code hasn't been deployed yet** — logs still show Lovable AI with 429 errors. First priority is getting kie.ai working, then optimizing each step.
+## What you'll see in the app
 
-## What Changes
+On the **Studio** output card and on each completed item in **History**, two new buttons appear next to Download:
 
-### 1. Deploy kie.ai integration & set resolution to 2K
-The current code already has kie.ai integration written but isn't deployed. Deploy it and change image resolution from `"1K"` to `"2K"` for sharper outputs. Keep Nano Banana 2 as primary, Nano Banana Pro as fallback — no need for GPT or Ideogram.
+- **Open in Canva** — creates a new Canva design containing the image and opens it in a new tab, ready to edit.
+- **Save to Canva folder…** — opens a small picker showing your Canva folders (projects). Pick one, hit Save, and the image lands in that folder as an asset you can drop into any existing Canva file.
 
-### 2. Use the right model tier per step
+A small "Connected to Canva" indicator with the account name appears in the sidebar/account menu so you always know it's wired up.
 
-| Step | Current | Proposed | Why |
-|------|---------|----------|-----|
-| Analyze (extract layout) | kie.ai Gemini 3 Flash (chat) | Same — keep it | Layout extraction is structural, flash-tier is fine |
-| Adapt (map brand to layout) | kie.ai Gemini 3 Flash (chat) | Same — keep it | Works well for asset selection + copy generation |
-| Generate (render image) | Nano Banana 2 → Pro → Original | Nano Banana Pro → Nano Banana 2 (lead with quality) | Pro produces better compositions; 2 is fast fallback |
-| QC (score output) | kie.ai Gemini 3 Flash (chat) | **Remove entirely** | See below |
+## How the integration works
 
-### 3. Remove QC step
+Since Canva isn't an available Lovable connector, we'll set up a custom Canva Connect integration using OAuth 2.0 with PKCE. Because you chose a **single shared Canva account**, the OAuth flow runs once (by you, the admin) and the resulting refresh token is stored as a secret. All users' "Send to Canva" actions go to that one account.
 
-**Why remove it:**
-- QC is purely advisory — it scores the image but never triggers a retry or blocks bad output
-- It adds latency (extra API call + image download) to every generation
-- The score is buried in JSON and rarely surfaced meaningfully to users
-- Making QC "actionable" (auto-retry on low scores) would double generation costs and time for marginal benefit
-- The aspect ratio validation already catches the most critical quality issue
+```text
+[Studio/History "Send to Canva"]
+        │
+        ▼
+[Edge function: canva-send]
+   ├── refresh access token (from stored refresh_token)
+   ├── upload image via "Create URL asset upload job" (uses our public image URL)
+   ├── poll job until asset_id ready
+   ├── if "Open in Canva":  create design with that asset → return edit_url
+   └── if "Save to folder": move asset to chosen folder_id → return folder URL
+```
 
-**What replaces it:**
-- Keep the existing aspect ratio mismatch detection + retry (already implemented)
-- Users can visually judge quality and regenerate if unsatisfied (costs 1 credit either way)
+### Setup steps (one-time, by admin)
 
-### 4. Verify kie.ai image fetching works end-to-end
-The async polling pattern (createTask → poll recordInfo → download resultUrl) is written but untested. Ensure:
-- Task creation succeeds with proper model names (`nano-banana-pro`, `nano-banana-2`)
-- Polling handles all states correctly
-- Downloaded images are valid PNG/JPEG with correct dimensions
-- Image URLs from kie.ai are accessible for download
+1. **Create a Canva Developer integration** at canva.com/developers — register an app, set the redirect URL to a new edge function `canva-oauth-callback`, request scopes: `asset:read asset:write design:content:read design:content:write folder:read folder:write`.
+2. You'll get a **Client ID** and **Client Secret**. Add both as secrets (`CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`).
+3. Visit a new in-app `/admin/canva-connect` page (admin-only) → click "Connect Canva" → complete OAuth → the refresh token is saved to a new `app_integrations` table.
 
-## Technical Changes
+### New edge functions
 
-**File: `supabase/functions/generate-creative/index.ts`**
+| Function | Purpose |
+|----------|---------|
+| `canva-oauth-start` | Builds Canva authorize URL with PKCE, redirects browser. |
+| `canva-oauth-callback` | Exchanges code for tokens, stores refresh_token in `app_integrations`. |
+| `canva-list-folders` | Returns the shared account's folders for the picker. |
+| `canva-send` | Body: `{ generation_id, mode: "design" \| "folder", folder_id? }`. Refreshes access token, uploads asset via URL, optionally creates design or moves to folder, returns `canva_url`. |
 
-1. Reorder model fallback: `nano-banana-pro` first, then `nano-banana-2`, then `nano-banana`
-2. Change resolution from `"1K"` to `"2K"` in `kieGenerateImage`
-3. Remove the entire `advisoryQC` function and all QC-related code (lines 890-963, QC call at lines 1378-1383, QC data in copywriting at lines 1387-1398, QC in response at line 1440)
-4. Deploy the edge function
+All four are deployed with `verify_jwt = true` (only the OAuth callback is public). Access tokens are refreshed on every call (they expire in ~4h) and never stored long-term.
 
-**No database changes needed** — QC data is already stored in the `copywriting` JSON column, removing it just means that field won't have `qc_score`/`qc_issues` anymore.
+### Database changes
 
-**No UI changes needed** — QC badges in history are already graceful (they just won't appear if no QC data exists).
+One new table:
 
-## Expected Outcome
-- Generations use kie.ai instead of rate-limited Lovable AI → no more 429 errors
-- 2K resolution → sharper text and edges
-- Pro model first → better compositions
-- No QC step → ~15-20% faster generation time
-- System still catches aspect ratio mismatches via dimension validation
+```text
+app_integrations
+  provider           text  PK         -- "canva"
+  refresh_token      text             -- encrypted at rest by Postgres
+  scopes             text
+  connected_by       uuid             -- admin user_id
+  connected_account  text             -- Canva display name, for UI
+  updated_at         timestamptz
+```
+
+RLS: only admins can read/write. Service role (edge functions) reads it for token refresh.
+
+Optional: add `canva_design_id text` and `canva_design_url text` columns to `generations` so we can show "Already in Canva ↗" instead of re-sending the same image.
+
+### Where image data comes from
+
+Your `output_image_url` already lives in the public `brand-assets` bucket, so Canva's "Create URL asset upload job" endpoint can fetch it directly — no need to stream bytes through the edge function.
+
+## Out of scope (for now)
+
+- Per-user Canva accounts (you picked single shared account — easy to switch later by moving tokens into a per-user table).
+- Editing existing Canva designs in place (Canva Connect doesn't expose a "drop image into design X at coords Y" API; the closest is creating a new design from the asset).
+- Canva brand kits / template-based generation.
+
+## Files touched
+
+- **New**: `supabase/functions/canva-oauth-start/index.ts`, `canva-oauth-callback/index.ts`, `canva-list-folders/index.ts`, `canva-send/index.ts`
+- **New**: `src/pages/AdminCanvaConnect.tsx` + route in `App.tsx` + sidebar entry in `AppSidebar.tsx`
+- **New**: `src/components/SendToCanvaButton.tsx` (reusable: handles both modes + folder picker dialog)
+- **Modified**: `src/pages/Studio.tsx` (add button next to Download)
+- **Modified**: `src/pages/History.tsx` (add button in the detail dialog)
+- **Migration**: create `app_integrations` table + RLS
 
