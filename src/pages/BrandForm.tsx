@@ -122,6 +122,7 @@ export default function BrandForm() {
 
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
+  const [brandOwnerId, setBrandOwnerId] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#2563EB");
   const [secondaryColor, setSecondaryColor] = useState("#DBEAFE");
   const [extraColors, setExtraColors] = useState<ExtraColor[]>([]);
@@ -306,6 +307,7 @@ export default function BrandForm() {
         if (brandRes.data) {
           const data = brandRes.data;
           setName(data.name);
+          setBrandOwnerId(data.user_id);
           setPrimaryColor(data.primary_color);
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
@@ -522,6 +524,8 @@ export default function BrandForm() {
     }
 
     setLoading(true);
+    // Preserve original owner when editing — admins must not steal brands.
+    const ownerId = isEditing ? (brandOwnerId || user.id) : user.id;
     const payload: any = {
       name,
       logo_url: assets.find((a) => a.label === "Logo")?.image_url || (assets.length > 0 ? assets[0].image_url : ""),
@@ -532,7 +536,7 @@ export default function BrandForm() {
       negative_prompts: writeNevers(visualNevers, contentNevers, legacyNevers),
       brand_brief: combineBrief(),
       industry: industry,
-      user_id: user.id,
+      user_id: ownerId,
     };
 
     let brandId = id;
