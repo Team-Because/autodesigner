@@ -513,6 +513,8 @@ export default function BrandForm() {
 
     toast.success(`Applied parsed brand profile.`);
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !user) {
       toast.error("Brand name is required.");
