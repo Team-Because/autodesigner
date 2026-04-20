@@ -44,6 +44,33 @@ export type Database = {
         }
         Relationships: []
       }
+      app_integrations: {
+        Row: {
+          connected_account: string | null
+          connected_by: string | null
+          provider: string
+          refresh_token: string
+          scopes: string | null
+          updated_at: string
+        }
+        Insert: {
+          connected_account?: string | null
+          connected_by?: string | null
+          provider: string
+          refresh_token: string
+          scopes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          connected_account?: string | null
+          connected_by?: string | null
+          provider?: string
+          refresh_token?: string
+          scopes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brand_assets: {
         Row: {
           brand_id: string
@@ -169,6 +196,8 @@ export type Database = {
           brand_id: string
           campaign_id: string | null
           campaign_message: string | null
+          canva_design_id: string | null
+          canva_design_url: string | null
           copywriting: Json | null
           created_at: string
           id: string
@@ -189,6 +218,8 @@ export type Database = {
           brand_id: string
           campaign_id?: string | null
           campaign_message?: string | null
+          canva_design_id?: string | null
+          canva_design_url?: string | null
           copywriting?: Json | null
           created_at?: string
           id?: string
@@ -209,6 +240,8 @@ export type Database = {
           brand_id?: string
           campaign_id?: string | null
           campaign_message?: string | null
+          canva_design_id?: string | null
+          canva_design_url?: string | null
           copywriting?: Json | null
           created_at?: string
           id?: string
