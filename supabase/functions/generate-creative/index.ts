@@ -939,11 +939,11 @@ async function adaptDirective(
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
-    brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 1800)}` : "",
-    brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 3000)}` : "",
-    nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 600)}` : "",
-    nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 600)}` : "",
-    nevers.general ? `NEVER include: ${toCompactText(nevers.general, 1200)}` : "",
+    brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 4000)}` : "",
+    brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 8000)}` : "",
+    nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 2000)}` : "",
+    nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 2000)}` : "",
+    nevers.general ? `NEVER include: ${toCompactText(nevers.general, 3000)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1189,7 +1189,7 @@ function buildDirectivePrompt(
 
   const _nevers = splitNevers(brand.negative_prompts);
   // Image prompt = visual nevers + general (legacy). Content nevers go to copy only.
-  const negativePrompts = toCompactText([_nevers.visual, _nevers.general].filter(Boolean).join(" "), 800);
+  const negativePrompts = toCompactText([_nevers.visual, _nevers.general].filter(Boolean).join(" "), 3000);
 
   return `⚠️⚠️⚠️ CRITICAL — OUTPUT SIZE IS ${spec.width}x${spec.height} PIXELS (${aspectRatioLabel}). THIS IS THE #1 RULE. ⚠️⚠️⚠️
 
@@ -1232,10 +1232,10 @@ function buildFallbackPrompt(
       ? `Additional Colors:\n${brand.extra_colors.map((c: any) => `  - ${c.name || "Unnamed"}: ${c.hex}`).join("\n")}`
       : "";
 
-  const brandVoice = toCompactText(brand.brand_voice_rules, 2000);
+  const brandVoice = toCompactText(brand.brand_voice_rules, 4000);
   const _fbNevers = splitNevers(brand.negative_prompts);
-  const negativePrompts = toCompactText([_fbNevers.visual, _fbNevers.general].filter(Boolean).join(" "), 2000);
-  const brandBrief = toCompactText(brand.brand_brief, 3000);
+  const negativePrompts = toCompactText([_fbNevers.visual, _fbNevers.general].filter(Boolean).join(" "), 3000);
+  const brandBrief = toCompactText(brand.brand_brief, 8000);
 
   const brandContext = [
     `Brand Name: ${brand.name}`,

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — AI Brand Profile Generator (v2)
+const MASTER_PROMPT = `# 🚀 Brand Setup Master Prompt — AI Brand Profile Generator (v3)
 
 You are a brand strategist, visual language analyst, and prompt engineer. Your job is to take everything I give you — raw brand data, documents, old creatives, reference images — and produce a perfectly structured brand profile for the MakeMyAd creative generation system.
 
@@ -45,7 +45,7 @@ Process docs, notes, briefs. Extract: brand name, what they do, USPs, mandatory 
 
 ## STEP 4 — FILL EVERY OUTPUT SECTION
 
-Use markdown headers (\`##\`) **exactly** as shown. Respect character limits — the form will truncate overflow silently.
+Use markdown headers (\`##\`) **exactly** as shown. Length is flexible — write what the brand actually needs. Specificity beats brevity.
 
 ---
 
@@ -73,7 +73,7 @@ For each asset I uploaded, propose a tag from the chosen industry's vocabulary (
 - Asset 3: [tag]
 …
 
-## BRAND IDENTITY            ← 1,000 char hard limit
+## BRAND IDENTITY            ← Be thorough; cover what makes the brand unique
 Brand: [official name]
 Parent / Company: [parent company or umbrella brand, if any] | [tagline]
 Location / Market: [city, region, or "global" — if relevant]
@@ -88,14 +88,14 @@ Differentiators:
 - [USP 2 with proof point]
 - [USP 3 with proof point]
 
-## MUST-INCLUDE ELEMENTS     ← 600 char hard limit
+## MUST-INCLUDE ELEMENTS     ← Anything that MUST appear on every creative
 - Brand name: [NAME] — always prominent
 - Tagline: "[tagline, if any]"
 - Contact: [phone / email / website / handle — whichever applies]
 - Legal / Compliance: [registrations, certifications, disclaimers — only if mandatory for this brand]
 - Location: [address or service area, if relevant]
 
-## VISUAL DIRECTION          ← 800 char hard limit · MOST CRITICAL section
+## VISUAL DIRECTION          ← MOST CRITICAL — describe in as much detail as you need
 Visual Style:
 - [Lighting / color treatment / photo vs graphic vs 3D vs illustration]
 - [Layout structure & composition rules]
@@ -112,7 +112,7 @@ Textures & Elements:
 Mood:
 - [Overall energy in 1-2 lines]
 
-## EXAMPLE COPY              ← 600 char hard limit
+## EXAMPLE COPY              ← 3-5 strong headlines beat 10 mediocre ones
 Headlines (≤8 words each — system enforces this):
 - "[Headline 1]"
 - "[Headline 2]"
@@ -126,7 +126,7 @@ CTAs (2-3 words):
 - "[CTA 1]"
 - "[CTA 2]"
 
-## TONE & VOICE              ← part of 1,800 char limit (combined with audience)
+## TONE & VOICE              ← Drives copy moods downstream — be explicit
 Voice Traits:
 - [e.g. "Confident, never arrogant"]
 - [e.g. "Warm but precise"]
@@ -161,12 +161,12 @@ Desired emotional response: [how should they feel after seeing the ad?]
 
 The MakeMyAd generator has hard constraints. Don't propose anything it can't honor:
 
-1. **Headlines ≤ 8 words.** Subcopy ≤ 20 words. CTAs 2-3 words. Anything longer gets truncated.
+1. **Headlines ≤ 8 words.** Subcopy ≤ 20 words. CTAs 2-3 words. These are real downstream caps for layout integrity.
 2. **Reference images = layout blueprints only.** The system will NEVER copy text, names, locations, or pricing from references. Don't write "we'll reuse the photography from the reference".
 3. **Logos are force-included** via regex matching. Always present, never altered.
 4. **Per-brand mood pool** is auto-derived from your TONE & VOICE + CONTENT NEVERS. Be explicit (use-words / avoid-words) so the right moods get picked.
 5. **Output formats:** 1:1 (square), 16:9 (landscape), 9:16 (story), 4:5 (portrait) only.
-6. **Character limits are enforced** — the form will truncate. Stay under budget.
+6. **Length is flexible** — write what the brand actually needs. Specificity beats brevity. The form has no character limits.
 7. **VISUAL NEVERS** drive image-prompt constraints. **CONTENT NEVERS** drive copywriting constraints. Keep them separate.
 
 ---
@@ -197,7 +197,7 @@ If nothing fits, use \`Other: <short description>\`.
 3. **Real copy > abstract tone words** — show actual headlines.
 4. **Visual analysis is king** — VISUAL DIRECTION must reflect what you actually saw, not generic design talk.
 5. **Spatial precision** — "Logo at 10% from top-left" beats "logo in corner".
-6. **Stay under character limits.**
+6. **Length is flexible** — no hard character limits; write what the brand needs.
 7. **Never fabricate** legal/registration numbers, contact info, certifications, or taglines that aren't in the source.
 8. **Keep VISUAL NEVERS and CONTENT NEVERS strictly separate.**
 
