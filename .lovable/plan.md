@@ -1,130 +1,74 @@
 
 
-# Master Prompt Audit + Brand Setup Improvement Strategy
+# Remove Character Limits Across Brand Setup
 
-## What I reviewed
+Different brands need different amounts of detail. Hard limits cause silent truncation in `parseMaster`, the autofill edge function, and form `maxLength` props. We'll remove the user-facing caps everywhere and apply only soft compaction inside the AI generation prompt (where token cost actually matters).
 
-The Master Prompt at `src/pages/BrandGuide.tsx` (the one users paste into Claude), the `BrandForm` schema it must map into, the `brand-autofill` edge function, and how `generate-creative` actually consumes brand data.
+## Strategy
 
-The audit is split into two parts: **(A) concrete bugs/mismatches in the current Master Prompt**, and **(B) a strategic redesign** of how brand setup should work end-to-end.
+**Remove all hard limits on user input.** Keep only generous internal compaction *inside the generator's LLM calls* — and even those are raised significantly so longer briefs survive intact.
 
----
-
-## A. Issues found in the current Master Prompt
-
-### A1. Schema drift between Prompt → Form → Generator (HIGH)
-The Master Prompt outputs **8 sections** (Brand Name, Brand Assets Guide, Color Palette, Brand Brief – Identity, Must-Include, Visual Direction, Example Copy, Tone & Audience, Never List). But the form has **only 4 brief textareas + 2 separate fields** (voice/negative). Mapping today:
-
-| Master Prompt section | Where it lands |
-|---|---|
-| BRAND NAME | Name field ✅ |
-| BRAND ASSETS GUIDE | **Nowhere** — silently dropped, only useful as Q&A guidance |
-| COLOR PALETTE | Primary/Secondary/Extra ✅ but "color relationships" prose has no home |
-| BRAND IDENTITY | briefIdentity ✅ |
-| MUST-INCLUDE | briefMandatory ✅ |
-| VISUAL DIRECTION | briefVisual ✅ |
-| EXAMPLE COPY | briefCopy ✅ |
-| TONE & TARGET AUDIENCE | voiceRules ✅ |
-| THE NEVER LIST | negativePrompts (mixed visual+content) ⚠️ |
-
-**Issue**: The "Where to Paste" table in BrandGuide.tsx is misleading — it claims TONE → "Brand Voice Rules" but doesn't tell users to paste both Tone AND Target Audience together, and doesn't mention Industry, Logo upload, or asset tagging at all.
-
-### A2. Industry field is invisible to the prompt (HIGH)
-The form has an **Industry dropdown** (10 industries) that drives asset tag vocabulary downstream. The Master Prompt never asks the LLM to declare an industry, so users land on the form with an empty Industry → wrong/generic asset tags get suggested.
-
-### A3. Asset tag vocabulary mismatch (HIGH)
-The Prompt's "BRAND ASSETS GUIDE" uses generic categories (Hero Image, Product, Lifestyle, Pattern/Texture, Banner, Infographic, Style Reference). The actual app uses **industry-specific** vocab (Real Estate → Elevation/Interior/RERA QR; Fashion → Lookbook/On-Model/Flat Lay; etc.). A user pasting Claude's output sees tag names that don't exist in the dropdown, then has to re-tag everything manually.
-
-### A4. The Never List is one bucket, not two (MEDIUM)
-The Prompt cleanly splits VISUAL NEVERS vs CONTENT NEVERS (good!). The form collapses both into a single `negative_prompts` text field. The downstream `deriveBrandMoods` and the image prompt both treat negatives as one blob — losing the visual/content distinction and weakening mood filtering.
-
-### A5. No mention of "the rest of the system" (MEDIUM)
-The Prompt produces an excellent profile but doesn't tell the LLM about behaviors that exist in the generator:
-- Reference images = layout-only (Image Isolation policy)
-- Logo is force-included via regex
-- Headlines capped at 8 words, subcopy at 20
-- Per-brand mood derivation
-- Allowed output formats (1:1, 16:9, 9:16, 4:5)
-
-Result: LLMs sometimes propose taglines >8 words or "we'll generate matching photography from references" — instructions the system can't honor.
-
-### A6. Character limits are aspirational, not enforced (LOW)
-The Prompt says "HARD LIMIT: 1,000 chars" for Identity etc. — the form actually enforces these via `maxLength`, but Claude routinely overshoots and the form silently truncates on paste. Users don't know what was lost.
-
-### A7. The Q&A intro creates an unnecessary roundtrip (LOW)
-"Ask 10-15 clarifying questions FIRST" works for power users, but most users don't have answers ready. They abandon mid-flow. This step should be optional / opt-in, not mandatory.
-
-### A8. Missing "Brand Voice Vocabulary" guidance (LOW)
-Multiple memory files (LION, Belrosa, RFL) rely on **"words to use vs words to avoid"** lists. The Prompt's TONE section asks for "Language Rules" but doesn't enforce a use/avoid list structure → form ends up with prose that's hard for the AI to act on.
-
----
-
-## B. Strategic redesign — make brand setup easy, not painful
-
-The fundamental problem: brand setup is a **3-headed beast** today (Master Prompt → Claude → manual paste, AI Autofill panel, manual form). Three paths, different vocabularies, no single source of truth.
-
-### B1. Unify the schema first
-Make the Master Prompt, BrandForm fields, and `brand-autofill` tool schema all emit the **exact same section names and limits**. The parser already handles synonyms, but the canonical shape should be:
-
-```
-## BRAND IDENTITY            (1000)
-## INDUSTRY                  (1 line, from fixed list)
-## COLOR PALETTE             (structured: primary/secondary/extras with names)
-## ASSET TAGS                (per-asset, from industry vocab)
-## VISUAL DIRECTION          (800)
-## TONE & VOICE              (use-words + avoid-words + audience)
-## EXAMPLE COPY              (600)
-## MUST-INCLUDE ELEMENTS     (600)
-## VISUAL NEVERS             (separated)
-## CONTENT NEVERS            (separated)
+```text
+USER FORM      → no limit (just live char counter for awareness)
+DB STORAGE     → already TEXT (no schema change needed)
+PARSER         → no .slice() truncation
+AUTOFILL EDGE  → no clamp() truncation; updated tool descriptions
+GENERATOR      → soft caps raised: brief 8000, voice 4000, nevers 2000
+MASTER PROMPT  → "char hard limit" labels removed; replaced with priority guidance
 ```
 
-### B2. Rewrite the Master Prompt to match
-- Add a step that asks Claude to **declare the industry first** from the 10 allowed values.
-- Replace the generic asset categories with the industry-specific vocab (insert dynamically based on chosen industry).
-- Split Never List into two sections.
-- Add "TONE & VOICE" with explicit `Use words:` / `Avoid words:` lists.
-- Add a "SYSTEM AWARENESS" footer telling Claude: 8-word headlines, 20-word subcopy, layout-only references, logo always preserved, etc.
-- Make the Q&A step **optional** ("If you want a deeper interview, ask me 5-8 questions first; otherwise proceed.").
+## Changes
 
-### B3. Add a "Paste & Parse" wizard inside the app
-Instead of pasting into 4 separate textareas, give users **one big textarea** + a **"Parse Master Prompt Output"** button. The parser already exists (`parseBrief`). Extend it to also extract Industry, Color Palette (with hexes), Asset Tags. Show a **visual diff** of what was extracted before saving — so users can see "we caught Industry=Real Estate, 3 colors, 5 asset tags".
+### 1. `src/pages/BrandForm.tsx` — drop `maxLength` and inline length checks
+- Remove `maxLength={...}` from: `briefIdentity` (1000), `briefMandatory` (600), `briefVisual` (800), `briefCopy` (600), `voiceRules` (1800), `visualNevers` (600), `contentNevers` (600), `legacyNevers`.
+- Remove the `if (e.target.value.length <= N)` guards in those `onChange` handlers — let users type freely.
+- Replace `{x}/N — …` counters with simple `{x} chars — …` (no denominator, no amber threshold).
+- Keep `Brand Name` (100) and `Color Name` (30) caps — those are legitimate UI constraints, not content.
 
-### B4. Split Visual vs Content Nevers in the form + DB
-Either two new columns (`visual_nevers`, `content_nevers`) or a JSON shape `{visual: [...], content: [...]}` in the existing `negative_prompts`. Update `deriveBrandMoods` to weight **content nevers** when filtering moods, and `buildDirectivePrompt` to inject **visual nevers** into the image prompt only.
+### 2. `src/lib/brandParser.ts` — drop `.slice()` calls
+- In `parseMasterPromptOutput` return object: remove all `.slice(0, N)` on `briefIdentity`, `briefMandatory`, `briefVisual`, `briefCopy`, `voiceRules`, `visualNevers`, `contentNevers`. Keep only `extras.slice(0, 8)` (UI swatch limit).
 
-### B5. Add Brand Health Score on save
-Compute a 0-100 score based on: has logo? ≥3 tagged assets? brief sections filled? colors set? voice rules present? Show it as a chip on the BrandForm header and Brand Hub card. Soft-blocks generation below ~40 with a "Your brand is thin — generations will be generic" warning.
+### 3. `supabase/functions/brand-autofill/index.ts` — drop clamping
+- Remove the `clamp(v, max)` helper and use raw strings.
+- Update tool schema descriptions: remove "Max N chars" phrases; instead say "Be thorough but focused — quality over length."
+- Drop the `.slice(0, 2500)` / `.slice(0, 3500)` on website extracts (or raise to 10000) so site-derived context isn't truncated before reaching the LLM.
 
-### B6. Make Autofill the default new-brand experience
-Today, the AI Autofill panel sits collapsed at the top of BrandForm — most users miss it. Promote it: when "New Brand" is clicked with zero data, open in autofill mode by default with the panel expanded and the manual form hidden until autofill completes (or user clicks "Skip — fill manually").
+### 4. `supabase/functions/generate-creative/index.ts` — raise compaction caps generously
+The generator must still bound prompt size for cost/latency, but current caps (1800/3000) are too tight for rich brands. New caps:
+- `brand_brief` → **8000** (was 3000) in both `buildPromptParts` and `buildFallbackPrompt`
+- `brand_voice_rules` → **4000** (was 1800/2000)
+- `nevers.visual` / `nevers.content` → **2000** each (was 600)
+- `nevers.general` → **3000** (was 1200)
+- `negativePrompts` combined in image prompt → **3000** (was 800/2000)
 
-### B7. Per-industry brief templates
-For each industry, ship a 1-click "Insert Template" button that pre-fills the brief textareas with industry-appropriate scaffolding (e.g., Real Estate gets a brief that mentions RERA, location, configuration, possession date placeholders). Cuts setup from blank-page-anxiety to fill-in-the-blanks.
+These are still safety nets — typical brands stay under them — but they no longer cut off legitimate content.
 
-### B8. Surface the auto-derived mood pool in the form
-After voice/negatives are filled, run `deriveBrandMoods` client-side (port the function) and show "**Allowed moods for this brand:** Minimal & Elegant, Sophisticated & Premium, Aspirational & Dreamy". Confirms to the user that their brief is being read correctly. If pool is too small or too generic, they know the brief needs more signal.
+### 5. `src/pages/BrandGuide.tsx` — Master Prompt v3
+Rewrite the `MASTER_PROMPT` constant to remove all "← N char hard limit" annotations. Replace with priority guidance:
 
----
+```text
+## BRAND IDENTITY            ← Be thorough; cover what makes the brand unique
+## VISUAL DIRECTION          ← MOST CRITICAL — describe in as much detail as you need
+## EXAMPLE COPY              ← 3-5 strong headlines beat 10 mediocre ones
+…
+```
 
-## Recommended priority order
+Also update the "SYSTEM AWARENESS" footer:
+- Remove rule #6 ("Character limits are enforced — stay under budget").
+- Add: "Length is flexible — write what the brand actually needs. Specificity beats brevity."
+- Keep the 8-word headline / 20-word subcopy / 2-3 word CTA caps (those are real downstream constraints).
 
-1. **B1 + B2** — unify schema and rewrite Master Prompt (highest leverage, fixes A1/A2/A3/A5/A8 in one shot)
-2. **B4** — split Visual/Content Nevers (fixes A4, improves mood derivation quality)
-3. **B3** — Paste & Parse wizard with diff (removes friction for Claude flow)
-4. **B6** — Autofill-first new-brand UX
-5. **B5 + B8** — Health Score and Mood Pool preview (transparency / quality signals)
-6. **B7** — Industry templates (last; nice-to-have, not a fix)
+### 6. Memory update
+Update `mem://features/brand-hub/brief-structure` to reflect the removal of hard limits and the new generous compaction policy.
 
-Items 1–4 alone would eliminate ~80% of setup friction and the silent data drops we have today.
+## What stays the same
 
----
+- Database columns are already `TEXT` — no migration needed.
+- 8-word headline / 20-word subcopy caps remain (real generator constraints).
+- Brand name (100), Color name (30), Asset label (50) keep their caps — pure UI hygiene.
+- Compaction inside the generator stays as a *safety ceiling*, not a content limit.
 
-## Technical notes
+## Why this works
 
-- `src/pages/BrandGuide.tsx` — rewrite `MASTER_PROMPT` constant, update the `mapping` table, add the industry vocab inline.
-- `src/pages/BrandForm.tsx` — extend `parseBrief` to also extract industry, color palette, asset tags; add "Paste Full Output" textarea + parse button + diff modal.
-- `supabase/functions/brand-autofill/index.ts` — already aligned; just needs `visual_nevers` / `content_nevers` split if B4 is approved.
-- `supabase/functions/generate-creative/index.ts` — `deriveBrandMoods` weighting + `buildDirectivePrompt` negative injection updates if B4 is approved.
-- Migration needed only if B4 chooses the column-split approach over JSON-in-existing-field.
+Soft caps far above realistic brand-brief size mean: (a) users never see truncation in the form, (b) the parser preserves full Claude output, (c) the edge function passes everything through, and (d) the generator only trims if a brand is truly enormous (8000+ char brief is ~2000 words — most aren't close).
 
