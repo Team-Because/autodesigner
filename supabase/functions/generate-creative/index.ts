@@ -923,7 +923,15 @@ async function adaptDirective(
     .filter(Boolean)
     .join("\n");
 
-  const creativeMood = getRandomMood();
+  const { allowed: allowedMoods, reason: moodReason } = deriveBrandMoods(
+    brand.brand_brief || "",
+    brand.brand_voice_rules || "",
+    brand.negative_prompts || "",
+  );
+  const creativeMood = pickMoodFromAllowed(allowedMoods);
+  console.log(
+    `[Adapt] Brand "${brand.name}" mood pool: ${moodReason}. Allowed: [${allowedMoods.map((m) => m.label).join(", ")}]. Picked: "${creativeMood.split(" — ")[0]}"`,
+  );
 
   const systemPrompt = `You are a senior creative director. Your job is to MAP a reference advertisement's concept, layout, and energy to a specific brand — making every creative decision so the image model only needs to render.
 
