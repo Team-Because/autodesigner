@@ -309,7 +309,10 @@ export default function BrandForm() {
           setPrimaryColor(data.primary_color);
           setSecondaryColor(data.secondary_color);
           setVoiceRules(data.brand_voice_rules || "");
-          setNegativePrompts(data.negative_prompts || "");
+          const split = readNevers(data.negative_prompts || "");
+          setVisualNevers(split.visual);
+          setContentNevers(split.content);
+          setLegacyNevers(split.general);
           const briefRaw = (data as any).brand_brief || "";
           const parsed = parseBrief(briefRaw);
           setBriefIdentity(parsed.identity);
@@ -433,7 +436,16 @@ export default function BrandForm() {
     if (!briefVisual.trim() && result.brief_visual) setBriefVisual(result.brief_visual);
     if (!briefCopy.trim() && result.brief_copy) setBriefCopy(result.brief_copy);
     if (!voiceRules.trim() && result.brand_voice_rules) setVoiceRules(result.brand_voice_rules);
-    if (!negativePrompts.trim() && result.negative_prompts) setNegativePrompts(result.negative_prompts);
+    if (result.negative_prompts) {
+      // Autofill returns a single negative_prompts blob — split it on the way in.
+      const incoming = readNevers(result.negative_prompts);
+      if (!visualNevers.trim() && incoming.visual) setVisualNevers(incoming.visual);
+      if (!contentNevers.trim() && incoming.content) setContentNevers(incoming.content);
+      if (!legacyNevers.trim() && !visualNevers.trim() && !contentNevers.trim() && incoming.general) {
+        // Old-style blob — drop into content nevers (safer default for mood derivation).
+        setContentNevers(incoming.general);
+      }
+    }
 
     // Append uploaded assets with predicted tags.
     if (result.uploaded_assets?.length) {
@@ -489,7 +501,7 @@ export default function BrandForm() {
       secondary_color: secondaryColor,
       extra_colors: extraColors,
       brand_voice_rules: voiceRules,
-      negative_prompts: negativePrompts,
+      negative_prompts: writeNevers(visualNevers, contentNevers, legacyNevers),
       brand_brief: combineBrief(),
       industry: industry,
       user_id: user.id,
@@ -911,17 +923,42 @@ export default function BrandForm() {
               <p className={`text-xs ${voiceRules.length > 1600 ? "text-amber-500" : "text-muted-foreground"}`}>{voiceRules.length}/1800</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="negative">The "Never" List (Strict Exclusions)</Label>
+              <Label htmlFor="visual-nevers">Visual Nevers <span className="text-muted-foreground font-normal">(image / design constraints)</span></Label>
               <Textarea
-                id="negative"
-                value={negativePrompts}
-                onChange={(e) => { if (e.target.value.length <= 1200) setNegativePrompts(e.target.value); }}
-                placeholder='"Never use the color green for real estate ads. Remove all background clutter."'
-                rows={4}
-                maxLength={1200}
+                id="visual-nevers"
+                value={visualNevers}
+                onChange={(e) => { if (e.target.value.length <= 600) setVisualNevers(e.target.value); }}
+                placeholder='"Never distort the logo. Never use stock photography. Never place text over key product imagery."'
+                rows={3}
+                maxLength={600}
               />
-              <p className={`text-xs ${negativePrompts.length > 1080 ? "text-amber-500" : "text-muted-foreground"}`}>{negativePrompts.length}/1200</p>
+              <p className={`text-xs ${visualNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{visualNevers.length}/600 — Drives image-prompt exclusions only</p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="content-nevers">Content Nevers <span className="text-muted-foreground font-normal">(copywriting / messaging constraints)</span></Label>
+              <Textarea
+                id="content-nevers"
+                value={contentNevers}
+                onChange={(e) => { if (e.target.value.length <= 600) setContentNevers(e.target.value); }}
+                placeholder='"Never use the word cheap. Never use fear-based urgency. Never omit the RERA number."'
+                rows={3}
+                maxLength={600}
+              />
+              <p className={`text-xs ${contentNevers.length > 540 ? "text-amber-500" : "text-muted-foreground"}`}>{contentNevers.length}/600 — Drives copy & mood derivation</p>
+            </div>
+            {legacyNevers && (
+              <div className="space-y-2">
+                <Label htmlFor="legacy-nevers" className="text-muted-foreground">Legacy Nevers <span className="text-[10px] font-normal">(unsplit — consider moving into Visual or Content above)</span></Label>
+                <Textarea
+                  id="legacy-nevers"
+                  value={legacyNevers}
+                  onChange={(e) => { if (e.target.value.length <= 1200) setLegacyNevers(e.target.value); }}
+                  rows={3}
+                  maxLength={1200}
+                  className="text-xs"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 
