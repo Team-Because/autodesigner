@@ -134,47 +134,161 @@ export default function BrandForm() {
   const [uploading, setUploading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // Parse existing brand_brief into structured sections
+  // Parse existing brand_brief into structured sections.
+  // Recognizes Master Prompt headers + common synonyms used across our brand
+  // playbooks (VISUAL DNA, MANDATORY ELEMENTS, COLOUR PALETTE, etc.).
+  // Unknown sections are NEVER dropped — they're appended (with their header
+  // intact) to the closest semantic bucket so the AI still sees them.
   const parseBrief = (raw: string) => {
-    const sections: Record<string, string> = { identity: "", mandatory: "", visual: "", copy: "" };
-    const sectionMap: Record<string, keyof typeof sections> = {
+    type Key = "identity" | "mandatory" | "visual" | "copy";
+    const sections: Record<Key, string> = { identity: "", mandatory: "", visual: "", copy: "" };
+
+    // Synonym map → canonical bucket. Keys are lowercased & trimmed.
+    const sectionMap: Record<string, Key> = {
+      // Identity
       "brand identity": "identity",
+      "identity": "identity",
+      "brand": "identity",
+      "about": "identity",
+      "about the brand": "identity",
+      "overview": "identity",
+      // Mandatory
       "must-include elements": "mandatory",
+      "must include elements": "mandatory",
       "mandatory elements": "mandatory",
+      "mandatory": "mandatory",
+      "compliance": "mandatory",
+      "legal": "mandatory",
+      // Visual direction (most critical)
       "visual direction": "visual",
+      "visual dna": "visual",
+      "visual style": "visual",
+      "visual language": "visual",
+      "design direction": "visual",
+      "art direction": "visual",
+      "look and feel": "visual",
+      "look & feel": "visual",
+      "mood": "visual",
+      "mood & tone": "visual",
+      // Example copy
       "example copy": "copy",
       "copy examples": "copy",
+      "sample copy": "copy",
+      "copy": "copy",
+      "messaging examples": "copy",
+      "headlines": "copy",
     };
-    let currentKey: keyof typeof sections | null = null;
-    for (const line of raw.split("\n")) {
-      const headerMatch = line.match(/^##\s+(.+)/);
+
+    // Headers we want to keep as part of the brief but route to a sensible
+    // bucket (preserving the heading so the AI can still read the label).
+    const fallbackBucket: Record<string, Key> = {
+      "colour palette": "visual",
+      "color palette": "visual",
+      "palette": "visual",
+      "typography": "visual",
+      "textures & elements": "visual",
+      "textures and elements": "visual",
+      "messaging pillars": "copy",
+      "vocabulary": "copy",
+      "tone": "copy",
+      "tone & voice": "copy",
+      "tone and voice": "copy",
+      "voice": "copy",
+      "target audience": "copy",
+      "audience": "copy",
+      "visual nevers": "visual",
+      "content nevers": "copy",
+      "the never list": "mandatory",
+      "never list": "mandatory",
+    };
+
+    // Strip a single ``` fenced block wrapper if the LLM wrapped the section.
+    const stripFence = (s: string) =>
+      s.replace(/^```[a-zA-Z]*\n?/gm, "").replace(/```$/gm, "");
+
+    const cleaned = stripFence(raw);
+    const lines = cleaned.split("\n");
+
+    let currentKey: Key | null = null;
+    let currentIsFallback = false;
+    const preamble: string[] = [];
+
+    for (const line of lines) {
+      // Match ##, ### or #### headers. Strip leading "BRAND BRIEF —" or
+      // numbering like "1." or "Step 1:" the LLM sometimes adds.
+      const headerMatch = line.match(/^#{2,4}\s+(.+?)\s*$/);
       if (headerMatch) {
-        const title = headerMatch[1].trim().toLowerCase();
-        currentKey = sectionMap[title] || null;
+        let title = headerMatch[1].trim();
+        // Drop common prefixes
+        title = title
+          .replace(/^brand brief\s*[—\-:]\s*/i, "")
+          .replace(/^section\s*\d+\s*[:.\-]\s*/i, "")
+          .replace(/^\d+\.\s*/, "")
+          .replace(/[:．。]+$/, "")
+          .trim();
+        const key = title.toLowerCase();
+
+        if (sectionMap[key]) {
+          currentKey = sectionMap[key];
+          currentIsFallback = false;
+          continue;
+        }
+        if (fallbackBucket[key]) {
+          currentKey = fallbackBucket[key];
+          currentIsFallback = true;
+          // Preserve the original heading so the AI sees the label
+          sections[currentKey] += (sections[currentKey] ? "\n\n" : "") + `## ${title}`;
+          continue;
+        }
+        // Unknown header → keep heading + content in the last-used bucket,
+        // or stash in preamble if none yet.
+        if (currentKey) {
+          sections[currentKey] += (sections[currentKey] ? "\n\n" : "") + `## ${title}`;
+          currentIsFallback = true;
+        } else {
+          preamble.push(`## ${title}`);
+        }
         continue;
       }
+
       if (currentKey) {
         sections[currentKey] += (sections[currentKey] ? "\n" : "") + line;
       } else {
-        // Lines before any header go to identity
-        sections.identity += (sections.identity ? "\n" : "") + line;
+        preamble.push(line);
       }
     }
+
+    // Filter obvious LLM filler from the preamble before prepending to identity.
+    const filteredPreamble = preamble
+      .join("\n")
+      .replace(/^(here'?s?|sure|of course|certainly|below is|absolutely)[^\n]*\n?/i, "")
+      .trim();
+    if (filteredPreamble) {
+      sections.identity = filteredPreamble + (sections.identity ? "\n\n" + sections.identity : "");
+    }
+
+    // Trim & collapse excessive blank lines per section.
+    const tidy = (s: string) => s.replace(/\n{3,}/g, "\n\n").trim();
+
+    void currentIsFallback; // currently used only for clarity above
+
     return {
-      identity: sections.identity.trim(),
-      mandatory: sections.mandatory.trim(),
-      visual: sections.visual.trim(),
-      copy: sections.copy.trim(),
+      identity: tidy(sections.identity),
+      mandatory: tidy(sections.mandatory),
+      visual: tidy(sections.visual),
+      copy: tidy(sections.copy),
     };
   };
 
-  // Combine structured sections into a single brand_brief string
+  // Combine structured sections into a single brand_brief string.
+  // Headers are UPPERCASE to match the Master Prompt output exactly, so a
+  // round-trip (parse → edit → save → parse) is lossless.
   const combineBrief = () => {
     const parts: string[] = [];
-    if (briefIdentity.trim()) parts.push(`## Brand Identity\n${briefIdentity.trim()}`);
-    if (briefMandatory.trim()) parts.push(`## Must-Include Elements\n${briefMandatory.trim()}`);
-    if (briefVisual.trim()) parts.push(`## Visual Direction\n${briefVisual.trim()}`);
-    if (briefCopy.trim()) parts.push(`## Example Copy\n${briefCopy.trim()}`);
+    if (briefIdentity.trim()) parts.push(`## BRAND IDENTITY\n${briefIdentity.trim()}`);
+    if (briefMandatory.trim()) parts.push(`## MUST-INCLUDE ELEMENTS\n${briefMandatory.trim()}`);
+    if (briefVisual.trim()) parts.push(`## VISUAL DIRECTION\n${briefVisual.trim()}`);
+    if (briefCopy.trim()) parts.push(`## EXAMPLE COPY\n${briefCopy.trim()}`);
     return parts.join("\n\n");
   };
 
