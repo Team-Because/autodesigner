@@ -1411,15 +1411,26 @@ async function generateCreative(
   const fullPrompt = promptParts.join("\n");
 
   // Model fallback plan for kie.ai
+  // NOTE: "nano-banana" (plain) is text-to-image ONLY and rejects image_input with HTTP 422.
+  // For image-to-image with reference + brand assets, valid models are:
+  //   - nano-banana-2     (primary, most reliable)
+  //   - nano-banana-edit  (image-to-image fallback — accepts image_input array)
+  //   - nano-banana-pro   (highest quality but stricter on inputs, E006 prone)
   const modelPlan = [
     { model: "nano-banana-2", label: "Nano Banana 2", resolution: "1K" },
+    { model: "nano-banana-edit", label: "Nano Banana Edit", resolution: "1K" },
     { model: "nano-banana-pro", label: "Nano Banana Pro", resolution: "1K" },
-    { model: "nano-banana", label: "Nano Banana", resolution: "1K" },
   ];
 
   let lastError: Error | null = null;
 
   for (const { model, label, resolution } of modelPlan) {
+    // Nano Banana Pro is known to reject image_input arrays > 4 with E006 ("input invalid").
+    // Skip it when we'd exceed that, so we don't waste two retry slots on a guaranteed failure.
+    if (model === "nano-banana-pro" && imageInputUrls.length > 4) {
+      console.warn(`[${label}] skipped — Pro rejects >4 image inputs (have ${imageInputUrls.length})`);
+      continue;
+    }
     for (let attempt = 1; attempt <= 2; attempt++) {
       console.log(`Using model: ${label} @ ${resolution} (attempt ${attempt}/2)`);
 
