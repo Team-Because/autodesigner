@@ -325,9 +325,92 @@ export default function BrandForm() {
     return parts.join("\n\n");
   };
 
-  useEffect(() => {
-    if (isEditing) {
-      Promise.all([
+  // Auto-detect industry from existing brief + asset labels via LLM.
+  // Calls brand-autofill in "industry-only" mode and applies the result.
+  const handleDetectIndustry = async () => {
+    if (industry) {
+      toast.info("Industry already set — clear it first to re-detect.");
+      return;
+    }
+    const briefBlob = [briefIdentity, briefMandatory, briefVisual, briefCopy, voiceRules].filter(Boolean).join("\n\n");
+    const assetLabels = assets.map((a) => a.label).filter(Boolean).join(", ");
+    if (!briefBlob.trim() && !assetLabels) {
+      toast.error("Add a brief or tagged assets first so we have something to classify.");
+      return;
+    }
+    setDetectingIndustry(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("brand-autofill", {
+        body: {
+          mode: "industry-only",
+          brand_name_hint: name,
+          existing_brief: briefBlob,
+          existing_asset_labels: assetLabels,
+        },
+      });
+      if (error) throw error;
+      const detected = (data as { industry?: string })?.industry;
+      if (detected && typeof detected === "string") {
+        setIndustry(detected);
+        toast.success(`Industry detected: ${detected}`);
+      } else {
+        toast.error("Couldn't confidently detect an industry — please pick one manually.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error(`Detection failed: ${msg}`);
+    } finally {
+      setDetectingIndustry(false);
+    }
+  };
+
+  // Re-classify all asset labels via LLM using current industry vocabulary.
+  // Useful when industry was set AFTER assets were uploaded.
+  const handleRetagAssets = async () => {
+    if (!industry) {
+      toast.error("Set an industry first so the AI knows the tag vocabulary.");
+      return;
+    }
+    if (assets.length === 0) {
+      toast.error("No assets to re-tag.");
+      return;
+    }
+    setRetaggingAssets(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("brand-autofill", {
+        body: {
+          mode: "retag-assets",
+          brand_name_hint: name,
+          industry,
+          asset_urls: assets.map((a, i) => ({ index: i, url: a.image_url, current_label: a.label || "" })),
+        },
+      });
+      if (error) throw error;
+      const tags = (data as { tags?: { index: number; label: string }[] })?.tags || [];
+      if (tags.length === 0) {
+        toast.error("No tags returned — try again.");
+        return;
+      }
+      const next = [...assets];
+      let updated = 0;
+      for (const t of tags) {
+        if (typeof t.index !== "number" || !t.label || !next[t.index]) continue;
+        next[t.index] = { ...next[t.index], label: t.label };
+        if (next[t.index].id && isEditing) {
+          await supabase.from("brand_assets").update({ label: t.label }).eq("id", next[t.index].id!);
+        }
+        updated++;
+      }
+      setAssets(next);
+      toast.success(`Re-tagged ${updated} asset${updated === 1 ? "" : "s"}.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error(`Re-tag failed: ${msg}`);
+    } finally {
+      setRetaggingAssets(false);
+    }
+  };
+
         supabase.from("brands").select("*").eq("id", id).single(),
         supabase.from("brand_assets").select("*").eq("brand_id", id).order("created_at", { ascending: true }),
       ]).then(([brandRes, assetsRes]) => {
