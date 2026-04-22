@@ -75,7 +75,22 @@ export default function BrandHub() {
     enabled: !!user,
   });
 
-  // Initialize expanded state for groups
+  // Per-brand asset counts for the Brand Health chip on each card.
+  const { data: assetCounts = {} } = useQuery<Record<string, { total: number; tagged: number }>>({
+    queryKey: ["brand-asset-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("brand_assets").select("brand_id, label");
+      if (error) throw error;
+      const counts: Record<string, { total: number; tagged: number }> = {};
+      for (const a of (data || []) as { brand_id: string; label: string | null }[]) {
+        if (!counts[a.brand_id]) counts[a.brand_id] = { total: 0, tagged: 0 };
+        counts[a.brand_id].total++;
+        if (a.label && a.label !== "Other:") counts[a.brand_id].tagged++;
+      }
+      return counts;
+    },
+    enabled: !!user,
+  });
   useMemo(() => {
     if (groups.length > 0 && Object.keys(expandedGroups).length === 0) {
       const initial: Record<string, boolean> = {};
