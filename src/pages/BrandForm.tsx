@@ -631,12 +631,12 @@ export default function BrandForm() {
                   <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <div>
                     <p className="font-medium">Write a structured Brand Brief</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Use clear sections with markdown headers:<br />
-                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DNA</code> — mood, lighting, photography style<br />
-                      <code className="bg-muted px-1 rounded text-xs">## MANDATORY ELEMENTS</code> — project name, tagline, contact, legal text<br />
-                      <code className="bg-muted px-1 rounded text-xs">## COLOUR PALETTE</code> — full palette with usage guidance<br />
-                      <code className="bg-muted px-1 rounded text-xs">## MESSAGING PILLARS</code> — key themes and vocabulary<br />
-                      <code className="bg-muted px-1 rounded text-xs">## VOCABULARY</code> — words to use vs. words to avoid
+                    <p className="text-muted-foreground text-xs mt-0.5">Use clear markdown headers — these match the v3 Master Prompt and round-trip cleanly:<br />
+                      <code className="bg-muted px-1 rounded text-xs">## BRAND IDENTITY</code> — what makes the brand unique<br />
+                      <code className="bg-muted px-1 rounded text-xs">## MUST-INCLUDE ELEMENTS</code> — tagline, contact, legal text, RERA, etc.<br />
+                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DIRECTION</code> — most critical: mood, lighting, photography, layout, typography<br />
+                      <code className="bg-muted px-1 rounded text-xs">## EXAMPLE COPY</code> — 3-5 strong sample headlines &amp; subcopy<br />
+                      <code className="bg-muted px-1 rounded text-xs">## TONE &amp; VOICE</code> + <code className="bg-muted px-1 rounded text-xs">## TARGET AUDIENCE</code> — drive copy &amp; mood pool
                     </p>
                   </div>
                 </div>
