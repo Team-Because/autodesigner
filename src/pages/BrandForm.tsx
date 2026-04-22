@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, ExternalLink, Sparkles, Tags } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -24,9 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import BrandAutofillPanel, { type AutofillResult } from "@/components/BrandAutofillPanel";
 import PasteParseWizard from "@/components/PasteParseWizard";
 import { readNevers, writeNevers, type ParsedMasterOutput } from "@/lib/brandParser";
+import { scoreBrandHealth, deriveBrandMoods } from "@/lib/brandHealth";
 
 const BASE_CATEGORIES = [
   "Logo",
