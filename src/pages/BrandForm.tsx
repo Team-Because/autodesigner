@@ -411,6 +411,9 @@ export default function BrandForm() {
     }
   };
 
+  useEffect(() => {
+    if (isEditing) {
+      Promise.all([
         supabase.from("brands").select("*").eq("id", id).single(),
         supabase.from("brand_assets").select("*").eq("brand_id", id).order("created_at", { ascending: true }),
       ]).then(([brandRes, assetsRes]) => {
