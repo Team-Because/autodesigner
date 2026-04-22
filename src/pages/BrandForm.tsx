@@ -702,9 +702,53 @@ export default function BrandForm() {
       <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} defaultOpen={!isEditing} />
       <PasteParseWizard onApply={applyPasteParse} />
 
-      <h1 className="text-2xl font-display font-bold">
-        {isEditing ? "Edit Brand" : "Create New Brand"}
-      </h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h1 className="text-2xl font-display font-bold">
+          {isEditing ? "Edit Brand" : "Create New Brand"}
+        </h1>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium cursor-help ${
+              healthScore.color === "success" ? "border-success/40 bg-success/10 text-success" :
+              healthScore.color === "warning" ? "border-warning/40 bg-warning/10 text-warning" :
+              "border-destructive/40 bg-destructive/10 text-destructive"
+            }`}>
+              <Sparkles className="h-3.5 w-3.5" />
+              Brand Health: {healthScore.score}/100 · {healthScore.label}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs">
+            <div className="space-y-1 text-xs">
+              {healthScore.breakdown.map((b) => (
+                <div key={b.signal} className="flex items-center justify-between gap-3">
+                  <span className={b.ok ? "" : "text-muted-foreground"}>{b.ok ? "✓" : "○"} {b.signal}</span>
+                  <span className="font-mono">{b.points}/{b.max}</span>
+                </div>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Mood Pool Preview — mirrors generator's deriveBrandMoods exactly */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground mb-1.5">
+                Allowed copy moods for this brand ({moodPool.allowed.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {moodPool.allowed.map((m) => (
+                  <Badge key={m.label} variant="secondary" className="text-[10px] font-normal">{m.label}</Badge>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5 italic">{moodPool.reason}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Best Practices Guide */}
       <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
