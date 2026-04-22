@@ -1425,6 +1425,12 @@ async function generateCreative(
   let lastError: Error | null = null;
 
   for (const { model, label, resolution } of modelPlan) {
+    // Nano Banana Pro is known to reject image_input arrays > 4 with E006 ("input invalid").
+    // Skip it when we'd exceed that, so we don't waste two retry slots on a guaranteed failure.
+    if (model === "nano-banana-pro" && imageInputUrls.length > 4) {
+      console.warn(`[${label}] skipped — Pro rejects >4 image inputs (have ${imageInputUrls.length})`);
+      continue;
+    }
     for (let attempt = 1; attempt <= 2; attempt++) {
       console.log(`Using model: ${label} @ ${resolution} (attempt ${attempt}/2)`);
 
