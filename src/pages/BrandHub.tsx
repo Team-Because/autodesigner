@@ -265,6 +265,30 @@ export default function BrandHub() {
 
         <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{brand.brand_voice_rules || "No voice rules set"}</p>
 
+        {(() => {
+          const counts = assetCounts[brand.id] || { total: 0, tagged: 0 };
+          const h = scoreBrandHealth({
+            hasLogo: !!brand.logo_url,
+            taggedAssetCount: counts.tagged,
+            briefIdentity: brand.brand_brief || "",
+            briefVisual: brand.brand_brief || "",
+            voiceRules: brand.brand_voice_rules || "",
+            visualNevers: brand.negative_prompts || "",
+            contentNevers: brand.negative_prompts || "",
+            industry: (brand as any).industry || null,
+          });
+          return (
+            <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+              h.color === "success" ? "border-success/40 bg-success/10 text-success" :
+              h.color === "warning" ? "border-warning/40 bg-warning/10 text-warning" :
+              "border-destructive/40 bg-destructive/10 text-destructive"
+            }`}>
+              <Sparkles className="h-2.5 w-2.5" />
+              Health {h.score} · {h.label}
+            </div>
+          );
+        })()}
+
         <Button variant="outline" size="sm" className="w-full mt-4 rounded-xl text-xs" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
           <Pencil className="h-3 w-3 mr-1.5" /> Edit Brand
         </Button>
