@@ -211,6 +211,10 @@ async function kieChat(
 }
 
 // ─── kie.ai Image Generation (async task API) ───
+// Per kie.ai docs (verified 2026-04):
+//   - nano-banana-2     → model="nano-banana-2",          input.image_input (≤14), input.aspect_ratio, input.resolution
+//   - nano-banana-pro   → model="nano-banana-pro",        input.image_input (≤8),  input.aspect_ratio, input.resolution
+//   - nano-banana-edit  → model="google/nano-banana-edit", input.image_urls (≤10), input.image_size (NO aspect_ratio/resolution)
 async function kieGenerateImage(
   apiKey: string,
   prompt: string,
@@ -219,6 +223,21 @@ async function kieGenerateImage(
   model = "nano-banana-2",
   resolution = "1K"
 ): Promise<string> {
+  // Build per-model body shape
+  const isEdit = model === "nano-banana-edit" || model === "google/nano-banana-edit";
+  const apiModel = isEdit ? "google/nano-banana-edit" : model;
+  const input: Record<string, unknown> = { prompt, output_format: "png" };
+
+  if (isEdit) {
+    // Edit endpoint uses different field names
+    input.image_urls = imageInputs;
+    input.image_size = aspectRatio; // enum: 1:1, 9:16, 16:9, 3:4, 4:3, etc.
+  } else {
+    input.image_input = imageInputs;
+    input.aspect_ratio = aspectRatio;
+    input.resolution = resolution;
+  }
+
   // Submit task
   const createRes = await fetch(KIE_CREATE_TASK, {
     method: "POST",
@@ -226,16 +245,7 @@ async function kieGenerateImage(
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      input: {
-        prompt,
-        image_input: imageInputs,
-        aspect_ratio: aspectRatio,
-        resolution,
-        output_format: "png",
-      },
-    }),
+    body: JSON.stringify({ model: apiModel, input }),
   });
 
   if (!createRes.ok) {
@@ -1410,25 +1420,24 @@ async function generateCreative(
 
   const fullPrompt = promptParts.join("\n");
 
-  // Model fallback plan for kie.ai
-  // NOTE: "nano-banana" (plain) is text-to-image ONLY and rejects image_input with HTTP 422.
-  // For image-to-image with reference + brand assets, valid models are:
-  //   - nano-banana-2     (primary, most reliable)
-  //   - nano-banana-edit  (image-to-image fallback — accepts image_input array)
-  //   - nano-banana-pro   (highest quality but stricter on inputs, E006 prone)
+  // Model fallback plan for kie.ai (slugs verified against docs.kie.ai 2026-04)
+  //   - nano-banana-2          → up to 14 image_input, most reliable
+  //   - google/nano-banana-edit → up to 10 image_urls (different schema, handled in kieGenerateImage)
+  //   - nano-banana-pro        → up to 8 image_input, highest quality but E006-prone with many inputs
   const modelPlan = [
-    { model: "nano-banana-2", label: "Nano Banana 2", resolution: "1K" },
-    { model: "nano-banana-edit", label: "Nano Banana Edit", resolution: "1K" },
-    { model: "nano-banana-pro", label: "Nano Banana Pro", resolution: "1K" },
+    { model: "nano-banana-2", label: "Nano Banana 2", resolution: "1K", maxInputs: 14 },
+    { model: "google/nano-banana-edit", label: "Nano Banana Edit", resolution: "1K", maxInputs: 10 },
+    { model: "nano-banana-pro", label: "Nano Banana Pro", resolution: "1K", maxInputs: 8 },
   ];
 
   let lastError: Error | null = null;
 
-  for (const { model, label, resolution } of modelPlan) {
-    // Nano Banana Pro is known to reject image_input arrays > 4 with E006 ("input invalid").
-    // Skip it when we'd exceed that, so we don't waste two retry slots on a guaranteed failure.
-    if (model === "nano-banana-pro" && imageInputUrls.length > 4) {
-      console.warn(`[${label}] skipped — Pro rejects >4 image inputs (have ${imageInputUrls.length})`);
+  for (const { model, label, resolution, maxInputs } of modelPlan) {
+    // Skip if input count exceeds model's hard limit (avoids guaranteed E006).
+    // Pro is also empirically flaky above 4 inputs even though spec allows 8.
+    const effectiveCap = model === "nano-banana-pro" ? Math.min(maxInputs, 4) : maxInputs;
+    if (imageInputUrls.length > effectiveCap) {
+      console.warn(`[${label}] skipped — ${imageInputUrls.length} inputs exceeds cap of ${effectiveCap}`);
       continue;
     }
     for (let attempt = 1; attempt <= 2; attempt++) {
