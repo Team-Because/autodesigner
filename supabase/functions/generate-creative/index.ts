@@ -1498,6 +1498,20 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // If the client closes the tab/cancels the request mid-flight, mark the
+    // row as failed so it doesn't sit in "processing" forever.
+    if (generationId) {
+      req.signal.addEventListener("abort", () => {
+        console.warn("Client aborted — marking generation", generationId, "as failed");
+        supabase
+          .from("generations")
+          .update({ status: "failed" })
+          .eq("id", generationId)
+          .eq("status", "processing")
+          .then(() => {});
+      });
+    }
+
     // ── Credit check ──
     let generationUserId: string | null = null;
     if (generationId) {
