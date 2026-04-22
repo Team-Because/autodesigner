@@ -555,66 +555,101 @@ function extractFrameworkFromContent(content: string): Record<string, unknown> |
   return null;
 }
 
-// Extract a creative directive from plain-text/JSON content (Adapt step fallback)
-function extractDirectiveFromContent(content: string): CreativeDirective | null {
-  if (!content) return null;
+// Walk a string starting from `start`, return the index just AFTER the matching
+// closing brace (quote- and escape-aware). Returns -1 if unbalanced.
+function findBalancedBraceEnd(s: string, start: number): number {
+  let depth = 0;
+  let inStr = false;
+  let strCh = "";
+  let escape = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (escape) { escape = false; continue; }
+      if (c === "\\") { escape = true; continue; }
+      if (c === strCh) { inStr = false; }
+      continue;
+    }
+    if (c === '"' || c === "'") { inStr = true; strCh = c; continue; }
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
 
-  const jsonPatterns = [
-    /```json\s*([\s\S]*?)```/,
-    /```\s*([\s\S]*?)```/,
-    /\{[\s\S]*"headline"[\s\S]*\}/,
-  ];
-
-  for (const pattern of jsonPatterns) {
-    const match = content.match(pattern);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[1] || match[0]);
-        if (parsed && typeof parsed === "object" && parsed.headline) {
-          console.log("Extracted directive from content text (fallback)");
-          // Ensure required fields have defaults
-          return {
-            headline: parsed.headline || "",
-            subcopy: parsed.subcopy || parsed.sub_copy || parsed.subheadline || "",
-            cta_text: parsed.cta_text || parsed.cta || "Learn More",
-            selected_assets: parsed.selected_assets || [],
-            color_usage: parsed.color_usage || {
-              background: "#FFFFFF",
-              headline_color: "#000000",
-              subcopy_color: "#333333",
-              cta_background: "#000000",
-              cta_text: "#FFFFFF",
-            },
-            concept_adaptation: parsed.concept_adaptation || "",
-            logo_treatment: parsed.logo_treatment || "",
-            compliance_notes: parsed.compliance_notes || "",
-          } as CreativeDirective;
-        }
-      } catch { /* continue */ }
+// Yield candidate JSON object substrings from `content`, in priority order:
+//   1. fenced ```json blocks (balanced inside the fence)
+//   2. balanced top-level { … } objects scanned from each `{`
+function* candidateJsonBlocks(content: string): Generator<string> {
+  // 1. Fenced blocks
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let m: RegExpExecArray | null;
+  while ((m = fenceRe.exec(content)) !== null) {
+    const inner = m[1];
+    const start = inner.indexOf("{");
+    if (start !== -1) {
+      const end = findBalancedBraceEnd(inner, start);
+      if (end !== -1) yield inner.slice(start, end);
+      else yield inner; // last-resort: try the whole fence body
     }
   }
 
-  // Try parsing entire content as JSON
-  try {
-    const parsed = JSON.parse(content);
-    if (parsed && typeof parsed === "object" && parsed.headline) {
-      return {
-        headline: parsed.headline || "",
-        subcopy: parsed.subcopy || parsed.sub_copy || "",
-        cta_text: parsed.cta_text || parsed.cta || "Learn More",
-        selected_assets: parsed.selected_assets || [],
-        color_usage: parsed.color_usage || {
-          background: "#FFFFFF",
-          headline_color: "#000000",
-          subcopy_color: "#333333",
-          cta_background: "#000000",
-          cta_text: "#FFFFFF",
-        },
-        concept_adaptation: parsed.concept_adaptation || "",
-        logo_treatment: parsed.logo_treatment || "",
-        compliance_notes: parsed.compliance_notes || "",
-      } as CreativeDirective;
+  // 2. Every "{" in the raw content — try balanced extraction.
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] !== "{") continue;
+    const end = findBalancedBraceEnd(content, i);
+    if (end !== -1) {
+      yield content.slice(i, end);
+      // skip past this object so we don't scan its inner braces redundantly
+      i = end - 1;
     }
+  }
+}
+
+// Extract a creative directive from plain-text/JSON content (Adapt step fallback).
+// Resilient to trailing markdown / prose after the JSON object — uses a
+// quote-aware balanced-brace scanner instead of a greedy regex.
+function extractDirectiveFromContent(content: string): CreativeDirective | null {
+  if (!content) return null;
+
+  const normalize = (parsed: any): CreativeDirective | null => {
+    if (!parsed || typeof parsed !== "object" || !parsed.headline) return null;
+    return {
+      headline: parsed.headline || "",
+      subcopy: parsed.subcopy || parsed.sub_copy || parsed.subheadline || "",
+      cta_text: parsed.cta_text || parsed.cta || "Learn More",
+      selected_assets: parsed.selected_assets || [],
+      color_usage: parsed.color_usage || {
+        background: "#FFFFFF",
+        headline_color: "#000000",
+        subcopy_color: "#333333",
+        cta_background: "#000000",
+        cta_text: "#FFFFFF",
+      },
+      concept_adaptation: parsed.concept_adaptation || "",
+      logo_treatment: parsed.logo_treatment || "",
+      compliance_notes: parsed.compliance_notes || "",
+    } as CreativeDirective;
+  };
+
+  for (const candidate of candidateJsonBlocks(content)) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const d = normalize(parsed);
+      if (d) {
+        console.log("Extracted directive via balanced-brace scan");
+        return d;
+      }
+    } catch { /* keep scanning */ }
+  }
+
+  // Last resort: try parsing the entire content
+  try {
+    const d = normalize(JSON.parse(content));
+    if (d) return d;
   } catch { /* not JSON */ }
 
   return null;
@@ -1462,6 +1497,20 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // If the client closes the tab/cancels the request mid-flight, mark the
+    // row as failed so it doesn't sit in "processing" forever.
+    if (generationId) {
+      req.signal.addEventListener("abort", () => {
+        console.warn("Client aborted — marking generation", generationId, "as failed");
+        supabase
+          .from("generations")
+          .update({ status: "failed" })
+          .eq("id", generationId)
+          .eq("status", "processing")
+          .then(() => {});
+      });
+    }
 
     // ── Credit check ──
     let generationUserId: string | null = null;

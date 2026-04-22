@@ -33,12 +33,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivityLog } from "@/hooks/useActivityLog";
 import { useState, useMemo } from "react";
+import { scoreBrandHealth } from "@/lib/brandHealth";
 
 export default function BrandHub() {
   const { user } = useAuth();
@@ -74,7 +75,22 @@ export default function BrandHub() {
     enabled: !!user,
   });
 
-  // Initialize expanded state for groups
+  // Per-brand asset counts for the Brand Health chip on each card.
+  const { data: assetCounts = {} } = useQuery<Record<string, { total: number; tagged: number }>>({
+    queryKey: ["brand-asset-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("brand_assets").select("brand_id, label");
+      if (error) throw error;
+      const counts: Record<string, { total: number; tagged: number }> = {};
+      for (const a of (data || []) as { brand_id: string; label: string | null }[]) {
+        if (!counts[a.brand_id]) counts[a.brand_id] = { total: 0, tagged: 0 };
+        counts[a.brand_id].total++;
+        if (a.label && a.label !== "Other:") counts[a.brand_id].tagged++;
+      }
+      return counts;
+    },
+    enabled: !!user,
+  });
   useMemo(() => {
     if (groups.length > 0 && Object.keys(expandedGroups).length === 0) {
       const initial: Record<string, boolean> = {};
@@ -263,6 +279,30 @@ export default function BrandHub() {
         </div>
 
         <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{brand.brand_voice_rules || "No voice rules set"}</p>
+
+        {(() => {
+          const counts = assetCounts[brand.id] || { total: 0, tagged: 0 };
+          const h = scoreBrandHealth({
+            hasLogo: !!brand.logo_url,
+            taggedAssetCount: counts.tagged,
+            briefIdentity: brand.brand_brief || "",
+            briefVisual: brand.brand_brief || "",
+            voiceRules: brand.brand_voice_rules || "",
+            visualNevers: brand.negative_prompts || "",
+            contentNevers: brand.negative_prompts || "",
+            industry: (brand as any).industry || null,
+          });
+          return (
+            <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+              h.color === "success" ? "border-success/40 bg-success/10 text-success" :
+              h.color === "warning" ? "border-warning/40 bg-warning/10 text-warning" :
+              "border-destructive/40 bg-destructive/10 text-destructive"
+            }`}>
+              <Sparkles className="h-2.5 w-2.5" />
+              Health {h.score} · {h.label}
+            </div>
+          );
+        })()}
 
         <Button variant="outline" size="sm" className="w-full mt-4 rounded-xl text-xs" onClick={() => navigate(`/brands/${brand.id}/edit`)}>
           <Pencil className="h-3 w-3 mr-1.5" /> Edit Brand

@@ -150,18 +150,20 @@ export default function Studio() {
       }
     } catch {}
 
-    // Pre-flight: check brand data quality (warn only, don't block)
+    // Pre-flight: brand quality (BEFORE committing to generating state, so the
+    // user can still bail and fix the brand without losing context).
     try {
       const selectedBrandData = brands.find((b) => b.id === selectedBrandId);
       const { count: assetCount } = await supabase
         .from("brand_assets")
         .select("id", { count: "exact", head: true })
         .eq("brand_id", selectedBrandId);
-      if (assetCount === 0) {
-        toast.warning("This brand has no assets uploaded — results may be limited.");
-      }
-      if (!selectedBrandData?.brand_brief) {
-        toast.warning("This brand has no brief — adding one improves results significantly.");
+      const sparse = (assetCount ?? 0) === 0 || !selectedBrandData?.brand_brief;
+      if (sparse) {
+        const proceed = window.confirm(
+          `This brand looks sparse (${assetCount ?? 0} assets, ${selectedBrandData?.brand_brief ? "brief set" : "no brief"}). Results may be limited.\n\nGenerate anyway?`
+        );
+        if (!proceed) return;
       }
     } catch {}
 
