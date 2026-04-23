@@ -112,8 +112,6 @@ export function markActive(userId: string) {
  * unrecoverable (refresh token revoked / user deleted / etc.) — in which case
  * the caller should fall back to the login flow.
  */
-import { supabase } from "@/integrations/supabase/client";
-import type { Session as SupabaseSession } from "@supabase/supabase-js";
 
 const ACCESS_TOKEN_SAFETY_WINDOW_SEC = 60; // refresh if <60s left
 
