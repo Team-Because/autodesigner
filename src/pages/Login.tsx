@@ -73,6 +73,7 @@ export default function Login() {
         username: profile?.username || usernameGuess,
         displayName: profile?.display_name || undefined,
       });
+      navigate("/", { replace: true });
     }
   };
 
