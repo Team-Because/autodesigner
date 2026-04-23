@@ -47,7 +47,12 @@ export default function Dashboard() {
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("brands").select("id, name").order("name");
+      // Active brands only — archived ones are hidden from dashboard counts.
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, name")
+        .eq("archived", false)
+        .order("name");
       if (error) throw error;
       return data;
     },

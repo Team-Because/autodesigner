@@ -33,7 +33,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,7 +53,9 @@ export default function BrandHub() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "brand" | "group" } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "group" } | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands", user?.id],
@@ -103,13 +105,24 @@ export default function BrandHub() {
     setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    const { error } = await supabase.from("brands").delete().eq("id", id);
+  const handleArchive = async (id: string, name: string) => {
+    const { error } = await supabase.from("brands").update({ archived: true }).eq("id", id);
     if (error) {
-      toast.error("Failed to delete brand.");
+      toast.error("Failed to archive brand.");
     } else {
-      toast.success(`"${name}" has been deleted.`);
-      log("brand.deleted", "brand", id, { name });
+      toast.success(`"${name}" archived. Generation history is preserved.`);
+      log("brand.archived", "brand", id, { name });
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    }
+  };
+
+  const handleUnarchive = async (id: string, name: string) => {
+    const { error } = await supabase.from("brands").update({ archived: false }).eq("id", id);
+    if (error) {
+      toast.error("Failed to restore brand.");
+    } else {
+      toast.success(`"${name}" restored.`);
+      log("brand.unarchived", "brand", id, { name });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
     }
   };
@@ -212,10 +225,17 @@ export default function BrandHub() {
   };
 
   const filteredBrands = useMemo(() => {
-    if (!searchQuery.trim()) return brands;
+    // Hide archived brands unless the user explicitly opts in.
+    const visible = brands.filter((b) => showArchived ? (b as any).archived : !(b as any).archived);
+    if (!searchQuery.trim()) return visible;
     const q = searchQuery.toLowerCase();
-    return brands.filter((b) => b.name.toLowerCase().includes(q));
-  }, [brands, searchQuery]);
+    return visible.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, searchQuery, showArchived]);
+
+  const archivedCount = useMemo(
+    () => brands.filter((b) => (b as any).archived).length,
+    [brands]
+  );
 
   const ungroupedBrands = filteredBrands.filter((b) => !b.campaign_id);
   const groupedBrands = groups.map((g) => ({
@@ -239,7 +259,14 @@ export default function BrandHub() {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-semibold text-sm text-foreground truncate">{brand.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-display font-semibold text-sm text-foreground truncate">{brand.name}</h3>
+              {(brand as any).archived && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground border border-border shrink-0">
+                  <Archive className="h-2.5 w-2.5" /> Archived
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 mt-1.5">
               <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.primary_color }} />
               <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.secondary_color }} />
@@ -271,9 +298,15 @@ export default function BrandHub() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={() => setDeleteConfirm({ id: brand.id, name: brand.name, type: "brand" })} className="text-destructive focus:text-destructive gap-2">
-                <Trash2 className="h-3.5 w-3.5" /> Delete
-              </DropdownMenuItem>
+              {(brand as any).archived ? (
+                <DropdownMenuItem onClick={() => handleUnarchive(brand.id, brand.name)} className="gap-2">
+                  <ArchiveRestore className="h-3.5 w-3.5" /> Restore brand
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
+                  <Archive className="h-3.5 w-3.5" /> Archive
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -319,7 +352,7 @@ export default function BrandHub() {
           <h1 className="text-2xl font-display font-bold text-foreground">Brands</h1>
           <p className="text-muted-foreground mt-1">Manage your brand profiles and visual identities.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -329,6 +362,18 @@ export default function BrandHub() {
               className="pl-8 h-9 w-48 rounded-xl text-sm"
             />
           </div>
+          {(showArchived || archivedCount > 0) && (
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived((s) => !s)}
+              className="gap-1.5 rounded-xl"
+              title={showArchived ? "Show active brands" : "Show archived brands"}
+            >
+              {showArchived ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showArchived ? "Active" : `Archived (${archivedCount})`}
+            </Button>
+          )}
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
@@ -474,20 +519,52 @@ export default function BrandHub() {
               </CardContent>
             </Card>
           )}
+
+          {brands.length > 0 && filteredBrands.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center text-muted-foreground">
+                {showArchived
+                  ? "No archived brands."
+                  : searchQuery.trim()
+                  ? `No active brands matching "${searchQuery}".`
+                  : "All your brands are archived. Toggle 'Archived' above to view them."}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
 
+    <AlertDialog open={!!archiveConfirm} onOpenChange={(open) => !open && setArchiveConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Archive brand?</AlertDialogTitle>
+          <AlertDialogDescription>
+            "{archiveConfirm?.name}" will be hidden from your active brand lists, but its
+            generation history will be preserved. You can restore it anytime from the
+            Archived view.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (archiveConfirm) handleArchive(archiveConfirm.id, archiveConfirm.name);
+              setArchiveConfirm(null);
+            }}
+          >
+            Archive
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            Delete {deleteConfirm?.type === "brand" ? "Brand" : "Group"}?
-          </AlertDialogTitle>
+          <AlertDialogTitle>Delete Group?</AlertDialogTitle>
           <AlertDialogDescription>
-            {deleteConfirm?.type === "brand"
-              ? `This will permanently delete "${deleteConfirm?.name}" and all its assets. This action cannot be undone.`
-              : `This will delete the group "${deleteConfirm?.name}". Brands inside will be ungrouped but not deleted.`}
+            This will delete the group "{deleteConfirm?.name}". Brands inside will be ungrouped but not deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -495,11 +572,7 @@ export default function BrandHub() {
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => {
-              if (deleteConfirm?.type === "brand") {
-                handleDelete(deleteConfirm.id, deleteConfirm.name);
-              } else if (deleteConfirm) {
-                handleDeleteGroup(deleteConfirm.id, deleteConfirm.name);
-              }
+              if (deleteConfirm) handleDeleteGroup(deleteConfirm.id, deleteConfirm.name);
               setDeleteConfirm(null);
             }}
           >
