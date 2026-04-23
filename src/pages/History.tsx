@@ -39,7 +39,7 @@ export default function History() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: brands = [] } = useQuery({
-    queryKey: ["brands"],
+    queryKey: ["brands", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("brands").select("id, name").order("name");
       return data ?? [];
@@ -48,7 +48,7 @@ export default function History() {
   });
 
   const { data: generations = [], isLoading } = useQuery({
-    queryKey: ["generations"],
+    queryKey: ["generations", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("generations")
