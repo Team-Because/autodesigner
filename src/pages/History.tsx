@@ -147,7 +147,9 @@ export default function History() {
           <SelectContent>
             <SelectItem value="all">All Brands</SelectItem>
             {brands.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}{b.archived ? " (archived)" : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
