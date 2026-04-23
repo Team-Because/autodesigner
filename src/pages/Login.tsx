@@ -55,7 +55,9 @@ export default function Login() {
       return;
     }
 
-    // Persist this session into the multi-account vault
+    // Persist this session into the multi-account vault.
+    // (Supabase storage now holds this session as the active one; previous
+    // accounts remain available via the vault for instant switching.)
     if (data.session) {
       const usernameGuess = email.trim().includes("@")
         ? email.trim().split("@")[0]
