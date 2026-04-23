@@ -7,6 +7,8 @@ type Action =
   | "brand.created"
   | "brand.updated"
   | "brand.deleted"
+  | "brand.archived"
+  | "brand.unarchived"
   | "brand.duplicated"
   | "brand.transferred"
   | "group.created"
