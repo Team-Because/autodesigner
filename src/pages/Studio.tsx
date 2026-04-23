@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ActiveAccountBadge } from "@/components/ActiveAccountBadge";
 
 type StudioState = "idle" | "generating" | "complete";
 type OutputFormat = "landscape" | "square" | "story" | "portrait";
@@ -351,8 +352,13 @@ export default function Studio() {
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto" onPaste={handlePaste} tabIndex={-1}>
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground">The Magic</h1>
-        <p className="text-muted-foreground mt-1">Select a brand, upload a reference ad, and get a brand-aligned creative instantly.</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-foreground">The Magic</h1>
+            <p className="text-muted-foreground mt-1">Select a brand, upload a reference ad, and get a brand-aligned creative instantly.</p>
+          </div>
+          <ActiveAccountBadge variant="full" />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

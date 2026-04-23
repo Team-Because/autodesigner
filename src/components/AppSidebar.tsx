@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { listAccounts, markActive, removeAccount, activateVaultedAccount, type VaultedAccount } from "@/lib/accountVault";
+import { ActiveAccountBadge } from "@/components/ActiveAccountBadge";
 
 const userItems = [
   { title: "The Magic", url: "/", icon: Sparkles },
@@ -120,6 +121,11 @@ export function AppSidebar() {
             </span>
           )}
         </div>
+        {!collapsed && (
+          <div className="mt-3">
+            <ActiveAccountBadge variant="compact" />
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent className="px-3">
