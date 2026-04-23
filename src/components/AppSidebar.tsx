@@ -101,8 +101,9 @@ export function AppSidebar() {
     const result = await signOut();
     queryClient.clear();
     setVaulted(listAccounts());
-    if (result?.switchedTo) {
-      toast.success(`Signed out. Now using ${result.switchedTo}`);
+    const switchedTo = result && "switchedTo" in result ? result.switchedTo : undefined;
+    if (switchedTo) {
+      toast.success(`Signed out. Now using ${switchedTo}`);
       navigate("/");
     } else {
       navigate("/login");
