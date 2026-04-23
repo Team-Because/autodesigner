@@ -33,7 +33,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,7 +53,9 @@ export default function BrandHub() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "brand" | "group" } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "group" } | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands", user?.id],
@@ -103,13 +105,24 @@ export default function BrandHub() {
     setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    const { error } = await supabase.from("brands").delete().eq("id", id);
+  const handleArchive = async (id: string, name: string) => {
+    const { error } = await supabase.from("brands").update({ archived: true }).eq("id", id);
     if (error) {
-      toast.error("Failed to delete brand.");
+      toast.error("Failed to archive brand.");
     } else {
-      toast.success(`"${name}" has been deleted.`);
-      log("brand.deleted", "brand", id, { name });
+      toast.success(`"${name}" archived. Generation history is preserved.`);
+      log("brand.archived", "brand", id, { name });
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    }
+  };
+
+  const handleUnarchive = async (id: string, name: string) => {
+    const { error } = await supabase.from("brands").update({ archived: false }).eq("id", id);
+    if (error) {
+      toast.error("Failed to restore brand.");
+    } else {
+      toast.success(`"${name}" restored.`);
+      log("brand.unarchived", "brand", id, { name });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
     }
   };
