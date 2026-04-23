@@ -352,7 +352,7 @@ export default function BrandHub() {
           <h1 className="text-2xl font-display font-bold text-foreground">Brands</h1>
           <p className="text-muted-foreground mt-1">Manage your brand profiles and visual identities.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -362,6 +362,18 @@ export default function BrandHub() {
               className="pl-8 h-9 w-48 rounded-xl text-sm"
             />
           </div>
+          {(showArchived || archivedCount > 0) && (
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived((s) => !s)}
+              className="gap-1.5 rounded-xl"
+              title={showArchived ? "Show active brands" : "Show archived brands"}
+            >
+              {showArchived ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showArchived ? "Active" : `Archived (${archivedCount})`}
+            </Button>
+          )}
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
@@ -511,16 +523,36 @@ export default function BrandHub() {
       )}
     </div>
 
+    <AlertDialog open={!!archiveConfirm} onOpenChange={(open) => !open && setArchiveConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Archive brand?</AlertDialogTitle>
+          <AlertDialogDescription>
+            "{archiveConfirm?.name}" will be hidden from your active brand lists, but its
+            generation history will be preserved. You can restore it anytime from the
+            Archived view.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (archiveConfirm) handleArchive(archiveConfirm.id, archiveConfirm.name);
+              setArchiveConfirm(null);
+            }}
+          >
+            Archive
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            Delete {deleteConfirm?.type === "brand" ? "Brand" : "Group"}?
-          </AlertDialogTitle>
+          <AlertDialogTitle>Delete Group?</AlertDialogTitle>
           <AlertDialogDescription>
-            {deleteConfirm?.type === "brand"
-              ? `This will permanently delete "${deleteConfirm?.name}" and all its assets. This action cannot be undone.`
-              : `This will delete the group "${deleteConfirm?.name}". Brands inside will be ungrouped but not deleted.`}
+            This will delete the group "{deleteConfirm?.name}". Brands inside will be ungrouped but not deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -528,11 +560,7 @@ export default function BrandHub() {
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={() => {
-              if (deleteConfirm?.type === "brand") {
-                handleDelete(deleteConfirm.id, deleteConfirm.name);
-              } else if (deleteConfirm) {
-                handleDeleteGroup(deleteConfirm.id, deleteConfirm.name);
-              }
+              if (deleteConfirm) handleDeleteGroup(deleteConfirm.id, deleteConfirm.name);
               setDeleteConfirm(null);
             }}
           >
