@@ -519,6 +519,18 @@ export default function BrandHub() {
               </CardContent>
             </Card>
           )}
+
+          {brands.length > 0 && filteredBrands.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center text-muted-foreground">
+                {showArchived
+                  ? "No archived brands."
+                  : searchQuery.trim()
+                  ? `No active brands matching "${searchQuery}".`
+                  : "All your brands are archived. Toggle 'Archived' above to view them."}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

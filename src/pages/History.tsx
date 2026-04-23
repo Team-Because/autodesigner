@@ -38,11 +38,14 @@ export default function History() {
   const [selectedGeneration, setSelectedGeneration] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Load ALL brands (including archived) so generations from archived brands
+  // still display their brand name. The filter dropdown also shows archived
+  // brands — they get a small "(archived)" suffix for clarity.
   const { data: brands = [] } = useQuery({
-    queryKey: ["brands", user?.id],
+    queryKey: ["brands-with-archived", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("brands").select("id, name").order("name");
-      return data ?? [];
+      const { data } = await supabase.from("brands").select("id, name, archived").order("name");
+      return (data ?? []) as { id: string; name: string; archived: boolean }[];
     },
     enabled: !!user,
   });

@@ -66,7 +66,12 @@ export default function Studio() {
   const { data: brands = [] } = useQuery({
     queryKey: ["brands", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("brands").select("*").order("name");
+      // Exclude archived brands from the studio picker — they're soft-deleted.
+      const { data, error } = await supabase
+        .from("brands")
+        .select("*")
+        .eq("archived", false)
+        .order("name");
       if (error) throw error;
       return data;
     },
