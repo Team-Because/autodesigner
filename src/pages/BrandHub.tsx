@@ -225,10 +225,17 @@ export default function BrandHub() {
   };
 
   const filteredBrands = useMemo(() => {
-    if (!searchQuery.trim()) return brands;
+    // Hide archived brands unless the user explicitly opts in.
+    const visible = brands.filter((b) => showArchived ? (b as any).archived : !(b as any).archived);
+    if (!searchQuery.trim()) return visible;
     const q = searchQuery.toLowerCase();
-    return brands.filter((b) => b.name.toLowerCase().includes(q));
-  }, [brands, searchQuery]);
+    return visible.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, searchQuery, showArchived]);
+
+  const archivedCount = useMemo(
+    () => brands.filter((b) => (b as any).archived).length,
+    [brands]
+  );
 
   const ungroupedBrands = filteredBrands.filter((b) => !b.campaign_id);
   const groupedBrands = groups.map((g) => ({
@@ -252,7 +259,14 @@ export default function BrandHub() {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-semibold text-sm text-foreground truncate">{brand.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-display font-semibold text-sm text-foreground truncate">{brand.name}</h3>
+              {(brand as any).archived && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground border border-border shrink-0">
+                  <Archive className="h-2.5 w-2.5" /> Archived
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 mt-1.5">
               <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.primary_color }} />
               <div className="h-3.5 w-3.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: brand.secondary_color }} />
@@ -284,9 +298,15 @@ export default function BrandHub() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={() => setDeleteConfirm({ id: brand.id, name: brand.name, type: "brand" })} className="text-destructive focus:text-destructive gap-2">
-                <Trash2 className="h-3.5 w-3.5" /> Delete
-              </DropdownMenuItem>
+              {(brand as any).archived ? (
+                <DropdownMenuItem onClick={() => handleUnarchive(brand.id, brand.name)} className="gap-2">
+                  <ArchiveRestore className="h-3.5 w-3.5" /> Restore brand
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
+                  <Archive className="h-3.5 w-3.5" /> Archive
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
