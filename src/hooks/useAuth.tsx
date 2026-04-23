@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { refreshActiveTokens, removeAccount, listAccounts, activateVaultedAccount } from "@/lib/accountVault";
 
 interface AuthContextType {
@@ -21,6 +22,10 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  // Tracks the last user.id we observed so we can detect actual account swaps
+  // (vs. token refreshes for the same account, which must NOT clear the cache).
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let initialized = false;
@@ -31,6 +36,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session && (event === "TOKEN_REFRESHED" || event === "SIGNED_IN" || event === "USER_UPDATED")) {
         refreshActiveTokens(session);
       }
+
+      // Detect a real account change and wipe the per-user query cache so we
+      // never render brands/history from the previous account, even briefly.
+      const newUserId = session?.user.id ?? null;
+      if (lastUserIdRef.current !== null && newUserId !== lastUserIdRef.current) {
+        queryClient.clear();
+      }
+      lastUserIdRef.current = newUserId;
+
       if (initialized) {
         setSession(session);
         setLoading(false);
@@ -40,12 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Then get the persisted session
     supabase.auth.getSession().then(({ data: { session } }) => {
       initialized = true;
+      lastUserIdRef.current = session?.user.id ?? null;
       setSession(session);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   const signOut = async () => {
     const currentUserId = session?.user.id;
