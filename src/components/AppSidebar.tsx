@@ -28,7 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { listAccounts, markActive, removeAccount, type VaultedAccount } from "@/lib/accountVault";
+import { listAccounts, markActive, removeAccount, activateVaultedAccount, type VaultedAccount } from "@/lib/accountVault";
 
 const userItems = [
   { title: "The Magic", url: "/", icon: Sparkles },
@@ -78,21 +78,18 @@ export function AppSidebar() {
    * Uses supabase.auth.setSession to swap tokens in place.
    */
   const handleSwitchAccount = async (account: VaultedAccount) => {
-    const { data, error } = await supabase.auth.setSession({
-      access_token: account.accessToken,
-      refresh_token: account.refreshToken,
-    });
-    if (error || !data.session) {
-      // Stored tokens are stale — drop this entry and ask the user to log in again
+    const session = await activateVaultedAccount(account);
+    if (!session) {
+      // Refresh token is no longer valid (revoked / user deleted / >30d idle)
       removeAccount(account.userId);
       setVaulted(listAccounts());
       toast.error(`Session for ${account.username} expired. Please sign in again.`);
-      navigate(`/login?username=${encodeURIComponent(account.username)}`);
+      navigate(`/login?username=${encodeURIComponent(account.username)}&add=1`);
       return;
     }
-    markActive(account.userId);
     // Reset cached queries so each account sees its own data
     queryClient.clear();
+    setVaulted(listAccounts());
     toast.success(`Switched to ${account.username}`);
     navigate("/");
   };

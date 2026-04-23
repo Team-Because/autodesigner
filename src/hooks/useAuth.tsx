@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
-import { refreshActiveTokens, removeAccount, listAccounts } from "@/lib/accountVault";
+import { refreshActiveTokens, removeAccount, listAccounts, activateVaultedAccount } from "@/lib/accountVault";
 
 interface AuthContextType {
   session: Session | null;
@@ -52,18 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Remove this account from the vault first
     if (currentUserId) removeAccount(currentUserId);
 
-    // If another account is vaulted, swap to it without bouncing through /login
+    // If another account is vaulted, swap to it without bouncing through /login.
+    // Walk the list so an expired/revoked entry doesn't block the next valid one.
     const remaining = listAccounts().filter((a) => a.userId !== currentUserId);
-    if (remaining.length > 0) {
-      const next = remaining[0];
-      const { data, error } = await supabase.auth.setSession({
-        access_token: next.accessToken,
-        refresh_token: next.refreshToken,
-      });
-      if (!error && data.session) {
+    for (const next of remaining) {
+      const swapped = await activateVaultedAccount(next);
+      if (swapped) {
         return { switchedTo: next.username };
       }
-      // Fall through to a hard sign-out if the stored session is no longer valid
+      // This vaulted entry is unrecoverable — drop it and try the next
       removeAccount(next.userId);
     }
 
