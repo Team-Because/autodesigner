@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
+import { refreshActiveTokens, removeAccount, listAccounts } from "@/lib/accountVault";
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  /** Sign out the currently active account; auto-switches to the next vaulted account if any. */
+  signOut: () => Promise<{ switchedTo?: string } | void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,8 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let initialized = false;
 
     // Set up listener FIRST (per Supabase best practices)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Only update after initial getSession has resolved
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Keep the vault in sync whenever Supabase rotates tokens for the active session
+      if (session && (event === "TOKEN_REFRESHED" || event === "SIGNED_IN" || event === "USER_UPDATED")) {
+        refreshActiveTokens(session);
+      }
       if (initialized) {
         setSession(session);
         setLoading(false);
@@ -43,6 +48,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    const currentUserId = session?.user.id;
+    // Remove this account from the vault first
+    if (currentUserId) removeAccount(currentUserId);
+
+    // If another account is vaulted, swap to it without bouncing through /login
+    const remaining = listAccounts().filter((a) => a.userId !== currentUserId);
+    if (remaining.length > 0) {
+      const next = remaining[0];
+      const { data, error } = await supabase.auth.setSession({
+        access_token: next.accessToken,
+        refresh_token: next.refreshToken,
+      });
+      if (!error && data.session) {
+        return { switchedTo: next.username };
+      }
+      // Fall through to a hard sign-out if the stored session is no longer valid
+      removeAccount(next.userId);
+    }
+
     await supabase.auth.signOut();
   };
 
