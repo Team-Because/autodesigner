@@ -56,7 +56,7 @@ export default function BrandHub() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "brand" | "group" } | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
-    queryKey: ["brands"],
+    queryKey: ["brands", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("brands").select("*").order("created_at", { ascending: false });
       if (error) throw error;
@@ -66,7 +66,7 @@ export default function BrandHub() {
   });
 
   const { data: groups = [], isLoading: groupsLoading } = useQuery({
-    queryKey: ["campaigns"],
+    queryKey: ["campaigns", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("campaigns").select("*").order("name", { ascending: true });
       if (error) throw error;
@@ -77,7 +77,7 @@ export default function BrandHub() {
 
   // Per-brand asset counts for the Brand Health chip on each card.
   const { data: assetCounts = {} } = useQuery<Record<string, { total: number; tagged: number }>>({
-    queryKey: ["brand-asset-counts"],
+    queryKey: ["brand-asset-counts", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("brand_assets").select("brand_id, label");
       if (error) throw error;

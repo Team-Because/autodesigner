@@ -27,7 +27,7 @@ export default function Dashboard() {
   };
 
   const { data: profile } = useQuery({
-    queryKey: ["my-profile"],
+    queryKey: ["my-profile", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("profiles").select("*").eq("user_id", user!.id).single();
       return data;
@@ -36,7 +36,7 @@ export default function Dashboard() {
   });
 
   const { data: credits, isLoading: creditsLoading } = useQuery({
-    queryKey: ["my-credits"],
+    queryKey: ["my-credits", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("user_credits").select("*").eq("user_id", user!.id).single();
       return data;
@@ -45,7 +45,7 @@ export default function Dashboard() {
   });
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
-    queryKey: ["brands"],
+    queryKey: ["brands", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("brands").select("id, name").order("name");
       if (error) throw error;
@@ -55,7 +55,7 @@ export default function Dashboard() {
   });
 
   const { data: generations = [], isLoading: gensLoading } = useQuery({
-    queryKey: ["generations"],
+    queryKey: ["generations", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("generations")

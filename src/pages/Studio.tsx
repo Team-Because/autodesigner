@@ -63,7 +63,7 @@ export default function Studio() {
   const queryClient = useQueryClient();
 
   const { data: brands = [] } = useQuery({
-    queryKey: ["brands"],
+    queryKey: ["brands", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("brands").select("*").order("name");
       if (error) throw error;
@@ -73,7 +73,7 @@ export default function Studio() {
   });
 
   const { data: groups = [] } = useQuery({
-    queryKey: ["campaigns"],
+    queryKey: ["campaigns", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("campaigns").select("*").order("name");
       if (error) throw error;

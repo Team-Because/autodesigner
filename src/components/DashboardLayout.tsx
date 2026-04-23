@@ -31,7 +31,7 @@ export function DashboardLayout() {
   const pageTitle = getPageTitle(location.pathname);
 
   const { data: credits } = useQuery({
-    queryKey: ["my-credits"],
+    queryKey: ["my-credits", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_credits")
