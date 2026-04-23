@@ -1,5 +1,7 @@
-import type { Session, Session as SupabaseSession } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+
+type SupabaseSession = Session;
 
 /**
  * Multi-account session vault.
