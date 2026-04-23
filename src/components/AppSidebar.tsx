@@ -1,8 +1,8 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, Activity, Shield, ChevronDown, UserCircle, BookOpen } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, Activity, Shield, ChevronDown, UserCircle, BookOpen, Plus } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { listAccounts, markActive, removeAccount, type VaultedAccount } from "@/lib/accountVault";
 
 const userItems = [
   { title: "The Magic", url: "/", icon: Sparkles },
@@ -44,30 +46,17 @@ const adminItems = [
   { title: "Activity Logs", url: "/admin/logs", icon: Activity },
 ];
 
-function getRecentUsernames(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem("mma-recent-usernames") || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function addRecentUsername(username: string) {
-  const list = getRecentUsernames().filter((u) => u !== username);
-  list.unshift(username);
-  localStorage.setItem("mma-recent-usernames", JSON.stringify(list.slice(0, 5)));
-}
-
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
   const { isAdmin } = useIsAdmin();
   const navigate = useNavigate();
-  const [recentUsernames, setRecentUsernames] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+  const [vaulted, setVaulted] = useState<VaultedAccount[]>([]);
 
   const { data: profile } = useQuery({
-    queryKey: ["my-profile"],
+    queryKey: ["my-profile", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("profiles").select("display_name, username").eq("user_id", user!.id).single();
       return data;
@@ -78,19 +67,50 @@ export function AppSidebar() {
   const displayName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "";
   const currentUsername = profile?.username || user?.email?.split("@")[0] || "";
 
+  // Refresh vault list whenever the active user changes
   useEffect(() => {
-    if (currentUsername) {
-      addRecentUsername(currentUsername);
-      setRecentUsernames(getRecentUsernames());
-    }
-  }, [currentUsername]);
+    if (user?.id) markActive(user.id);
+    setVaulted(listAccounts());
+  }, [user?.id]);
 
-  const handleSwitchAccount = async (username: string) => {
-    await signOut();
-    navigate(`/login?username=${encodeURIComponent(username)}`);
+  /**
+   * Switch to another vaulted account WITHOUT signing out the current one.
+   * Uses supabase.auth.setSession to swap tokens in place.
+   */
+  const handleSwitchAccount = async (account: VaultedAccount) => {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: account.accessToken,
+      refresh_token: account.refreshToken,
+    });
+    if (error || !data.session) {
+      // Stored tokens are stale — drop this entry and ask the user to log in again
+      removeAccount(account.userId);
+      setVaulted(listAccounts());
+      toast.error(`Session for ${account.username} expired. Please sign in again.`);
+      navigate(`/login?username=${encodeURIComponent(account.username)}`);
+      return;
+    }
+    markActive(account.userId);
+    // Reset cached queries so each account sees its own data
+    queryClient.clear();
+    toast.success(`Switched to ${account.username}`);
+    navigate("/");
   };
 
-  const otherAccounts = recentUsernames.filter((u) => u !== currentUsername);
+  const handleSignOut = async () => {
+    const result = await signOut();
+    queryClient.clear();
+    setVaulted(listAccounts());
+    const switchedTo = result && "switchedTo" in result ? result.switchedTo : undefined;
+    if (switchedTo) {
+      toast.success(`Signed out. Now using ${switchedTo}`);
+      navigate("/");
+    } else {
+      navigate("/login");
+    }
+  };
+
+  const otherAccounts = vaulted.filter((a) => a.userId !== user?.id);
 
   return (
     <Sidebar collapsible="icon">
@@ -181,39 +201,42 @@ export function AppSidebar() {
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="start" className="w-64">
               {otherAccounts.length > 0 && (
                 <>
                   <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Switch Account
                   </p>
-                  {otherAccounts.map((username) => (
+                  {otherAccounts.map((account) => (
                     <DropdownMenuItem
-                      key={username}
-                      onClick={() => handleSwitchAccount(username)}
+                      key={account.userId}
+                      onClick={() => handleSwitchAccount(account)}
                       className="gap-2"
                     >
-                      <UserCircle className="h-3.5 w-3.5" />
-                      {username}
+                      <UserCircle className="h-3.5 w-3.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{account.displayName || account.username}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{account.username}</p>
+                      </div>
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                 </>
               )}
               <DropdownMenuItem
-                onClick={() => { signOut(); navigate("/login"); }}
+                onClick={() => navigate("/login?add=1")}
                 className="gap-2"
               >
-                <UserCircle className="h-3.5 w-3.5" />
-                Sign in as different account
+                <Plus className="h-3.5 w-3.5" />
+                Add another account
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={signOut}
+                onClick={handleSignOut}
                 className="gap-2 text-destructive focus:text-destructive"
               >
                 <LogOut className="h-3.5 w-3.5" />
-                Sign Out
+                {otherAccounts.length > 0 ? `Sign out ${currentUsername}` : "Sign Out"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -222,7 +245,7 @@ export function AppSidebar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={signOut}
+            onClick={handleSignOut}
             className="w-full justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             <LogOut className="h-4 w-4 shrink-0" />

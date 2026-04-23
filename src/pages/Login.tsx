@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { upsertAccount } from "@/lib/accountVault";
 
 export default function Login() {
   const { session, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // `add=1` indicates we're stacking another account on top of an existing session
+  const isAddingAccount = searchParams.get("add") === "1";
 
   // Pre-fill username from URL param (for account switching)
   useEffect(() => {
@@ -22,7 +27,8 @@ export default function Login() {
     if (username) setEmail(username);
   }, [searchParams]);
 
-  if (!authLoading && session) {
+  // If already signed in and we're NOT trying to add another account, bounce home
+  if (!authLoading && session && !isAddingAccount) {
     return <Navigate to="/" replace />;
   }
 
@@ -39,7 +45,7 @@ export default function Login() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password,
     });
@@ -47,6 +53,27 @@ export default function Login() {
 
     if (error) {
       toast.error(error.message || "Login failed. Please check your credentials.");
+      return;
+    }
+
+    // Persist this session into the multi-account vault.
+    // (Supabase storage now holds this session as the active one; previous
+    // accounts remain available via the vault for instant switching.)
+    if (data.session) {
+      const usernameGuess = email.trim().includes("@")
+        ? email.trim().split("@")[0]
+        : email.trim();
+      // Best-effort enrichment from profiles (non-blocking)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, display_name")
+        .eq("user_id", data.session.user.id)
+        .maybeSingle();
+      upsertAccount(data.session, {
+        username: profile?.username || usernameGuess,
+        displayName: profile?.display_name || undefined,
+      });
+      navigate("/", { replace: true });
     }
   };
 
@@ -65,7 +92,11 @@ export default function Login() {
             <img src="/logo-icon.png" alt="MakeMyAd" className="h-11 w-11 rounded-2xl object-contain" />
             <span className="font-display font-bold text-2xl text-foreground tracking-tight">MakeMyAd</span>
           </div>
-          <p className="text-sm text-muted-foreground text-center">Sign in with your account credentials.</p>
+          <p className="text-sm text-muted-foreground text-center">
+            {isAddingAccount
+              ? "Add another account. Your existing session stays signed in."
+              : "Sign in with your account credentials."}
+          </p>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
@@ -99,7 +130,7 @@ export default function Login() {
               className="w-full h-11 text-sm font-semibold rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground"
               disabled={loading}
             >
-              {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...</> : "Sign In"}
+              {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in...</> : isAddingAccount ? "Add Account" : "Sign In"}
             </Button>
           </form>
 
