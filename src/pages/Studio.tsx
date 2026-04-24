@@ -263,17 +263,43 @@ export default function Studio() {
         // Use a 3-minute timeout — generation can take 30-90 seconds
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), 180000);
-        let response;
+        let response: any = null;
+        let invokeThrew: any = null;
         try {
           response = await supabase.functions.invoke("generate-creative", {
             body: { brandId: selectedBrandId, referenceImageUrl: refUrlData.publicUrl, generationId: gen.id, outputFormat },
             signal: abortController.signal as AbortSignal,
           });
+        } catch (e) {
+          // Network-level failure (abort, fetch error, gateway disconnect).
+          // Don't error out yet — the function may have finished server-side.
+          invokeThrew = e;
         } finally {
           clearTimeout(timeoutId);
         }
         fnData = response?.data ?? null;
-        fnError = response?.error ?? null;
+        fnError = response?.error ?? invokeThrew ?? null;
+
+        // If the invoke errored or threw, the edge function may still have
+        // completed and updated the row. Poll for the server-side result
+        // before treating this as a failure.
+        if ((fnError || !fnData) && !fnData?.imageUrl) {
+          setProgressPhase("Network blip — checking if your creative is ready...");
+          const recovered = await waitForServerSideResult(60000, 2000);
+          if (recovered && recovered !== "failed") {
+            fnData = recovered;
+            fnError = null;
+            invokeErrorMessage = "";
+            break;
+          }
+          if (recovered === "failed") {
+            // Server confirmed failure — no point retrying.
+            invokeErrorMessage = (fnError as any)?.message || "Generation failed";
+            break;
+          }
+          // recovered === null → still processing or row not visible.
+          // Fall through to existing retry logic below.
+        }
 
         const fallbackPayload =
           fnData && typeof fnData === "object" && fnData.fallback ? fnData : null;
