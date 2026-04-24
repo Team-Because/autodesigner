@@ -504,130 +504,15 @@ export default function BrandForm() {
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
 
-      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} defaultOpen={!isEditing} />
       <PasteParseWizard onApply={applyPasteParse} />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-display font-bold">
           {isEditing ? "Edit Brand" : "Create New Brand"}
         </h1>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium cursor-help ${
-              healthScore.color === "success" ? "border-success/40 bg-success/10 text-success" :
-              healthScore.color === "warning" ? "border-warning/40 bg-warning/10 text-warning" :
-              "border-destructive/40 bg-destructive/10 text-destructive"
-            }`}>
-              <Sparkles className="h-3.5 w-3.5" />
-              Brand Health: {healthScore.score}/100 · {healthScore.label}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs">
-            <div className="space-y-1 text-xs">
-              {healthScore.breakdown.map((b) => (
-                <div key={b.signal} className="flex items-center justify-between gap-3">
-                  <span className={b.ok ? "" : "text-muted-foreground"}>{b.ok ? "✓" : "○"} {b.signal}</span>
-                  <span className="font-mono">{b.points}/{b.max}</span>
-                </div>
-              ))}
-            </div>
-          </TooltipContent>
-        </Tooltip>
       </div>
 
-      {/* Mood Pool Preview — mirrors generator's deriveBrandMoods exactly */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground mb-1.5">
-                Allowed copy moods for this brand ({moodPool.allowed.length})
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {moodPool.allowed.map((m) => (
-                  <Badge key={m.label} variant="secondary" className="text-[10px] font-normal">{m.label}</Badge>
-                ))}
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1.5 italic">{moodPool.reason}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Best Practices Guide */}
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
-        <Card className="border-secondary bg-accent/30">
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Lightbulb className="h-5 w-5 text-secondary" />
-                  <CardTitle className="text-base font-display">Brand Setup Best Practices</CardTitle>
-                </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${guideOpen ? "rotate-180" : ""}`} />
-              </div>
-              <CardDescription>Tips for the best AI-generated creatives</CardDescription>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4 text-sm text-foreground">
-              <div className="space-y-3">
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Upload & tag all visual assets</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, building renders, product shots, mascots, and patterns. Tag each one (e.g., "Logo", "Architecture") so the AI knows how to use them correctly — logos stay exact, hero images set the mood.</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Define your full color palette</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Set Primary & Secondary colors, then add extra colors (Accent, Background, Text, etc.) with descriptive names. Include usage rules like "Red only for developer branding, never as the main visual color."</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Write a structured Brand Brief</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Use clear markdown headers — these match the v3 Master Prompt and round-trip cleanly:<br />
-                      <code className="bg-muted px-1 rounded text-xs">## BRAND IDENTITY</code> — what makes the brand unique<br />
-                      <code className="bg-muted px-1 rounded text-xs">## MUST-INCLUDE ELEMENTS</code> — tagline, contact, legal text, RERA, etc.<br />
-                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DIRECTION</code> — most critical: mood, lighting, photography, layout, typography<br />
-                      <code className="bg-muted px-1 rounded text-xs">## EXAMPLE COPY</code> — 3-5 strong sample headlines &amp; subcopy<br />
-                      <code className="bg-muted px-1 rounded text-xs">## TONE &amp; VOICE</code> + <code className="bg-muted px-1 rounded text-xs">## TARGET AUDIENCE</code> — drive copy &amp; mood pool
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Separate "Visual Nevers" from "Content Nevers"</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">In the Never List, use two sections: <code className="bg-muted px-1 rounded text-xs">## VISUAL NEVERS</code> (e.g., "Never alter villa rooflines") and <code className="bg-muted px-1 rounded text-xs">## CONTENT NEVERS</code> (e.g., "Never use the word 'cheap'"). This prevents the AI from mixing up visual and text constraints.</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Be specific about your audience</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">In "Tone & Audience", include age range, psychographics, and the desired emotional response. E.g., "Affluent homebuyers (35-55) seeking low-density luxury living — tone should feel grounded, premium, and nature-led."</p>
-                  </div>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-border/50">
-                <Link to="/brand-guide" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-                  <ExternalLink className="h-3 w-3" /> View the full Brand Setup Guide with templates
-                </Link>
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      {/* Mood Pool Preview and Best Practices Guide removed — Paste & Parse is the single canonical source. */}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
