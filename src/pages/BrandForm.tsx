@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,13 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, ExternalLink, Sparkles, Tags } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -24,11 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import BrandAutofillPanel, { type AutofillResult } from "@/components/BrandAutofillPanel";
 import PasteParseWizard from "@/components/PasteParseWizard";
 import { readNevers, writeNevers, type ParsedMasterOutput } from "@/lib/brandParser";
-import { scoreBrandHealth, deriveBrandMoods } from "@/lib/brandHealth";
 
 const BASE_CATEGORIES = [
   "Logo",
