@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, Activity, Shield, ChevronDown, UserCircle, BookOpen, Plus } from "lucide-react";
+import { LayoutDashboard, Palette, Sparkles, Clock, LogOut, Users, BarChart3, Activity, Shield, ChevronDown, UserCircle, Plus } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -34,7 +34,6 @@ import { ActiveAccountBadge } from "@/components/ActiveAccountBadge";
 const userItems = [
   { title: "The Magic", url: "/", icon: Sparkles },
   { title: "Brands", url: "/brands", icon: Palette },
-  { title: "Setup Guide", url: "/brand-guide", icon: BookOpen },
   { title: "History", url: "/history", icon: Clock },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
 ];
