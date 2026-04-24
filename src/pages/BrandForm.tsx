@@ -406,85 +406,9 @@ export default function BrandForm() {
     setExtraColors((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Non-destructively apply AI autofill results.
-  // - Text fields are filled ONLY if currently empty (never overwrite user input).
-  // - Colors fill only if still at the defaults.
-  // - Industry fills only if not already set.
-  // - Uploaded assets are appended (and persisted immediately when editing).
-  const applyAutofill = async (result: AutofillResult) => {
-    const DEFAULT_PRIMARY = "#2563EB";
-    const DEFAULT_SECONDARY = "#DBEAFE";
+  // AI autofill removed — Paste & Parse is the single source of bulk fills.
 
-    if (!industry && result.industry) setIndustry(result.industry);
-    if ((!primaryColor || primaryColor === DEFAULT_PRIMARY) && /^#[0-9a-f]{6}$/i.test(result.primary_color)) {
-      setPrimaryColor(result.primary_color);
-    }
-    if ((!secondaryColor || secondaryColor === DEFAULT_SECONDARY) && /^#[0-9a-f]{6}$/i.test(result.secondary_color)) {
-      setSecondaryColor(result.secondary_color);
-    }
-    if (extraColors.length === 0 && Array.isArray(result.extra_colors) && result.extra_colors.length > 0) {
-      const valid = result.extra_colors.filter(
-        (c) => c && typeof c.name === "string" && /^#[0-9a-f]{6}$/i.test(c.hex)
-      );
-      if (valid.length > 0) setExtraColors(valid);
-    }
-    if (!briefIdentity.trim() && result.brief_identity) setBriefIdentity(result.brief_identity);
-    if (!briefMandatory.trim() && result.brief_mandatory) setBriefMandatory(result.brief_mandatory);
-    if (!briefVisual.trim() && result.brief_visual) setBriefVisual(result.brief_visual);
-    if (!briefCopy.trim() && result.brief_copy) setBriefCopy(result.brief_copy);
-    if (!voiceRules.trim() && result.brand_voice_rules) setVoiceRules(result.brand_voice_rules);
-    if (result.negative_prompts) {
-      // Autofill returns a single negative_prompts blob — split it on the way in.
-      const incoming = readNevers(result.negative_prompts);
-      if (!visualNevers.trim() && incoming.visual) setVisualNevers(incoming.visual);
-      if (!contentNevers.trim() && incoming.content) setContentNevers(incoming.content);
-      if (!legacyNevers.trim() && !visualNevers.trim() && !contentNevers.trim() && incoming.general) {
-        // Old-style blob — drop into content nevers (safer default for mood derivation).
-        setContentNevers(incoming.general);
-      }
-    }
 
-    // Append uploaded assets with predicted tags.
-    if (result.uploaded_assets?.length) {
-      if (isEditing && id && user) {
-        // Persist immediately so re-tagging works without saving the whole form.
-        const assetOwnerId = brandOwnerId || user.id;
-        const rows = result.uploaded_assets.map((a) => ({
-          brand_id: id,
-          user_id: assetOwnerId,
-          image_url: a.image_url,
-          label: a.predicted_tag || "",
-        }));
-        const { data: inserted, error } = await supabase
-          .from("brand_assets")
-          .insert(rows)
-          .select();
-        if (error) {
-          toast.error("Failed to attach uploaded assets.");
-        } else if (inserted) {
-          setAssets((prev) => [
-            ...prev,
-            ...inserted.map((a: { id: string; image_url: string; label: string | null }) => ({
-              id: a.id,
-              image_url: a.image_url,
-              label: a.label || "",
-            })),
-          ]);
-        }
-      } else {
-        setAssets((prev) => [
-          ...prev,
-          ...result.uploaded_assets.map((a) => ({
-            image_url: a.image_url,
-            label: a.predicted_tag || "",
-            isNew: true,
-          })),
-        ]);
-      }
-    }
-  };
-
-  // Apply parsed Master Prompt output. Like applyAutofill, never overwrites
   // existing values. Asset tags are matched by 1-based index against the
   // current gallery (logo first if present).
   const applyPasteParse = (p: ParsedMasterOutput) => {
