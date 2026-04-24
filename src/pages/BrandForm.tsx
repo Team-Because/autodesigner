@@ -131,32 +131,6 @@ export default function BrandForm() {
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [industry, setIndustry] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [detectingIndustry, setDetectingIndustry] = useState(false);
-  const [retaggingAssets, setRetaggingAssets] = useState(false);
-
-  // Live brand-health score — same signals used by Studio pre-flight + BrandHub.
-  const healthScore = useMemo(
-    () => scoreBrandHealth({
-      hasLogo: assets.some((a) => a.label === "Logo") || !!(assets[0]?.image_url),
-      taggedAssetCount: assets.filter((a) => a.label && a.label !== "Other:").length,
-      briefIdentity,
-      briefVisual,
-      voiceRules,
-      visualNevers,
-      contentNevers,
-      industry,
-    }),
-    [assets, briefIdentity, briefVisual, voiceRules, visualNevers, contentNevers, industry],
-  );
-
-  // Live mood pool — mirrors generator's deriveBrandMoods() exactly so users
-  // see which copy moods their brief unlocks downstream.
-  const moodPool = useMemo(() => {
-    const combinedBrief = [briefIdentity, briefMandatory, briefVisual, briefCopy].filter(Boolean).join("\n\n");
-    const combinedNevers = [visualNevers, contentNevers, legacyNevers].filter(Boolean).join("\n\n");
-    return deriveBrandMoods(combinedBrief, voiceRules, combinedNevers);
-  }, [briefIdentity, briefMandatory, briefVisual, briefCopy, voiceRules, visualNevers, contentNevers, legacyNevers]);
 
   // Parse existing brand_brief into structured sections.
   // Recognizes Master Prompt headers + common synonyms used across our brand
