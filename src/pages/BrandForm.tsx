@@ -292,7 +292,7 @@ export default function BrandForm() {
 
   // Auto-detect industry and re-tag assets removed — Paste & Parse handles all of this.
 
-
+  useEffect(() => {
     if (isEditing) {
       Promise.all([
         supabase.from("brands").select("*").eq("id", id).single(),
