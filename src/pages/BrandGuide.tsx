@@ -30,74 +30,177 @@ import { Link } from "react-router-dom";
  *   ## VISUAL NEVERS
  *   ## CONTENT NEVERS
  */
-const MASTER_PROMPT = `You are a senior brand strategist. I will paste raw notes, links, screenshots, or briefs about a brand. Your job is to convert them into a clean, structured brand profile that I can paste into MakeMyAd's Brand Setup form.
+const MASTER_PROMPT = `🚀 MakeMyAd Brand Setup — Master Prompt (v4)
 
-Be thorough but concise. Prefer specificity over breadth — short, sharp lines beat long generic paragraphs. Do NOT ask me questions; analyze everything I've provided and fill every section. If a section is genuinely unknown, write "TBD" — never invent regulatory, legal, or pricing facts.
-
-Output ONLY the sections below, in this order, using these exact headers (## level-2 markdown). No preamble, no closing notes.
+You are a brand strategist, visual language analyst, and prompt engineer. Take everything I give you — raw notes, docs, websites, old creatives, reference images, screenshots — and produce a perfectly structured brand profile for the MakeMyAd creative generation system.
 
 ────────────────────────────────────────────────────────
+OPTIONAL — ASK QUESTIONS FIRST
+────────────────────────────────────────────────────────
+If my inputs are too thin to produce a high-quality profile, ask me 5–8 sharp clarifying questions BEFORE generating. Good topics: target audience specifics, USPs with proof points, mandatory legal/contact text (RERA, certifications, disclaimers, registration numbers), tone preferences (use-words / avoid-words), visual style references, competitors to differentiate from.
+If I say "just go" or my input is rich enough, skip Q&A and produce the profile.
+
+────────────────────────────────────────────────────────
+STEP 1 — DECLARE THE INDUSTRY (REQUIRED, FIRST)
+────────────────────────────────────────────────────────
+Pick exactly ONE from this list. This drives the asset-tag vocabulary and downstream generation logic.
+Real Estate · Education · Healthcare · Retail · Fashion · Technology · Food & Beverage · Automotive · Hospitality · Finance
+
+────────────────────────────────────────────────────────
+STEP 2 — ANALYZE EVERY VISUAL
+────────────────────────────────────────────────────────
+For each uploaded image extract: dominant colors (hex), typography weight & style, logo placement, photo vs illustration vs 3D, mood, layout structure (grid / freeform / centered), text-over-image vs text-on-block, recurring patterns. Synthesize a generalized visual DNA — the consistent design fingerprint across all materials.
+
+────────────────────────────────────────────────────────
+STEP 3 — READ ALL RAW DATA
+────────────────────────────────────────────────────────
+Process docs, notes, briefs, websites. Extract: brand name, what they do, USPs with proof points, mandatory elements (legal, contact, taglines), tone signals, "never do this" rules.
+
+────────────────────────────────────────────────────────
+STEP 4 — FILL EVERY OUTPUT SECTION
+────────────────────────────────────────────────────────
+Use the markdown headers (##) below EXACTLY as shown, in this exact order. No preamble, no closing notes, no code fence around the whole output. Length is flexible — write what the brand actually needs. Specificity beats brevity. If a fact is genuinely unknown, write "TBD" — NEVER fabricate legal/registration numbers, certifications, taglines, or contact info.
+
+📋 OUTPUT FORMAT — copy this whole block into MakeMyAd Paste & Parse
 
 ## INDUSTRY
-One value from this fixed list (pick the closest match):
-Real Estate, Education, Healthcare, Retail, Fashion, Technology, Food & Beverage, Automotive, Hospitality, Finance
+[One value from the allowed list above]
 
 ## BRAND NAME
-The official brand name on a single line.
+[Official brand name only — single line]
 
 ## COLOR PALETTE
-List colors as bullets with hex codes. Use this exact shape:
-- Primary: <Name> — #RRGGBB
-- Secondary: <Name> — #RRGGBB
+- Primary: <Name> — #RRGGBB — [usage: headlines, CTAs, etc.]
+- Secondary: <Name> — #RRGGBB — [usage: backgrounds, accents]
 - Extras:
-  - <Name> — #RRGGBB
-  - <Name> — #RRGGBB
+  - <Name e.g. "Accent Gold"> — #RRGGBB — [usage]
+  - <Name> — #RRGGBB — [usage]
+- Color relationships: [e.g. "White text on dark navy blocks; gold accent strips on cream"]
 
 ## ASSET TAGS
-For every asset I share (logos, photos, mockups, illustrations, 3D renders, icons, screenshots), give a one-line tag. Use 1-based ordering and put the asset's role in parentheses. Examples:
+For each asset I uploaded, propose a tag from the chosen industry's vocabulary (see INDUSTRY → TAGS reference below). Use 1-based ordering and put the asset's role in parentheses. If I haven't shared assets, list the asset types this brand SHOULD have using the same format.
 - Asset 1 (Logo): Logo
-- Asset 2 (Hero Photo): Lifestyle photography of the product in use
-- Asset 3 (Mockup): Packaging mockup, front view
-- Asset 4 (Illustration): Brand mascot illustration
-If I haven't shared assets, list the asset types this brand SHOULD have using the same format.
+- Asset 2 (Hero Photo): [tag from industry vocab]
+- Asset 3 (Mockup): [tag from industry vocab]
+…
 
 ## BRAND IDENTITY
-2–6 short lines describing what this brand is, who runs it, where it operates, and what makes it distinct. Include positioning statement and tagline if known.
+Brand: [official name]
+Parent / Company: [parent company or umbrella brand, if any] | [tagline]
+Location / Market: [city, region, or "global" — if relevant]
+What we do:
+- [Core offering 1 with specifics]
+- [Core offering 2]
+- [Core offering 3]
+Differentiators:
+- [USP 1 with proof point]
+- [USP 2 with proof point]
+- [USP 3 with proof point]
 
 ## MUST-INCLUDE ELEMENTS
-Bullet list of items that MUST appear on every creative for this brand. Examples: logo, legal disclaimer, key contact info, certification marks, registration numbers, mandatory CTA, parent company endorsement.
+- Brand name: [NAME] — always prominent
+- Tagline: "[tagline, if any]"
+- Contact: [phone / email / website / handle — whichever applies]
+- Legal / Compliance: [registrations, certifications, disclaimers — only if mandatory for this brand]
+- Location: [address or service area, if relevant]
 
-## VISUAL DIRECTION
-Bullet list describing the visual system: typography style, color usage rules, photography style, illustration style, layout grid behavior, motion language, lighting, texture, mood. Be specific — this is the most important section for image generation.
+## VISUAL DIRECTION   ← MOST CRITICAL — describe in as much detail as needed
+Visual Style:
+- [Lighting / color treatment / photo vs graphic vs 3D vs illustration]
+- [Layout structure & composition rules]
+- [How copy sits relative to visuals]
+Typography:
+- [Weight, hierarchy, spacing observations]
+- [Headline vs body treatment]
+Textures & Elements:
+- [Recurring patterns, shapes, borders, overlays]
+- [Background treatments]
+Mood:
+- [Overall energy in 1–2 lines]
 
 ## EXAMPLE COPY
-3–6 short example headlines + sub-copy pairs in the brand's voice. These are stylistic references only (the generator will write fresh copy).
+Headlines (≤8 words each — system enforces this):
+- "[Headline 1]"
+- "[Headline 2]"
+- "[Headline 3]"
+Subtext (≤20 words each):
+- "[Subcopy 1]"
+- "[Subcopy 2]"
+CTAs (2–3 words):
+- "[CTA 1]"
+- "[CTA 2]"
 
 ## TONE & VOICE
-3–6 bullets defining how the brand speaks. Include do/don't pairs where helpful (e.g., "Use plain language; never corporate jargon").
+Voice Traits:
+- [e.g. "Confident, never arrogant"]
+- [e.g. "Warm but precise"]
+Use words: [comma-separated list of preferred vocabulary]
+Avoid words: [comma-separated list of banned vocabulary]
+Sentence pattern: [short & punchy / flowing & poetic / direct & informative]
 
 ## TARGET AUDIENCE
-2–4 bullets describing who this brand is for: demographics, psychographics, life stage, buying triggers.
+Demographics: [age, income, role/profession, location]
+Psychographics: [values, aspirations, lifestyle, motivations]
+Desired emotional response: [how should they feel after seeing the ad?]
 
-## VISUAL NEVERS
-Bullet list of visual things to NEVER do (e.g., "Never use stock photography of generic office workers", "Never tilt the logo", "Never use gradients on the wordmark").
+## VISUAL NEVERS   ← image/design constraints only
+- Never distort, recolor, or crop the logo
+- Never use stock-style imagery — only the uploaded brand assets
+- Never [color/style constraint from analysis]
+- Never [layout constraint]
+- Never [composition constraint]
 
-## CONTENT NEVERS
-Bullet list of words, claims, or messages to NEVER write (e.g., "Never claim guaranteed returns", "Never use the word 'cheap'", "Never make medical claims").
+## CONTENT NEVERS   ← copywriting/messaging constraints only
+- Never use words: [list banned words/phrases]
+- Never use [tone violation, e.g. "fear-based urgency", "clickbait", "hype"]
+- Never omit [mandatory element required for this brand]
+- Never position as [off-brand positioning — pick what's wrong for THIS brand]
 
 ────────────────────────────────────────────────────────
+🎯 SYSTEM AWARENESS — write your output to fit these rules
+────────────────────────────────────────────────────────
+The MakeMyAd generator has hard constraints. Don't propose anything it can't honor:
+- Headlines ≤ 8 words. Subcopy ≤ 20 words. CTAs 2–3 words. Real downstream caps for layout integrity.
+- Reference images = layout blueprints only. The system will NEVER copy text, names, locations, or pricing from references. Don't write "we'll reuse the photography from the reference".
+- Logos are force-included via regex matching. Always present, never altered.
+- Per-brand mood pool is auto-derived from your TONE & VOICE + CONTENT NEVERS. Be explicit (use-words / avoid-words) so the right moods get picked.
+- Output formats: 1:1 (square), 16:9 (landscape), 9:16 (story), 4:5 (portrait) only.
+- VISUAL NEVERS drive image-prompt constraints. CONTENT NEVERS drive copywriting constraints. Keep them strictly separate.
 
-REMEMBER:
-- Use the exact ## headers above, in that order.
-- Hex codes must be 6-digit (#RRGGBB).
-- Asset tags must start with "Asset N" (1-based).
-- Be specific. "Warm, premium, residential" beats "nice and clean".
-- Do NOT add sections I didn't ask for.
-- Do NOT wrap your response in a code fence.
+────────────────────────────────────────────────────────
+📚 INDUSTRY → ALLOWED ASSET TAGS reference
+────────────────────────────────────────────────────────
+Use these EXACT tag names so they paste cleanly into the app's asset gallery:
 
-Now here is the raw input — convert it:
+Real Estate: Logo · Elevation · Interior · Exterior · Amenity · Lifestyle · RERA QR · Pattern/Texture · Render · Other
+Education: Logo · Campus · Classroom · Student Life · Faculty · Lab · Library · Playground · Graduation · Sports · Other
+Healthcare: Logo · Facility · Medical Equipment · Patient Care · Doctor/Staff · Wellness · Lab · Pharmacy · Hospital Exterior · Therapy · Other
+Retail: Logo · Store/Venue · Product · Packaging · Catalogue · Display/Shelf · E-commerce Shot · Window Display · Lifestyle · Banner · Other
+Fashion: Logo · Lookbook · On-Model · Flat Lay · Swatch · Fabric Close-up · Collection · Runway · Accessories · Lifestyle · Other
+Technology: Logo · Screenshot · UI Mockup · Device Render · Dashboard · Feature Highlight · Mobile View · Desktop View · Icon · Banner · Other
+Food & Beverage: Logo · Dish/Menu Item · Packaging · Restaurant/Venue · Ingredient · Plating · Drink · Kitchen · Chef/Staff · Menu Card · Other
+Automotive: Logo · Exterior Shot · Interior Shot · Detail/Close-up · On Road · Showroom · Dashboard View · Colour Options · Lifestyle · Banner · Other
+Hospitality: Logo · Room/Suite · Amenity · Dining · Spa/Wellness · Pool · Lobby · Aerial View · Guest Experience · Lifestyle · Other
+Finance: Logo · Data Visualization · Office/Branch · Card/Product · Mobile Banking · Investment Chart · Team Photo · Lifestyle · Banner · Report · Other
 
-[PASTE YOUR NOTES, LINKS, OR SCREENSHOTS BELOW]
+If nothing fits, use: Other: <short description>
+
+────────────────────────────────────────────────────────
+✅ QUALITY RULES
+────────────────────────────────────────────────────────
+- Front-load the most important info in every section.
+- Specificity beats vagueness — "Warm golden-hour light, sky visible at 60% frame" beats "make it nice".
+- Real copy > abstract tone words — show actual headlines.
+- Visual analysis is king — VISUAL DIRECTION must reflect what you actually saw, not generic design talk.
+- Spatial precision — "Logo at 10% from top-left" beats "logo in corner".
+- Length is flexible — no hard character limits; write what the brand needs.
+- Never fabricate legal/registration numbers, contact info, certifications, or taglines that aren't in the source.
+- Hex codes must be 6-digit (#RRGGBB). Asset tags must start with "Asset N" (1-based).
+- Use the exact ## headers above, in that order. Do NOT wrap the output in a code fence.
+
+Now produce the brand profile. Either ask 5–8 sharp questions first, or — if you have enough — go straight to the OUTPUT FORMAT block above.
+
+[PASTE YOUR NOTES, LINKS, DOCS, OR SCREENSHOTS BELOW]
 `;
 
 export default function BrandGuide() {
