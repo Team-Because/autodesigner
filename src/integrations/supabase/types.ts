@@ -108,6 +108,7 @@ export type Database = {
       }
       brands: {
         Row: {
+          archived: boolean
           brand_brief: string | null
           brand_voice_rules: string | null
           campaign_id: string | null
@@ -124,6 +125,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived?: boolean
           brand_brief?: string | null
           brand_voice_rules?: string | null
           campaign_id?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          archived?: boolean
           brand_brief?: string | null
           brand_voice_rules?: string | null
           campaign_id?: string | null
