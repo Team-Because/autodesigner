@@ -358,10 +358,19 @@ export default function Studio() {
       clearTimeout(adaptTimeout);
       clearTimeout(generateTimeout);
 
-      if (invokeErrorMessage || fnError || fnData?.fallback) {
-        throw new Error(invokeErrorMessage || fnData?.error || "Generation failed");
+      if (invokeErrorMessage || fnError || fnData?.fallback || fnData?.error) {
+        // Final safety net: even if every invoke attempt errored out, the edge
+        // function may have completed server-side. Poll one more time before
+        // surfacing an error to the user — this is the exact scenario where
+        // History shows the image but the user got a 2xx-error toast.
+        setProgressPhase("Verifying your creative...");
+        const recovered = await waitForServerSideResult(45000, 2000);
+        if (recovered && recovered !== "failed") {
+          fnData = recovered;
+        } else {
+          throw new Error(invokeErrorMessage || fnData?.error || "Generation failed");
+        }
       }
-      if (fnData?.error) throw new Error(fnData.error);
 
       setProgress(100);
       setProgressPhase("Complete!");
