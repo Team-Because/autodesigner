@@ -525,20 +525,7 @@ export default function BrandForm() {
               <Input id="name" value={name} onChange={(e) => { if (e.target.value.length <= 100) setName(e.target.value); }} placeholder="e.g., Shanti Juniors" maxLength={100} />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Industry</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={handleDetectIndustry}
-                  disabled={detectingIndustry || !!industry}
-                >
-                  {detectingIndustry ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  Auto-detect
-                </Button>
-              </div>
+              <Label>Industry</Label>
               <Select value={industry || ""} onValueChange={(val) => setIndustry(val || null)}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Select industry for smart asset tags…" />
@@ -549,23 +536,7 @@ export default function BrandForm() {
                   ))}
                 </SelectContent>
               </Select>
-              {!industry && (
-                <p className="text-xs text-warning">⚠ No industry set — asset tags fall back to generic vocabulary.</p>
-              )}
               <p className="text-xs text-muted-foreground">Adds industry-specific asset tags (e.g., Elevation for Real Estate, Lookbook for Fashion).</p>
-              {industry && assets.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs mt-1"
-                  onClick={handleRetagAssets}
-                  disabled={retaggingAssets}
-                >
-                  {retaggingAssets ? <Loader2 className="h-3 w-3 animate-spin" /> : <Tags className="h-3 w-3" />}
-                  Re-tag all assets with {industry} vocabulary
-                </Button>
-              )}
             </div>
           </CardContent>
         </Card>
