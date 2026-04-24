@@ -227,6 +227,33 @@ export default function Studio() {
         setProgressPhase("Generating brand creative...");
       }, 16000);
 
+      // Poll the generations row to detect server-side completion in case the
+      // edge function finished its work but the HTTP response never reached us
+      // (worker shutdown, gateway timeout, transient 5xx). We always read the
+      // DB before declaring an error.
+      const waitForServerSideResult = async (
+        timeoutMs = 90000,
+        intervalMs = 2500,
+      ): Promise<{ imageUrl: string; caption: string } | "failed" | null> => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const { data: row } = await supabase
+            .from("generations")
+            .select("status, output_image_url, copywriting")
+            .eq("id", gen.id)
+            .maybeSingle();
+          if (row) {
+            if (row.status === "completed" && row.output_image_url) {
+              const cw: any = row.copywriting;
+              return { imageUrl: row.output_image_url, caption: cw?.caption ?? "" };
+            }
+            if (row.status === "failed") return "failed";
+          }
+          await new Promise((r) => setTimeout(r, intervalMs));
+        }
+        return null;
+      };
+
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
@@ -236,17 +263,43 @@ export default function Studio() {
         // Use a 3-minute timeout — generation can take 30-90 seconds
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => abortController.abort(), 180000);
-        let response;
+        let response: any = null;
+        let invokeThrew: any = null;
         try {
           response = await supabase.functions.invoke("generate-creative", {
             body: { brandId: selectedBrandId, referenceImageUrl: refUrlData.publicUrl, generationId: gen.id, outputFormat },
             signal: abortController.signal as AbortSignal,
           });
+        } catch (e) {
+          // Network-level failure (abort, fetch error, gateway disconnect).
+          // Don't error out yet — the function may have finished server-side.
+          invokeThrew = e;
         } finally {
           clearTimeout(timeoutId);
         }
         fnData = response?.data ?? null;
-        fnError = response?.error ?? null;
+        fnError = response?.error ?? invokeThrew ?? null;
+
+        // If the invoke errored or threw, the edge function may still have
+        // completed and updated the row. Poll for the server-side result
+        // before treating this as a failure.
+        if ((fnError || !fnData) && !fnData?.imageUrl) {
+          setProgressPhase("Network blip — checking if your creative is ready...");
+          const recovered = await waitForServerSideResult(60000, 2000);
+          if (recovered && recovered !== "failed") {
+            fnData = recovered;
+            fnError = null;
+            invokeErrorMessage = "";
+            break;
+          }
+          if (recovered === "failed") {
+            // Server confirmed failure — no point retrying.
+            invokeErrorMessage = (fnError as any)?.message || "Generation failed";
+            break;
+          }
+          // recovered === null → still processing or row not visible.
+          // Fall through to existing retry logic below.
+        }
 
         const fallbackPayload =
           fnData && typeof fnData === "object" && fnData.fallback ? fnData : null;
@@ -305,10 +358,19 @@ export default function Studio() {
       clearTimeout(adaptTimeout);
       clearTimeout(generateTimeout);
 
-      if (invokeErrorMessage || fnError || fnData?.fallback) {
-        throw new Error(invokeErrorMessage || fnData?.error || "Generation failed");
+      if (invokeErrorMessage || fnError || fnData?.fallback || fnData?.error) {
+        // Final safety net: even if every invoke attempt errored out, the edge
+        // function may have completed server-side. Poll one more time before
+        // surfacing an error to the user — this is the exact scenario where
+        // History shows the image but the user got a 2xx-error toast.
+        setProgressPhase("Verifying your creative...");
+        const recovered = await waitForServerSideResult(45000, 2000);
+        if (recovered && recovered !== "failed") {
+          fnData = recovered;
+        } else {
+          throw new Error(invokeErrorMessage || fnData?.error || "Generation failed");
+        }
       }
-      if (fnData?.error) throw new Error(fnData.error);
 
       setProgress(100);
       setProgressPhase("Complete!");
