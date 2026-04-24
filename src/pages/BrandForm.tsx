@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,13 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus, ChevronDown, Lightbulb, Check, ExternalLink, Sparkles, Tags } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Save, Loader2, X, ImagePlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -24,11 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import BrandAutofillPanel, { type AutofillResult } from "@/components/BrandAutofillPanel";
 import PasteParseWizard from "@/components/PasteParseWizard";
 import { readNevers, writeNevers, type ParsedMasterOutput } from "@/lib/brandParser";
-import { scoreBrandHealth, deriveBrandMoods } from "@/lib/brandHealth";
 
 const BASE_CATEGORIES = [
   "Logo",
@@ -140,32 +131,6 @@ export default function BrandForm() {
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [industry, setIndustry] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [detectingIndustry, setDetectingIndustry] = useState(false);
-  const [retaggingAssets, setRetaggingAssets] = useState(false);
-
-  // Live brand-health score — same signals used by Studio pre-flight + BrandHub.
-  const healthScore = useMemo(
-    () => scoreBrandHealth({
-      hasLogo: assets.some((a) => a.label === "Logo") || !!(assets[0]?.image_url),
-      taggedAssetCount: assets.filter((a) => a.label && a.label !== "Other:").length,
-      briefIdentity,
-      briefVisual,
-      voiceRules,
-      visualNevers,
-      contentNevers,
-      industry,
-    }),
-    [assets, briefIdentity, briefVisual, voiceRules, visualNevers, contentNevers, industry],
-  );
-
-  // Live mood pool — mirrors generator's deriveBrandMoods() exactly so users
-  // see which copy moods their brief unlocks downstream.
-  const moodPool = useMemo(() => {
-    const combinedBrief = [briefIdentity, briefMandatory, briefVisual, briefCopy].filter(Boolean).join("\n\n");
-    const combinedNevers = [visualNevers, contentNevers, legacyNevers].filter(Boolean).join("\n\n");
-    return deriveBrandMoods(combinedBrief, voiceRules, combinedNevers);
-  }, [briefIdentity, briefMandatory, briefVisual, briefCopy, voiceRules, visualNevers, contentNevers, legacyNevers]);
 
   // Parse existing brand_brief into structured sections.
   // Recognizes Master Prompt headers + common synonyms used across our brand
@@ -325,91 +290,7 @@ export default function BrandForm() {
     return parts.join("\n\n");
   };
 
-  // Auto-detect industry from existing brief + asset labels via LLM.
-  // Calls brand-autofill in "industry-only" mode and applies the result.
-  const handleDetectIndustry = async () => {
-    if (industry) {
-      toast.info("Industry already set — clear it first to re-detect.");
-      return;
-    }
-    const briefBlob = [briefIdentity, briefMandatory, briefVisual, briefCopy, voiceRules].filter(Boolean).join("\n\n");
-    const assetLabels = assets.map((a) => a.label).filter(Boolean).join(", ");
-    if (!briefBlob.trim() && !assetLabels) {
-      toast.error("Add a brief or tagged assets first so we have something to classify.");
-      return;
-    }
-    setDetectingIndustry(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("brand-autofill", {
-        body: {
-          mode: "industry-only",
-          brand_name_hint: name,
-          existing_brief: briefBlob,
-          existing_asset_labels: assetLabels,
-        },
-      });
-      if (error) throw error;
-      const detected = (data as { industry?: string })?.industry;
-      if (detected && typeof detected === "string") {
-        setIndustry(detected);
-        toast.success(`Industry detected: ${detected}`);
-      } else {
-        toast.error("Couldn't confidently detect an industry — please pick one manually.");
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unknown error";
-      toast.error(`Detection failed: ${msg}`);
-    } finally {
-      setDetectingIndustry(false);
-    }
-  };
-
-  // Re-classify all asset labels via LLM using current industry vocabulary.
-  // Useful when industry was set AFTER assets were uploaded.
-  const handleRetagAssets = async () => {
-    if (!industry) {
-      toast.error("Set an industry first so the AI knows the tag vocabulary.");
-      return;
-    }
-    if (assets.length === 0) {
-      toast.error("No assets to re-tag.");
-      return;
-    }
-    setRetaggingAssets(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("brand-autofill", {
-        body: {
-          mode: "retag-assets",
-          brand_name_hint: name,
-          industry,
-          asset_urls: assets.map((a, i) => ({ index: i, url: a.image_url, current_label: a.label || "" })),
-        },
-      });
-      if (error) throw error;
-      const tags = (data as { tags?: { index: number; label: string }[] })?.tags || [];
-      if (tags.length === 0) {
-        toast.error("No tags returned — try again.");
-        return;
-      }
-      const next = [...assets];
-      let updated = 0;
-      for (const t of tags) {
-        if (typeof t.index !== "number" || !t.label || !next[t.index]) continue;
-        next[t.index] = { ...next[t.index], label: t.label };
-        if (next[t.index].id && isEditing) {
-          await supabase.from("brand_assets").update({ label: t.label }).eq("id", next[t.index].id!);
-        }
-        updated++;
-      }
-      setAssets(next);
-      toast.success(`Re-tagged ${updated} asset${updated === 1 ? "" : "s"}.`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unknown error";
-      toast.error(`Re-tag failed: ${msg}`);
-    } finally {
-      setRetaggingAssets(false);
-    }
-  };
+  // Auto-detect industry and re-tag assets removed — Paste & Parse handles all of this.
 
   useEffect(() => {
     if (isEditing) {
@@ -525,85 +406,9 @@ export default function BrandForm() {
     setExtraColors((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Non-destructively apply AI autofill results.
-  // - Text fields are filled ONLY if currently empty (never overwrite user input).
-  // - Colors fill only if still at the defaults.
-  // - Industry fills only if not already set.
-  // - Uploaded assets are appended (and persisted immediately when editing).
-  const applyAutofill = async (result: AutofillResult) => {
-    const DEFAULT_PRIMARY = "#2563EB";
-    const DEFAULT_SECONDARY = "#DBEAFE";
+  // AI autofill removed — Paste & Parse is the single source of bulk fills.
 
-    if (!industry && result.industry) setIndustry(result.industry);
-    if ((!primaryColor || primaryColor === DEFAULT_PRIMARY) && /^#[0-9a-f]{6}$/i.test(result.primary_color)) {
-      setPrimaryColor(result.primary_color);
-    }
-    if ((!secondaryColor || secondaryColor === DEFAULT_SECONDARY) && /^#[0-9a-f]{6}$/i.test(result.secondary_color)) {
-      setSecondaryColor(result.secondary_color);
-    }
-    if (extraColors.length === 0 && Array.isArray(result.extra_colors) && result.extra_colors.length > 0) {
-      const valid = result.extra_colors.filter(
-        (c) => c && typeof c.name === "string" && /^#[0-9a-f]{6}$/i.test(c.hex)
-      );
-      if (valid.length > 0) setExtraColors(valid);
-    }
-    if (!briefIdentity.trim() && result.brief_identity) setBriefIdentity(result.brief_identity);
-    if (!briefMandatory.trim() && result.brief_mandatory) setBriefMandatory(result.brief_mandatory);
-    if (!briefVisual.trim() && result.brief_visual) setBriefVisual(result.brief_visual);
-    if (!briefCopy.trim() && result.brief_copy) setBriefCopy(result.brief_copy);
-    if (!voiceRules.trim() && result.brand_voice_rules) setVoiceRules(result.brand_voice_rules);
-    if (result.negative_prompts) {
-      // Autofill returns a single negative_prompts blob — split it on the way in.
-      const incoming = readNevers(result.negative_prompts);
-      if (!visualNevers.trim() && incoming.visual) setVisualNevers(incoming.visual);
-      if (!contentNevers.trim() && incoming.content) setContentNevers(incoming.content);
-      if (!legacyNevers.trim() && !visualNevers.trim() && !contentNevers.trim() && incoming.general) {
-        // Old-style blob — drop into content nevers (safer default for mood derivation).
-        setContentNevers(incoming.general);
-      }
-    }
 
-    // Append uploaded assets with predicted tags.
-    if (result.uploaded_assets?.length) {
-      if (isEditing && id && user) {
-        // Persist immediately so re-tagging works without saving the whole form.
-        const assetOwnerId = brandOwnerId || user.id;
-        const rows = result.uploaded_assets.map((a) => ({
-          brand_id: id,
-          user_id: assetOwnerId,
-          image_url: a.image_url,
-          label: a.predicted_tag || "",
-        }));
-        const { data: inserted, error } = await supabase
-          .from("brand_assets")
-          .insert(rows)
-          .select();
-        if (error) {
-          toast.error("Failed to attach uploaded assets.");
-        } else if (inserted) {
-          setAssets((prev) => [
-            ...prev,
-            ...inserted.map((a: { id: string; image_url: string; label: string | null }) => ({
-              id: a.id,
-              image_url: a.image_url,
-              label: a.label || "",
-            })),
-          ]);
-        }
-      } else {
-        setAssets((prev) => [
-          ...prev,
-          ...result.uploaded_assets.map((a) => ({
-            image_url: a.image_url,
-            label: a.predicted_tag || "",
-            isNew: true,
-          })),
-        ]);
-      }
-    }
-  };
-
-  // Apply parsed Master Prompt output. Like applyAutofill, never overwrites
   // existing values. Asset tags are matched by 1-based index against the
   // current gallery (logo first if present).
   const applyPasteParse = (p: ParsedMasterOutput) => {
@@ -699,130 +504,15 @@ export default function BrandForm() {
         <ArrowLeft className="h-4 w-4" /> Back to Brand Hub
       </Button>
 
-      <BrandAutofillPanel brandNameHint={name} onApply={applyAutofill} defaultOpen={!isEditing} />
       <PasteParseWizard onApply={applyPasteParse} />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-display font-bold">
           {isEditing ? "Edit Brand" : "Create New Brand"}
         </h1>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium cursor-help ${
-              healthScore.color === "success" ? "border-success/40 bg-success/10 text-success" :
-              healthScore.color === "warning" ? "border-warning/40 bg-warning/10 text-warning" :
-              "border-destructive/40 bg-destructive/10 text-destructive"
-            }`}>
-              <Sparkles className="h-3.5 w-3.5" />
-              Brand Health: {healthScore.score}/100 · {healthScore.label}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs">
-            <div className="space-y-1 text-xs">
-              {healthScore.breakdown.map((b) => (
-                <div key={b.signal} className="flex items-center justify-between gap-3">
-                  <span className={b.ok ? "" : "text-muted-foreground"}>{b.ok ? "✓" : "○"} {b.signal}</span>
-                  <span className="font-mono">{b.points}/{b.max}</span>
-                </div>
-              ))}
-            </div>
-          </TooltipContent>
-        </Tooltip>
       </div>
 
-      {/* Mood Pool Preview — mirrors generator's deriveBrandMoods exactly */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground mb-1.5">
-                Allowed copy moods for this brand ({moodPool.allowed.length})
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {moodPool.allowed.map((m) => (
-                  <Badge key={m.label} variant="secondary" className="text-[10px] font-normal">{m.label}</Badge>
-                ))}
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1.5 italic">{moodPool.reason}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Best Practices Guide */}
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
-        <Card className="border-secondary bg-accent/30">
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Lightbulb className="h-5 w-5 text-secondary" />
-                  <CardTitle className="text-base font-display">Brand Setup Best Practices</CardTitle>
-                </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${guideOpen ? "rotate-180" : ""}`} />
-              </div>
-              <CardDescription>Tips for the best AI-generated creatives</CardDescription>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4 text-sm text-foreground">
-              <div className="space-y-3">
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Upload & tag all visual assets</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Upload logos, building renders, product shots, mascots, and patterns. Tag each one (e.g., "Logo", "Architecture") so the AI knows how to use them correctly — logos stay exact, hero images set the mood.</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Define your full color palette</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Set Primary & Secondary colors, then add extra colors (Accent, Background, Text, etc.) with descriptive names. Include usage rules like "Red only for developer branding, never as the main visual color."</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Write a structured Brand Brief</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">Use clear markdown headers — these match the v3 Master Prompt and round-trip cleanly:<br />
-                      <code className="bg-muted px-1 rounded text-xs">## BRAND IDENTITY</code> — what makes the brand unique<br />
-                      <code className="bg-muted px-1 rounded text-xs">## MUST-INCLUDE ELEMENTS</code> — tagline, contact, legal text, RERA, etc.<br />
-                      <code className="bg-muted px-1 rounded text-xs">## VISUAL DIRECTION</code> — most critical: mood, lighting, photography, layout, typography<br />
-                      <code className="bg-muted px-1 rounded text-xs">## EXAMPLE COPY</code> — 3-5 strong sample headlines &amp; subcopy<br />
-                      <code className="bg-muted px-1 rounded text-xs">## TONE &amp; VOICE</code> + <code className="bg-muted px-1 rounded text-xs">## TARGET AUDIENCE</code> — drive copy &amp; mood pool
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Separate "Visual Nevers" from "Content Nevers"</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">In the Never List, use two sections: <code className="bg-muted px-1 rounded text-xs">## VISUAL NEVERS</code> (e.g., "Never alter villa rooflines") and <code className="bg-muted px-1 rounded text-xs">## CONTENT NEVERS</code> (e.g., "Never use the word 'cheap'"). This prevents the AI from mixing up visual and text constraints.</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5">
-                  <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Be specific about your audience</p>
-                    <p className="text-muted-foreground text-xs mt-0.5">In "Tone & Audience", include age range, psychographics, and the desired emotional response. E.g., "Affluent homebuyers (35-55) seeking low-density luxury living — tone should feel grounded, premium, and nature-led."</p>
-                  </div>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-border/50">
-                <Link to="/brand-guide" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-                  <ExternalLink className="h-3 w-3" /> View the full Brand Setup Guide with templates
-                </Link>
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      {/* Mood Pool Preview and Best Practices Guide removed — Paste & Parse is the single canonical source. */}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
@@ -835,20 +525,7 @@ export default function BrandForm() {
               <Input id="name" value={name} onChange={(e) => { if (e.target.value.length <= 100) setName(e.target.value); }} placeholder="e.g., Shanti Juniors" maxLength={100} />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Industry</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={handleDetectIndustry}
-                  disabled={detectingIndustry || !!industry}
-                >
-                  {detectingIndustry ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  Auto-detect
-                </Button>
-              </div>
+              <Label>Industry</Label>
               <Select value={industry || ""} onValueChange={(val) => setIndustry(val || null)}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Select industry for smart asset tags…" />
@@ -859,23 +536,7 @@ export default function BrandForm() {
                   ))}
                 </SelectContent>
               </Select>
-              {!industry && (
-                <p className="text-xs text-warning">⚠ No industry set — asset tags fall back to generic vocabulary.</p>
-              )}
               <p className="text-xs text-muted-foreground">Adds industry-specific asset tags (e.g., Elevation for Real Estate, Lookbook for Fashion).</p>
-              {industry && assets.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs mt-1"
-                  onClick={handleRetagAssets}
-                  disabled={retaggingAssets}
-                >
-                  {retaggingAssets ? <Loader2 className="h-3 w-3 animate-spin" /> : <Tags className="h-3 w-3" />}
-                  Re-tag all assets with {industry} vocabulary
-                </Button>
-              )}
             </div>
           </CardContent>
         </Card>
