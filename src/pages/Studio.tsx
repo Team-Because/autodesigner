@@ -227,6 +227,33 @@ export default function Studio() {
         setProgressPhase("Generating brand creative...");
       }, 16000);
 
+      // Poll the generations row to detect server-side completion in case the
+      // edge function finished its work but the HTTP response never reached us
+      // (worker shutdown, gateway timeout, transient 5xx). We always read the
+      // DB before declaring an error.
+      const waitForServerSideResult = async (
+        timeoutMs = 90000,
+        intervalMs = 2500,
+      ): Promise<{ imageUrl: string; caption: string } | "failed" | null> => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const { data: row } = await supabase
+            .from("generations")
+            .select("status, output_image_url, copywriting")
+            .eq("id", gen.id)
+            .maybeSingle();
+          if (row) {
+            if (row.status === "completed" && row.output_image_url) {
+              const cw: any = row.copywriting;
+              return { imageUrl: row.output_image_url, caption: cw?.caption ?? "" };
+            }
+            if (row.status === "failed") return "failed";
+          }
+          await new Promise((r) => setTimeout(r, intervalMs));
+        }
+        return null;
+      };
+
       let fnData: any = null;
       let fnError: any = null;
       let invokeErrorMessage = "";
