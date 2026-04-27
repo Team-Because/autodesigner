@@ -307,23 +307,35 @@ export default function Studio() {
         fnData = response?.data ?? null;
         fnError = response?.error ?? invokeThrew ?? null;
 
-        // The edge function now returns 202 {status:"accepted"} immediately
-        // and runs the heavy work in the background to avoid the 150s edge
-        // idle timeout. When we see that, poll the generations row for the
-        // final result instead of treating it as missing data.
+        // The edge function returns 202 {status:"accepted"} immediately and
+        // runs the heavy work in the background to avoid the 150s edge idle
+        // timeout. Poll the generations row until it's completed/failed —
+        // never treat a 202 with no imageUrl as a failure.
         if (!fnError && fnData && fnData.status === "accepted" && !fnData.imageUrl) {
           setProgressPhase("Generating your creative — this can take 1–3 minutes...");
-          const recovered = await waitForServerSideResult(240000, 3000);
+          const recovered = await waitForServerSideResult(
+            300000, // 5 minutes — generation can occasionally exceed 3 min
+            3000,
+            (elapsedMs) => {
+              const sec = Math.floor(elapsedMs / 1000);
+              setProgressPhase(`Generating your creative — ${sec}s elapsed (background job running)...`);
+            },
+          );
           if (recovered && recovered !== "failed") {
             fnData = recovered;
+            fnError = null;
             invokeErrorMessage = "";
             break;
           }
           if (recovered === "failed") {
             invokeErrorMessage = "Generation failed";
+            fnError = null;
             break;
           }
-          invokeErrorMessage = "Generation is taking longer than expected. Check History in a moment.";
+          // Still processing after 5 minutes — surface a soft message but
+          // don't claim outright failure since the job may still complete.
+          invokeErrorMessage = "Generation is taking longer than expected. It may still finish — check History in a moment.";
+          fnError = null;
           break;
         }
 
