@@ -295,6 +295,26 @@ export default function Studio() {
         fnData = response?.data ?? null;
         fnError = response?.error ?? invokeThrew ?? null;
 
+        // The edge function now returns 202 {status:"accepted"} immediately
+        // and runs the heavy work in the background to avoid the 150s edge
+        // idle timeout. When we see that, poll the generations row for the
+        // final result instead of treating it as missing data.
+        if (!fnError && fnData && fnData.status === "accepted" && !fnData.imageUrl) {
+          setProgressPhase("Generating your creative — this can take 1–3 minutes...");
+          const recovered = await waitForServerSideResult(240000, 3000);
+          if (recovered && recovered !== "failed") {
+            fnData = recovered;
+            invokeErrorMessage = "";
+            break;
+          }
+          if (recovered === "failed") {
+            invokeErrorMessage = "Generation failed";
+            break;
+          }
+          invokeErrorMessage = "Generation is taking longer than expected. Check History in a moment.";
+          break;
+        }
+
         // If the invoke errored or threw, the edge function may still have
         // completed and updated the row. Poll for the server-side result
         // before treating this as a failure.
