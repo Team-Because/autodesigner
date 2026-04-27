@@ -361,6 +361,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      merge_brand: {
+        Args: { _destination_brand_id: string; _source_brand_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
