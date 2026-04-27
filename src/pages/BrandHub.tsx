@@ -138,6 +138,65 @@ export default function BrandHub() {
     }
   };
 
+  const openMergeDialog = async (id: string, name: string) => {
+    setMergeSource({ id, name });
+    setMergeDestId("");
+    setMergeCreativeCount(null);
+    // Fetch creative count for this brand so we can show it in the dialog.
+    const { count } = await supabase
+      .from("generations")
+      .select("id", { count: "exact", head: true })
+      .eq("brand_id", id);
+    setMergeCreativeCount(count ?? 0);
+  };
+
+  const handleMerge = async () => {
+    if (!mergeSource || !mergeDestId || mergeDestId === mergeSource.id) return;
+    setMerging(true);
+    try {
+      const destBrand = brands.find((b) => b.id === mergeDestId);
+      if (!destBrand) throw new Error("Destination brand not found");
+
+      // 1. Reassign all generations from source -> destination.
+      // generations.user_id stays the same (RLS allows owner updates).
+      const { error: genErr } = await supabase
+        .from("generations")
+        .update({ brand_id: mergeDestId })
+        .eq("brand_id", mergeSource.id);
+      if (genErr) throw genErr;
+
+      // 2. Archive the source brand (its setup is preserved but hidden;
+      // we never hard-delete to avoid breaking any historical references).
+      const { error: archErr } = await supabase
+        .from("brands")
+        .update({ archived: true })
+        .eq("id", mergeSource.id);
+      if (archErr) throw archErr;
+
+      log("brand.merged", "brand", mergeSource.id, {
+        source_name: mergeSource.name,
+        destination_id: mergeDestId,
+        destination_name: destBrand.name,
+        creatives_transferred: mergeCreativeCount ?? 0,
+      });
+
+      toast.success(
+        `Merged "${mergeSource.name}" into "${destBrand.name}". ${
+          mergeCreativeCount ?? 0
+        } creative${mergeCreativeCount === 1 ? "" : "s"} transferred.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      queryClient.invalidateQueries({ queryKey: ["generations"] });
+      setMergeSource(null);
+      setMergeDestId("");
+      setMergeCreativeCount(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to merge brands.");
+    } finally {
+      setMerging(false);
+    }
+  };
+
   const handleDuplicate = async (brandId: string) => {
     if (!user) return;
     setDuplicatingId(brandId);
