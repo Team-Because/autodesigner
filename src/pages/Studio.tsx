@@ -249,21 +249,33 @@ export default function Studio() {
       const waitForServerSideResult = async (
         timeoutMs = 90000,
         intervalMs = 2500,
+        onTick?: (elapsedMs: number) => void,
       ): Promise<{ imageUrl: string; caption: string } | "failed" | null> => {
-        const deadline = Date.now() + timeoutMs;
+        const start = Date.now();
+        const deadline = start + timeoutMs;
+        let consecutiveQueryErrors = 0;
         while (Date.now() < deadline) {
-          const { data: row } = await supabase
+          const { data: row, error: queryError } = await supabase
             .from("generations")
             .select("status, output_image_url, copywriting")
             .eq("id", gen.id)
             .maybeSingle();
-          if (row) {
+          if (queryError) {
+            // Transient network error querying the row — keep polling instead
+            // of giving up. The background job may still complete.
+            consecutiveQueryErrors++;
+            if (consecutiveQueryErrors > 10) return null;
+          } else if (row) {
+            consecutiveQueryErrors = 0;
             if (row.status === "completed" && row.output_image_url) {
               const cw: any = row.copywriting;
               return { imageUrl: row.output_image_url, caption: cw?.caption ?? "" };
             }
             if (row.status === "failed") return "failed";
+            // status === "processing" → keep polling, do NOT bail just because
+            // imageUrl is empty.
           }
+          if (onTick) onTick(Date.now() - start);
           await new Promise((r) => setTimeout(r, intervalMs));
         }
         return null;
