@@ -11,6 +11,7 @@ type Action =
   | "brand.unarchived"
   | "brand.duplicated"
   | "brand.transferred"
+  | "brand.merged"
   | "group.created"
   | "group.renamed"
   | "group.deleted"
