@@ -157,33 +157,27 @@ export default function BrandHub() {
       const destBrand = brands.find((b) => b.id === mergeDestId);
       if (!destBrand) throw new Error("Destination brand not found");
 
-      // 1. Reassign all generations from source -> destination.
-      // generations.user_id stays the same (RLS allows owner updates).
-      const { error: genErr } = await supabase
-        .from("generations")
-        .update({ brand_id: mergeDestId })
-        .eq("brand_id", mergeSource.id);
-      if (genErr) throw genErr;
+      // Atomic transactional merge: reassigns generations + archives source
+      // in a single DB transaction so concurrent edits can't leave the
+      // source brand active with no creatives (or vice versa).
+      const { data, error: rpcErr } = await supabase.rpc("merge_brand" as any, {
+        _source_brand_id: mergeSource.id,
+        _destination_brand_id: mergeDestId,
+      });
+      if (rpcErr) throw rpcErr;
 
-      // 2. Archive the source brand (its setup is preserved but hidden;
-      // we never hard-delete to avoid breaking any historical references).
-      const { error: archErr } = await supabase
-        .from("brands")
-        .update({ archived: true })
-        .eq("id", mergeSource.id);
-      if (archErr) throw archErr;
+      const transferred =
+        (data as any)?.creatives_transferred ?? mergeCreativeCount ?? 0;
 
       log("brand.merged", "brand", mergeSource.id, {
         source_name: mergeSource.name,
         destination_id: mergeDestId,
         destination_name: destBrand.name,
-        creatives_transferred: mergeCreativeCount ?? 0,
+        creatives_transferred: transferred,
       });
 
       toast.success(
-        `Merged "${mergeSource.name}" into "${destBrand.name}". ${
-          mergeCreativeCount ?? 0
-        } creative${mergeCreativeCount === 1 ? "" : "s"} transferred.`
+        `Merged "${mergeSource.name}" into "${destBrand.name}". ${transferred} creative${transferred === 1 ? "" : "s"} transferred.`
       );
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       queryClient.invalidateQueries({ queryKey: ["generations"] });
