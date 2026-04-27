@@ -373,9 +373,14 @@ export default function BrandHub() {
                   <ArchiveRestore className="h-3.5 w-3.5" /> Restore brand
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
-                  <Archive className="h-3.5 w-3.5" /> Archive
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => openMergeDialog(brand.id, brand.name)} className="gap-2">
+                    <GitMerge className="h-3.5 w-3.5" /> Merge into another brand…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
+                    <Archive className="h-3.5 w-3.5" /> Archive
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
