@@ -63,6 +63,10 @@ export default function BrandHub() {
   const [showArchived, setShowArchived] = useState(false);
   const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "group" } | null>(null);
+  const [mergeSource, setMergeSource] = useState<{ id: string; name: string } | null>(null);
+  const [mergeDestId, setMergeDestId] = useState<string>("");
+  const [merging, setMerging] = useState(false);
+  const [mergeCreativeCount, setMergeCreativeCount] = useState<number | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands", user?.id],
