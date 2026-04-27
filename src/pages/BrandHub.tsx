@@ -656,6 +656,110 @@ export default function BrandHub() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <Dialog
+      open={!!mergeSource}
+      onOpenChange={(open) => {
+        if (!open && !merging) {
+          setMergeSource(null);
+          setMergeDestId("");
+          setMergeCreativeCount(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitMerge className="h-4 w-4" /> Merge brand
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-foreground truncate">
+                {mergeSource?.name}
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">choose destination below</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {mergeCreativeCount === null
+                ? "Counting creatives…"
+                : `${mergeCreativeCount} creative${mergeCreativeCount === 1 ? "" : "s"} will be transferred to the destination brand.`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">
+              Destination brand
+            </label>
+            <Select value={mergeDestId} onValueChange={setMergeDestId}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select a brand to merge into…" />
+              </SelectTrigger>
+              <SelectContent>
+                {brands
+                  .filter(
+                    (b) =>
+                      b.id !== mergeSource?.id && !(b as any).archived
+                  )
+                  .map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                {brands.filter(
+                  (b) => b.id !== mergeSource?.id && !(b as any).archived
+                ).length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No other active brands available.
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-foreground space-y-1">
+            <p className="font-medium">What happens when you merge:</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+              <li>All creatives from "{mergeSource?.name}" move to the destination brand's history.</li>
+              <li>The source brand setup (logo, colors, brief, assets) is archived — not deleted — so nothing is lost.</li>
+              <li>You can restore the archived brand later from the Archived view.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            disabled={merging}
+            onClick={() => {
+              setMergeSource(null);
+              setMergeDestId("");
+              setMergeCreativeCount(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground"
+            disabled={!mergeDestId || merging}
+            onClick={handleMerge}
+          >
+            {merging ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Merging…
+              </>
+            ) : (
+              <>
+                <GitMerge className="h-3.5 w-3.5 mr-2" /> Merge & archive source
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
