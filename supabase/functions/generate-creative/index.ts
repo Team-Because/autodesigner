@@ -194,7 +194,24 @@ function extractStoredCaption(copywriting: unknown): string {
 
 function toCompactText(value: unknown, maxChars: number): string {
   if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+  // Preserve newlines so list items / multi-line sections (e.g. EXAMPLE COPY)
+  // remain visually distinct to the LLM. Only collapse horizontal whitespace
+  // and limit runs of blank lines.
+  const normalized = value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return normalized.slice(0, maxChars);
+}
+
+// Extract the "## EXAMPLE COPY" section from a brand brief blob.
+// Returns the raw inner text (preserving line breaks between distinct entries).
+function extractExampleCopy(brief: string | null | undefined): string {
+  if (!brief || !brief.trim()) return "";
+  const m = brief.match(/##\s*EXAMPLE COPY\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  return m ? m[1].trim() : "";
 }
 
 // ─── kie.ai Chat API helper (OpenAI-compatible) ───
@@ -997,12 +1014,18 @@ async function adaptDirective(
   // Mood derivation = content-side signal (visual nevers shouldn't disqualify "Playful").
   const moodNeverCorpus = [nevers.content, nevers.general].filter(Boolean).join("\n");
 
+  const exampleCopy = extractExampleCopy(brand.brand_brief);
+  const exampleCopyBlock = exampleCopy ? toCompactText(exampleCopy, 4000) : "";
+
   const brandContext = [
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
     brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 4000)}` : "",
     brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 8000)}` : "",
+    exampleCopyBlock
+      ? `EXAMPLE COPY MENU (multiple options — read EVERY line, then pick the ONE that best fits the reference's mood, layout, and creative direction; you may also lightly adapt or remix lines, but do NOT default to the first entry, do NOT ignore the rest):\n${exampleCopyBlock}`
+      : "",
     nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 2000)}` : "",
     nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 2000)}` : "",
     nevers.general ? `NEVER include: ${toCompactText(nevers.general, 3000)}` : "",
@@ -1060,6 +1083,8 @@ ASSET SELECTION RULES:
 COPY RULES:
 - Headlines must be original, punchy, and aligned to the CREATIVE DIRECTION above
 - ALL text MUST come from the brand brief and brand data
+- If an "EXAMPLE COPY MENU" is provided, treat it as a pool of pre-approved options. Scan the FULL list, then pick (or lightly adapt) the entry that best matches the reference's mood, layout zones (headline length, subcopy length, CTA tone) and the CREATIVE DIRECTION for this generation. Do not default to the first entry. Do not ignore later entries. Different references should map to different entries.
+- You may remix words across entries or tighten phrasing to fit the layout, but stay within the brand's voice and the menu's intent.
 - CTA should be actionable and brand-appropriate
 - DO NOT repeat the same headlines across generations — be creative and varied
 
