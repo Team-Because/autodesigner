@@ -1014,12 +1014,18 @@ async function adaptDirective(
   // Mood derivation = content-side signal (visual nevers shouldn't disqualify "Playful").
   const moodNeverCorpus = [nevers.content, nevers.general].filter(Boolean).join("\n");
 
+  const exampleCopy = extractExampleCopy(brand.brand_brief);
+  const exampleCopyBlock = exampleCopy ? toCompactText(exampleCopy, 4000) : "";
+
   const brandContext = [
     `Brand: ${brand.name}`,
     `Primary: ${brand.primary_color} | Secondary: ${brand.secondary_color}`,
     extraColorsText ? `Extra colors: ${extraColorsText}` : "",
     brand.brand_voice_rules ? `Voice/Audience: ${toCompactText(brand.brand_voice_rules, 4000)}` : "",
     brand.brand_brief ? `Brand Brief: ${toCompactText(brand.brand_brief, 8000)}` : "",
+    exampleCopyBlock
+      ? `EXAMPLE COPY MENU (multiple options — read EVERY line, then pick the ONE that best fits the reference's mood, layout, and creative direction; you may also lightly adapt or remix lines, but do NOT default to the first entry, do NOT ignore the rest):\n${exampleCopyBlock}`
+      : "",
     nevers.content ? `CONTENT NEVERS (copy): ${toCompactText(nevers.content, 2000)}` : "",
     nevers.visual ? `VISUAL NEVERS (image): ${toCompactText(nevers.visual, 2000)}` : "",
     nevers.general ? `NEVER include: ${toCompactText(nevers.general, 3000)}` : "",
