@@ -1512,6 +1512,210 @@ async function generateCreative(
 // ─────────────────────────────────────────────────────
 // Main handler
 // ─────────────────────────────────────────────────────
+// Long-running pipeline extracted so it can run in the background via
+// EdgeRuntime.waitUntil(). Image generation can take >150s (the edge runtime
+// idle timeout), which previously surfaced to the client as a 504
+// IDLE_TIMEOUT even though the work succeeded server-side. We now return 202
+// immediately and the client polls the `generations` row for completion.
+async function runGenerationPipeline(params: {
+  brandId: string;
+  referenceImageUrl: string;
+  generationId: string;
+  outputFormat: string;
+  apiKey: string;
+  usingKie: boolean;
+}) {
+  const { brandId, referenceImageUrl, generationId, outputFormat, apiKey } = params;
+  const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const markFailed = async (reason: string) => {
+    console.error(`[gen ${generationId}] FAILED:`, reason);
+    await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
+  };
+
+  try {
+    // Re-fetch user for credit accounting
+    const { data: genRec } = await supabase
+      .from("generations")
+      .select("user_id")
+      .eq("id", generationId)
+      .single();
+    const generationUserId: string | null = genRec?.user_id ?? null;
+
+    // Fetch brand + assets in parallel
+    const [brandRes, assetsRes] = await Promise.all([
+      supabase.from("brands").select("*").eq("id", brandId).single(),
+      supabase.from("brand_assets").select("image_url, label").eq("brand_id", brandId),
+    ]);
+
+    if (brandRes.error || !brandRes.data) {
+      await markFailed("Brand not found");
+      return;
+    }
+
+    const brand = brandRes.data;
+    const SUPPORTED_IMAGE_EXTS = /\.(png|jpe?g|webp|gif)(\?.*)?$/i;
+    const brandAssets = (assetsRes.data || []).filter((a: any) => {
+      if (!a.image_url) return false;
+      try {
+        const pathname = new URL(a.image_url).pathname;
+        if (!SUPPORTED_IMAGE_EXTS.test(pathname)) return false;
+      } catch {
+        if (!SUPPORTED_IMAGE_EXTS.test(a.image_url)) return false;
+      }
+      return true;
+    });
+
+    const { data: existingGeneration } = await supabase
+      .from("generations")
+      .select("status, layout_guide, copywriting, output_image_url")
+      .eq("id", generationId)
+      .maybeSingle();
+
+    const existingFramework = parseStoredFramework(existingGeneration?.layout_guide);
+
+    // ── Step 1: Analyze ──
+    let framework: Record<string, unknown>;
+    if (existingFramework) {
+      framework = existingFramework;
+      await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+    } else {
+      await supabase.from("generations").update({ status: "analyzing" }).eq("id", generationId);
+      try {
+        framework = await analyzeFramework(referenceImageUrl, apiKey, spec.aspectRatio);
+      } catch (err) {
+        await markFailed(`Framework analysis failed: ${err instanceof Error ? err.message : err}`);
+        return;
+      }
+
+      await supabase
+        .from("generations")
+        .update({
+          layout_guide: JSON.stringify(framework),
+          status: "adapting",
+          output_format: outputFormat,
+          requested_aspect_ratio: spec.aspectRatio,
+          requested_width: spec.width,
+          requested_height: spec.height,
+        })
+        .eq("id", generationId);
+    }
+
+    // ── Step 2: Adapt ──
+    let directive: CreativeDirective | null = null;
+    try {
+      await supabase.from("generations").update({ status: "adapting" }).eq("id", generationId);
+      directive = await adaptDirective(framework, brand, brandAssets, referenceImageUrl, spec, apiKey);
+    } catch (err) {
+      console.warn("Adapt step failed, falling back to direct generation:", err);
+    }
+
+    // ── Step 3: Generate ──
+    await supabase.from("generations").update({ status: "generating" }).eq("id", generationId);
+
+    let imageBase64: string;
+    let captionText: string;
+    try {
+      const result = await generateCreative(
+        framework, brand, brandAssets, referenceImageUrl, spec, apiKey, directive
+      );
+      imageBase64 = result.imageBase64;
+      captionText = result.captionText;
+    } catch (err: any) {
+      await markFailed(err?.message || "AI generation failed");
+      return;
+    }
+
+    let finalImageBase64 = imageBase64;
+    let base64Data = finalImageBase64.replace(/^data:image\/\w+;base64,/, "");
+    let imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    let actualDims = extractImageDimensions(imageBytes);
+    let ratioMatch = actualDims ? isAspectRatioMatch(actualDims, spec) : null;
+
+    if (ratioMatch === false && actualDims) {
+      await supabase.from("generations").update({ status: "retrying_aspect_ratio" }).eq("id", generationId);
+      try {
+        const retryResult = await generateCreative(
+          framework, brand, brandAssets, referenceImageUrl, spec, apiKey, directive
+        );
+        const retryBase64 = retryResult.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const retryBytes = Uint8Array.from(atob(retryBase64), (c) => c.charCodeAt(0));
+        const retryDims = extractImageDimensions(retryBytes);
+        const retryMatch = retryDims ? isAspectRatioMatch(retryDims, spec) : null;
+        if (retryMatch !== false) {
+          finalImageBase64 = retryResult.imageBase64;
+          base64Data = retryBase64;
+          imageBytes = retryBytes;
+          actualDims = retryDims;
+          ratioMatch = retryMatch;
+          if (retryResult.captionText) captionText = retryResult.captionText;
+        }
+      } catch (retryErr) {
+        console.warn("Aspect ratio retry failed:", retryErr);
+      }
+    }
+
+    const outputPath = `generations/${generationId}.png`;
+    const { error: uploadError } = await supabase.storage
+      .from("brand-assets")
+      .upload(outputPath, imageBytes, { contentType: "image/png", upsert: true });
+
+    if (uploadError) {
+      await markFailed(`Upload failed: ${uploadError.message}`);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from("brand-assets").getPublicUrl(outputPath);
+
+    const finalCaption =
+      captionText ||
+      (directive ? `${directive.headline}\n${directive.subcopy}\n${directive.cta_text}` : "");
+
+    const copywritingData: Record<string, any> = { caption: finalCaption };
+    if (ratioMatch === false) {
+      copywritingData.aspect_ratio_mismatch = true;
+      copywritingData.qc_issues = [
+        `Aspect ratio mismatch: expected ${spec.aspectRatio} (${spec.width}×${spec.height}), got ${actualDims?.width}×${actualDims?.height}`
+      ];
+    }
+
+    const { error: updateError } = await supabase
+      .from("generations")
+      .update({
+        output_image_url: publicUrlData.publicUrl,
+        layout_guide: JSON.stringify(framework),
+        copywriting: copywritingData,
+        status: "completed",
+        output_format: outputFormat,
+        requested_aspect_ratio: spec.aspectRatio,
+        requested_width: spec.width,
+        requested_height: spec.height,
+        actual_width: actualDims?.width ?? 0,
+        actual_height: actualDims?.height ?? 0,
+      })
+      .eq("id", generationId);
+
+    if (updateError) {
+      console.error("CRITICAL: Final DB update failed!", updateError);
+    }
+
+    if (generationUserId) {
+      const { error: creditErr } = await supabase.rpc("deduct_credit", { _user_id: generationUserId });
+      if (creditErr) console.error("Credit deduction failed (non-blocking):", creditErr);
+      else console.log("Deducted 1 credit for user", generationUserId);
+    }
+
+    console.log(`[gen ${generationId}] completed`);
+  } catch (e) {
+    await markFailed(e instanceof Error ? e.message : "Unknown background error");
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
@@ -1519,46 +1723,37 @@ serve(async (req) => {
   try {
     const { brandId, referenceImageUrl, generationId, outputFormat = "landscape" } =
       await req.json();
-    const spec = FORMAT_SPECS[outputFormat] || FORMAT_SPECS.landscape;
 
-    // Use kie.ai API key (primary) with Lovable AI as fallback
+    if (!brandId || !referenceImageUrl || !generationId) {
+      return new Response(
+        JSON.stringify({ error: "brandId, referenceImageUrl, and generationId are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const KIE_KEY = Deno.env.get("KIE_API_KEY");
     const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
     const apiKey = KIE_KEY || LOVABLE_KEY;
-    if (!apiKey) throw new Error("No AI API key configured (KIE_API_KEY or LOVABLE_API_KEY)");
-
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "No AI API key configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const usingKie = !!KIE_KEY;
-    console.log(`Using AI provider: ${usingKie ? "kie.ai" : "Lovable AI (fallback)"}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // If the client closes the tab/cancels the request mid-flight, mark the
-    // row as failed so it doesn't sit in "processing" forever.
-    if (generationId) {
-      req.signal.addEventListener("abort", () => {
-        console.warn("Client aborted — marking generation", generationId, "as failed");
-        supabase
-          .from("generations")
-          .update({ status: "failed" })
-          .eq("id", generationId)
-          .eq("status", "processing")
-          .then(() => {});
-      });
-    }
-
-    // ── Credit check ──
-    let generationUserId: string | null = null;
-    if (generationId) {
-      const { data: genRec } = await supabase
-        .from("generations")
-        .select("user_id")
-        .eq("id", generationId)
-        .single();
-      generationUserId = genRec?.user_id ?? null;
-    }
+    // ── Pre-flight: credit check (synchronous so we can return 402 immediately) ──
+    const { data: genRec } = await supabase
+      .from("generations")
+      .select("user_id")
+      .eq("id", generationId)
+      .single();
+    const generationUserId: string | null = genRec?.user_id ?? null;
 
     if (generationUserId) {
       const { data: creditData } = await supabase
@@ -1568,7 +1763,6 @@ serve(async (req) => {
         .single();
 
       if (creditData && creditData.credits_remaining <= 0) {
-        console.log("User has no credits remaining, rejecting generation");
         await supabase.from("generations").update({ status: "failed" }).eq("id", generationId);
         return new Response(
           JSON.stringify({ error: "No credits remaining" }),
@@ -1576,6 +1770,58 @@ serve(async (req) => {
         );
       }
     }
+
+    // ── Kick off the long-running pipeline in the background ──
+    // EdgeRuntime.waitUntil keeps the worker alive after we send the response,
+    // so kie.ai polling (often >150s) no longer hits the request idle timeout.
+    const work = runGenerationPipeline({
+      brandId,
+      referenceImageUrl,
+      generationId,
+      outputFormat,
+      apiKey,
+      usingKie,
+    });
+
+    // @ts-ignore – EdgeRuntime is provided by the Supabase edge runtime
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(work);
+    } else {
+      // Fallback: detach so the response isn't blocked
+      work.catch((err) => console.error("Background pipeline error:", err));
+    }
+
+    return new Response(
+      JSON.stringify({
+        status: "accepted",
+        generationId,
+        message: "Generation started — poll the generations row for completion.",
+      }),
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (e) {
+    console.error("generate-creative OUTER error:", e);
+    try {
+      const body = await req.clone().json().catch(() => ({}));
+      const gId = body?.generationId;
+      if (gId) {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        await supabase.from("generations").update({ status: "failed" }).eq("id", gId);
+      }
+    } catch (cleanupErr) {
+      console.error("Failed to mark generation as failed:", cleanupErr);
+    }
+
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
 
     // Fetch brand + assets in parallel
     const [brandRes, assetsRes] = await Promise.all([
