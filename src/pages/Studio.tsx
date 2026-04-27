@@ -249,21 +249,33 @@ export default function Studio() {
       const waitForServerSideResult = async (
         timeoutMs = 90000,
         intervalMs = 2500,
+        onTick?: (elapsedMs: number) => void,
       ): Promise<{ imageUrl: string; caption: string } | "failed" | null> => {
-        const deadline = Date.now() + timeoutMs;
+        const start = Date.now();
+        const deadline = start + timeoutMs;
+        let consecutiveQueryErrors = 0;
         while (Date.now() < deadline) {
-          const { data: row } = await supabase
+          const { data: row, error: queryError } = await supabase
             .from("generations")
             .select("status, output_image_url, copywriting")
             .eq("id", gen.id)
             .maybeSingle();
-          if (row) {
+          if (queryError) {
+            // Transient network error querying the row — keep polling instead
+            // of giving up. The background job may still complete.
+            consecutiveQueryErrors++;
+            if (consecutiveQueryErrors > 10) return null;
+          } else if (row) {
+            consecutiveQueryErrors = 0;
             if (row.status === "completed" && row.output_image_url) {
               const cw: any = row.copywriting;
               return { imageUrl: row.output_image_url, caption: cw?.caption ?? "" };
             }
             if (row.status === "failed") return "failed";
+            // status === "processing" → keep polling, do NOT bail just because
+            // imageUrl is empty.
           }
+          if (onTick) onTick(Date.now() - start);
           await new Promise((r) => setTimeout(r, intervalMs));
         }
         return null;
@@ -295,23 +307,35 @@ export default function Studio() {
         fnData = response?.data ?? null;
         fnError = response?.error ?? invokeThrew ?? null;
 
-        // The edge function now returns 202 {status:"accepted"} immediately
-        // and runs the heavy work in the background to avoid the 150s edge
-        // idle timeout. When we see that, poll the generations row for the
-        // final result instead of treating it as missing data.
+        // The edge function returns 202 {status:"accepted"} immediately and
+        // runs the heavy work in the background to avoid the 150s edge idle
+        // timeout. Poll the generations row until it's completed/failed —
+        // never treat a 202 with no imageUrl as a failure.
         if (!fnError && fnData && fnData.status === "accepted" && !fnData.imageUrl) {
           setProgressPhase("Generating your creative — this can take 1–3 minutes...");
-          const recovered = await waitForServerSideResult(240000, 3000);
+          const recovered = await waitForServerSideResult(
+            300000, // 5 minutes — generation can occasionally exceed 3 min
+            3000,
+            (elapsedMs) => {
+              const sec = Math.floor(elapsedMs / 1000);
+              setProgressPhase(`Generating your creative — ${sec}s elapsed (background job running)...`);
+            },
+          );
           if (recovered && recovered !== "failed") {
             fnData = recovered;
+            fnError = null;
             invokeErrorMessage = "";
             break;
           }
           if (recovered === "failed") {
             invokeErrorMessage = "Generation failed";
+            fnError = null;
             break;
           }
-          invokeErrorMessage = "Generation is taking longer than expected. Check History in a moment.";
+          // Still processing after 5 minutes — surface a soft message but
+          // don't claim outright failure since the job may still complete.
+          invokeErrorMessage = "Generation is taking longer than expected. It may still finish — check History in a moment.";
+          fnError = null;
           break;
         }
 
