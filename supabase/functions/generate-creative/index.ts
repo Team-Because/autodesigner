@@ -22,6 +22,20 @@ const KIE_TASK_STATUS = `${KIE_API_BASE}/api/v1/jobs/recordInfo`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function throwIfKieApiError(payload: any) {
+  const code = Number(payload?.code);
+  const message = String(payload?.msg || payload?.message || "");
+  if (code === 402 || /credit|balance|top up|insufficient/i.test(message)) {
+    throw new Error("CREDITS_EXHAUSTED");
+  }
+  if (code === 429 || /rate limit|too many/i.test(message)) {
+    throw new Error("KIE_RATE_LIMITED");
+  }
+  if (payload && payload.code !== undefined && code !== 200 && code !== 0) {
+    throw new Error(message || `kie.ai API error (${payload.code})`);
+  }
+}
+
 // Extract width/height from PNG header bytes (first 24 bytes contain IHDR)
 function extractPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
   if (bytes.length < 24) return null;
@@ -207,7 +221,9 @@ async function kieChat(
     throw new Error(`kie.ai chat failed (${response.status})`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  throwIfKieApiError(data);
+  return data;
 }
 
 // ─── kie.ai Image Generation (async task API) ───
@@ -257,6 +273,7 @@ async function kieGenerateImage(
   }
 
   const createData = await createRes.json();
+  throwIfKieApiError(createData);
   const taskId = createData?.data?.taskId || createData?.taskId;
   if (!taskId) {
     console.error("No taskId in kie.ai response:", JSON.stringify(createData));
