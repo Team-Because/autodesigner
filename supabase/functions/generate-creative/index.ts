@@ -194,7 +194,24 @@ function extractStoredCaption(copywriting: unknown): string {
 
 function toCompactText(value: unknown, maxChars: number): string {
   if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim().slice(0, maxChars);
+  // Preserve newlines so list items / multi-line sections (e.g. EXAMPLE COPY)
+  // remain visually distinct to the LLM. Only collapse horizontal whitespace
+  // and limit runs of blank lines.
+  const normalized = value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return normalized.slice(0, maxChars);
+}
+
+// Extract the "## EXAMPLE COPY" section from a brand brief blob.
+// Returns the raw inner text (preserving line breaks between distinct entries).
+function extractExampleCopy(brief: string | null | undefined): string {
+  if (!brief || !brief.trim()) return "";
+  const m = brief.match(/##\s*EXAMPLE COPY\s*\n([\s\S]*?)(?=\n##\s|$)/i);
+  return m ? m[1].trim() : "";
 }
 
 // ─── kie.ai Chat API helper (OpenAI-compatible) ───
