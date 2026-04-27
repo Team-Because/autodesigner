@@ -231,6 +231,21 @@ export default function Studio() {
       // edge function finished its work but the HTTP response never reached us
       // (worker shutdown, gateway timeout, transient 5xx). We always read the
       // DB before declaring an error.
+      const readFunctionErrorPayload = async (error: any) => {
+        const context = error?.context;
+        if (!context?.json) return null;
+        try {
+          return await context.json();
+        } catch {
+          return null;
+        }
+      };
+
+      const getReadableInvokeError = async (error: any, fallback = "Generation failed") => {
+        const payload = await readFunctionErrorPayload(error);
+        return payload?.error || error?.message || fallback;
+      };
+
       const waitForServerSideResult = async (
         timeoutMs = 90000,
         intervalMs = 2500,
@@ -301,6 +316,10 @@ export default function Studio() {
           // Fall through to existing retry logic below.
         }
 
+        if (fnError && ((fnError as any).message || "").includes("non-2xx")) {
+          invokeErrorMessage = await getReadableInvokeError(fnError, invokeErrorMessage || "Generation failed");
+        }
+
         const fallbackPayload =
           fnData && typeof fnData === "object" && fnData.fallback ? fnData : null;
 
@@ -325,7 +344,7 @@ export default function Studio() {
         
         if (!fnError) break;
 
-        let errorMessage = fnError.message || "Generation failed";
+        let errorMessage = (await getReadableInvokeError(fnError)) || "Generation failed";
         const context = (fnError as any).context;
         let retryable = false;
         let retryAfterSeconds = 0;
