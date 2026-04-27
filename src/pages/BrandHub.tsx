@@ -33,7 +33,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderPlus, Folder, MoreVertical, X, Copy, Loader2, Search, ChevronDown, Sparkles, Archive, ArchiveRestore, Eye, EyeOff, GitMerge, ArrowRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -56,6 +63,10 @@ export default function BrandHub() {
   const [showArchived, setShowArchived] = useState(false);
   const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; type: "group" } | null>(null);
+  const [mergeSource, setMergeSource] = useState<{ id: string; name: string } | null>(null);
+  const [mergeDestId, setMergeDestId] = useState<string>("");
+  const [merging, setMerging] = useState(false);
+  const [mergeCreativeCount, setMergeCreativeCount] = useState<number | null>(null);
 
   const { data: brands = [], isLoading: brandsLoading } = useQuery({
     queryKey: ["brands", user?.id],
@@ -124,6 +135,65 @@ export default function BrandHub() {
       toast.success(`"${name}" restored.`);
       log("brand.unarchived", "brand", id, { name });
       queryClient.invalidateQueries({ queryKey: ["brands"] });
+    }
+  };
+
+  const openMergeDialog = async (id: string, name: string) => {
+    setMergeSource({ id, name });
+    setMergeDestId("");
+    setMergeCreativeCount(null);
+    // Fetch creative count for this brand so we can show it in the dialog.
+    const { count } = await supabase
+      .from("generations")
+      .select("id", { count: "exact", head: true })
+      .eq("brand_id", id);
+    setMergeCreativeCount(count ?? 0);
+  };
+
+  const handleMerge = async () => {
+    if (!mergeSource || !mergeDestId || mergeDestId === mergeSource.id) return;
+    setMerging(true);
+    try {
+      const destBrand = brands.find((b) => b.id === mergeDestId);
+      if (!destBrand) throw new Error("Destination brand not found");
+
+      // 1. Reassign all generations from source -> destination.
+      // generations.user_id stays the same (RLS allows owner updates).
+      const { error: genErr } = await supabase
+        .from("generations")
+        .update({ brand_id: mergeDestId })
+        .eq("brand_id", mergeSource.id);
+      if (genErr) throw genErr;
+
+      // 2. Archive the source brand (its setup is preserved but hidden;
+      // we never hard-delete to avoid breaking any historical references).
+      const { error: archErr } = await supabase
+        .from("brands")
+        .update({ archived: true })
+        .eq("id", mergeSource.id);
+      if (archErr) throw archErr;
+
+      log("brand.merged", "brand", mergeSource.id, {
+        source_name: mergeSource.name,
+        destination_id: mergeDestId,
+        destination_name: destBrand.name,
+        creatives_transferred: mergeCreativeCount ?? 0,
+      });
+
+      toast.success(
+        `Merged "${mergeSource.name}" into "${destBrand.name}". ${
+          mergeCreativeCount ?? 0
+        } creative${mergeCreativeCount === 1 ? "" : "s"} transferred.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      queryClient.invalidateQueries({ queryKey: ["generations"] });
+      setMergeSource(null);
+      setMergeDestId("");
+      setMergeCreativeCount(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to merge brands.");
+    } finally {
+      setMerging(false);
     }
   };
 
@@ -303,9 +373,14 @@ export default function BrandHub() {
                   <ArchiveRestore className="h-3.5 w-3.5" /> Restore brand
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
-                  <Archive className="h-3.5 w-3.5" /> Archive
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => openMergeDialog(brand.id, brand.name)} className="gap-2">
+                    <GitMerge className="h-3.5 w-3.5" /> Merge into another brand…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setArchiveConfirm({ id: brand.id, name: brand.name })} className="text-destructive focus:text-destructive gap-2">
+                    <Archive className="h-3.5 w-3.5" /> Archive
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -581,6 +656,110 @@ export default function BrandHub() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <Dialog
+      open={!!mergeSource}
+      onOpenChange={(open) => {
+        if (!open && !merging) {
+          setMergeSource(null);
+          setMergeDestId("");
+          setMergeCreativeCount(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitMerge className="h-4 w-4" /> Merge brand
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-foreground truncate">
+                {mergeSource?.name}
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">choose destination below</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {mergeCreativeCount === null
+                ? "Counting creatives…"
+                : `${mergeCreativeCount} creative${mergeCreativeCount === 1 ? "" : "s"} will be transferred to the destination brand.`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">
+              Destination brand
+            </label>
+            <Select value={mergeDestId} onValueChange={setMergeDestId}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select a brand to merge into…" />
+              </SelectTrigger>
+              <SelectContent>
+                {brands
+                  .filter(
+                    (b) =>
+                      b.id !== mergeSource?.id && !(b as any).archived
+                  )
+                  .map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                {brands.filter(
+                  (b) => b.id !== mergeSource?.id && !(b as any).archived
+                ).length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No other active brands available.
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-foreground space-y-1">
+            <p className="font-medium">What happens when you merge:</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+              <li>All creatives from "{mergeSource?.name}" move to the destination brand's history.</li>
+              <li>The source brand setup (logo, colors, brief, assets) is archived — not deleted — so nothing is lost.</li>
+              <li>You can restore the archived brand later from the Archived view.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            disabled={merging}
+            onClick={() => {
+              setMergeSource(null);
+              setMergeDestId("");
+              setMergeCreativeCount(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="rounded-xl gradient-primary hover:gradient-primary-hover text-primary-foreground"
+            disabled={!mergeDestId || merging}
+            onClick={handleMerge}
+          >
+            {merging ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Merging…
+              </>
+            ) : (
+              <>
+                <GitMerge className="h-3.5 w-3.5 mr-2" /> Merge & archive source
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
