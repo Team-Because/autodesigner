@@ -1083,6 +1083,8 @@ ASSET SELECTION RULES:
 COPY RULES:
 - Headlines must be original, punchy, and aligned to the CREATIVE DIRECTION above
 - ALL text MUST come from the brand brief and brand data
+- If an "EXAMPLE COPY MENU" is provided, treat it as a pool of pre-approved options. Scan the FULL list, then pick (or lightly adapt) the entry that best matches the reference's mood, layout zones (headline length, subcopy length, CTA tone) and the CREATIVE DIRECTION for this generation. Do not default to the first entry. Do not ignore later entries. Different references should map to different entries.
+- You may remix words across entries or tighten phrasing to fit the layout, but stay within the brand's voice and the menu's intent.
 - CTA should be actionable and brand-appropriate
 - DO NOT repeat the same headlines across generations — be creative and varied
 
